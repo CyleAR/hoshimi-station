@@ -1,0 +1,640 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import importlib.util
+import json
+import re
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MASTERDB_DIR = ROOT / "res" / "masterdb"
+ADV_DIR = ROOT / "res" / "adv" / "resource"
+DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
+
+
+def load_ipr_rules() -> tuple[dict[str, Any], list[re.Pattern[str]]]:
+    path = ROOT / "note-scripts" / "ipr_rules.py"
+    spec = importlib.util.spec_from_file_location("ipr_rules", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.IPR_RULES, module.IPR_IGNORE_PATTERNS
+
+
+IPR_RULES, IPR_IGNORE_PATTERNS = load_ipr_rules()
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def read_json(path: Path) -> list[dict[str, Any]]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    rows = data.get("data", data) if isinstance(data, dict) else data
+    return rows if isinstance(rows, list) else []
+
+
+def should_ignore(text: Any) -> bool:
+    if not isinstance(text, str) or not text.strip():
+        return True
+    stripped = text.strip()
+    if stripped == "{user}":
+        return True
+    return any(pattern.match(stripped) for pattern in IPR_IGNORE_PATTERNS)
+
+
+def serialize_leaf(value: Any) -> str | None:
+    if isinstance(value, str):
+        return None if should_ignore(value) else value
+    if isinstance(value, list) and all(isinstance(x, (str, int, float)) for x in value):
+        text = "[LA_F]" + "[LA_N_F]".join(str(x) for x in value)
+        return None if should_ignore(text) else text
+    return None
+
+
+def pk_value(item: dict[str, Any], pk_fields: list[str]) -> str:
+    return "_".join(str(item.get(field, "0")) for field in pk_fields)
+
+
+def cache_key(category: str, row: dict[str, Any]) -> str:
+    if category == "CardEvolutionMessage":
+        return pk_value(row, ["cardId", "evolutionLevel", "number"])
+    if category == "HomeTalkCallPattern":
+        return pk_value(row, ["characterId", "patternId"])
+    return str(row.get("id") or row.get("homeTalkId") or pk_value(row, ["id"]))
+
+
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS entities (
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            label TEXT NOT NULL,
+            subtitle TEXT NOT NULL DEFAULT '',
+            meta_json TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY(entity_type, entity_id)
+        );
+        CREATE TABLE IF NOT EXISTS links (
+            from_type TEXT NOT NULL,
+            from_id TEXT NOT NULL,
+            to_type TEXT NOT NULL,
+            to_id TEXT NOT NULL,
+            relation TEXT NOT NULL,
+            meta_json TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY(from_type, from_id, to_type, to_id, relation)
+        );
+        CREATE TABLE IF NOT EXISTS translation_units (
+            unit_id TEXT PRIMARY KEY,
+            source_type TEXT NOT NULL,
+            category TEXT NOT NULL,
+            source_file TEXT NOT NULL,
+            record_id TEXT NOT NULL,
+            field_path TEXT NOT NULL,
+            line_no INTEGER,
+            speaker TEXT NOT NULL DEFAULT '',
+            original_text TEXT NOT NULL,
+            translation_text TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'new',
+            scope_type TEXT NOT NULL DEFAULT 'category',
+            scope_id TEXT NOT NULL DEFAULT '',
+            context_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_units_category ON translation_units(category);
+        CREATE INDEX IF NOT EXISTS idx_units_scope ON translation_units(scope_type, scope_id);
+        CREATE INDEX IF NOT EXISTS idx_units_source ON translation_units(source_type, source_file);
+        CREATE INDEX IF NOT EXISTS idx_links_from ON links(from_type, from_id);
+        CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_type, to_id);
+        """
+    )
+
+
+def table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
+def preserve_existing_translations(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP TABLE IF EXISTS temp.saved_translations")
+    if not table_exists(conn, "translation_units"):
+        return
+    conn.execute(
+        """
+        CREATE TEMP TABLE saved_translations AS
+        SELECT unit_id, original_text, translation_text, status, updated_at
+        FROM translation_units
+        WHERE translation_text <> '' OR status <> 'new'
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX saved_translations_lookup
+        ON saved_translations(unit_id, original_text)
+        """
+    )
+
+
+def restore_existing_translations(conn: sqlite3.Connection) -> None:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_temp_master WHERE type = 'table' AND name = 'saved_translations'",
+    ).fetchone()
+    if row is None:
+        return
+    conn.execute(
+        """
+        UPDATE translation_units
+        SET translation_text = (
+                SELECT saved.translation_text
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                  AND saved.original_text = translation_units.original_text
+            ),
+            status = (
+                SELECT saved.status
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                  AND saved.original_text = translation_units.original_text
+            ),
+            updated_at = (
+                SELECT saved.updated_at
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                  AND saved.original_text = translation_units.original_text
+            )
+        WHERE EXISTS (
+            SELECT 1
+            FROM saved_translations saved
+            WHERE saved.unit_id = translation_units.unit_id
+              AND saved.original_text = translation_units.original_text
+        )
+        """
+    )
+
+
+def upsert_entity(conn: sqlite3.Connection, typ: str, entity_id: str, label: str, subtitle: str = "", meta: dict[str, Any] | None = None) -> None:
+    compact_meta: dict[str, Any] = {}
+    if isinstance(meta, dict):
+        for key in ("order", "initialRarity", "assetId", "characterId", "cardId", "messageGroupId", "extraStoryPartId"):
+            if key in meta:
+                compact_meta[key] = meta[key]
+    conn.execute(
+        """
+        INSERT INTO entities(entity_type, entity_id, label, subtitle, meta_json)
+        VALUES(?, ?, ?, ?, ?)
+        ON CONFLICT(entity_type, entity_id) DO UPDATE SET
+          label=excluded.label, subtitle=excluded.subtitle, meta_json=excluded.meta_json
+        """,
+        (typ, entity_id, label or entity_id, subtitle or "", json.dumps(compact_meta, ensure_ascii=False)),
+    )
+
+
+def add_link(conn: sqlite3.Connection, from_type: str, from_id: str, to_type: str, to_id: str, relation: str, meta: dict[str, Any] | None = None) -> None:
+    if not from_id or not to_id:
+        return
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO links(from_type, from_id, to_type, to_id, relation, meta_json)
+        VALUES(?, ?, ?, ?, ?, ?)
+        """,
+        (from_type, from_id, to_type, to_id, relation, json.dumps(meta or {}, ensure_ascii=False)),
+    )
+
+
+def adv_filename(asset_id: Any) -> str:
+    return f"adv_{asset_id}.txt"
+
+
+def adv_filenames(asset_id: Any) -> list[str]:
+    if not asset_id:
+        return []
+    exact = adv_filename(asset_id)
+    if (ADV_DIR / exact).exists():
+        return [exact]
+    split = sorted(path.name for path in ADV_DIR.glob(f"adv_{asset_id}_*.txt") if re.search(r"_\d+\.txt$", path.name))
+    return split
+
+
+def add_adv_link(conn: sqlite3.Connection, from_type: str, from_id: str, asset_id: Any, relation: str, meta: dict[str, Any] | None = None) -> None:
+    for filename in adv_filenames(asset_id):
+        add_link(conn, from_type, from_id, "adv_file", filename, relation, meta)
+
+
+def link_short_card_advs(conn: sqlite3.Connection) -> None:
+    for path in ADV_DIR.glob("adv_card_*_short.txt"):
+        short_name = path.name
+        base_name = short_name.replace("_short.txt", ".txt")
+        if not (ADV_DIR / base_name).exists():
+            continue
+        rows = conn.execute(
+            """
+            SELECT from_type, from_id, relation, meta_json
+            FROM links
+            WHERE to_type = 'adv_file' AND to_id = ?
+            """,
+            (base_name,),
+        ).fetchall()
+        for from_type, from_id, relation, meta_json in rows:
+            meta = json.loads(meta_json or "{}")
+            meta["baseAdvFile"] = base_name
+            add_link(conn, from_type, from_id, "adv_file", short_name, f"{relation}_short", meta)
+
+
+def infer_scope(category: str, item: dict[str, Any]) -> tuple[str, str]:
+    if category == "CardEvolutionMessage":
+        return "card_evolution_message", pk_value(item, ["cardId", "evolutionLevel", "number"])
+    if category == "HomeTalkCallPattern":
+        return "call_pattern", pk_value(item, ["characterId", "patternId"])
+    direct = {
+        "CharacterGroup": "group",
+        "MessageGroup": "message_group",
+        "Story": "story",
+        "StoryPart": "story_part",
+        "EventStory": "story_collection",
+        "ExtraStory": "story_collection",
+        "Message": "message",
+        "HomeTalk": "home_talk",
+        "HomeTalkCallPattern": "call_pattern",
+        "Telephone": "telephone",
+        "Skill": "skill",
+        "SkillEfficacy": "skill_efficacy",
+        "LiveAbility": "live_ability",
+        "ActivityAbility": "activity_ability",
+        "CardEvolutionMessage": "card_evolution_message",
+    }
+    if category in direct:
+        entity_id = item.get("id") or item.get("homeTalkId")
+        if entity_id:
+            return direct[category], str(entity_id)
+    if category == "Character" and item.get("id"):
+        return "character", str(item["id"])
+    if category == "Card" and item.get("id"):
+        return "card", str(item["id"])
+    if item.get("cardId"):
+        return "card", str(item["cardId"])
+    if item.get("characterId"):
+        return "character", str(item["characterId"])
+    return "category", category
+
+
+def iter_rule_paths(rule: dict[str, Any]) -> Iterable[tuple[list[str], str]]:
+    for field in rule.get("fields", {}):
+        yield [field], field
+    for nested_name, nested_rule in rule.get("nested", {}).items():
+        index_key = nested_rule.get("index_key", "index")
+        for field in nested_rule.get("fields", {}):
+            yield [nested_name, field], f"{nested_name}[{index_key}].{field}"
+
+
+def extract_path(item: Any, path: list[str], label_path: str) -> Iterable[tuple[str, str]]:
+    if not path:
+        text = serialize_leaf(item)
+        if text is not None:
+            yield label_path, text
+        return
+    key, rest = path[0], path[1:]
+    if isinstance(item, dict) and key in item:
+        yield from extract_path(item[key], rest, label_path)
+    elif isinstance(item, list):
+        for idx, child in enumerate(item):
+            if isinstance(child, dict) and key in child:
+                ident = child.get("id") or child.get("messageDetailId") or child.get("voiceAssetId") or child.get("level") or child.get("index") or idx
+                child_path = label_path.replace("[", f"[{ident};", 1) if "[" in label_path else label_path
+                yield from extract_path(child[key], rest, child_path)
+
+
+def unit_upsert(
+    conn: sqlite3.Connection,
+    unit_id: str,
+    source_type: str,
+    category: str,
+    source_file: str,
+    record_id: str,
+    field_path: str,
+    original: str,
+    *,
+    line_no: int | None = None,
+    speaker: str = "",
+    scope_type: str = "category",
+    scope_id: str = "",
+    context: dict[str, Any] | None = None,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO translation_units(
+          unit_id, source_type, category, source_file, record_id, field_path, line_no,
+          speaker, original_text, scope_type, scope_id, context_json, updated_at
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(unit_id) DO UPDATE SET
+          category=excluded.category,
+          source_file=excluded.source_file,
+          record_id=excluded.record_id,
+          field_path=excluded.field_path,
+          line_no=excluded.line_no,
+          speaker=excluded.speaker,
+          original_text=excluded.original_text,
+          scope_type=excluded.scope_type,
+          scope_id=excluded.scope_id,
+          context_json=excluded.context_json
+        """,
+        (
+            unit_id,
+            source_type,
+            category,
+            source_file,
+            record_id,
+            field_path,
+            line_no,
+            speaker,
+            original,
+            scope_type,
+            scope_id,
+            json.dumps(context or {}, ensure_ascii=False),
+            now(),
+        ),
+    )
+
+
+def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+    cache: dict[str, dict[str, Any]] = {}
+    for filename in MASTERDB_DIR.glob("*.json"):
+        cache[filename.stem] = {cache_key(filename.stem, row): row for row in read_json(filename)}
+
+    for row in cache.get("Character", {}).values():
+        upsert_entity(conn, "character", row["id"], row.get("name", row["id"]), row.get("enName", ""), row)
+        add_link(conn, "group", row.get("characterGroupId", ""), "character", row["id"], "member")
+
+    for row in cache.get("CharacterGroup", {}).values():
+        upsert_entity(conn, "group", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        for mapping in row.get("mappings", []) or []:
+            add_link(conn, "group", row["id"], "character", mapping.get("characterId", ""), "member", mapping)
+
+    for row in cache.get("MessageGroup", {}).values():
+        upsert_entity(conn, "message_group", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        for character_id in row.get("characterIds", []) or []:
+            add_link(conn, "character", character_id, "message_group", row["id"], "message_group")
+
+    for row in cache.get("HomeTalkCallPattern", {}).values():
+        entity_id = f"{row.get('characterId', '')}_{row.get('patternId', '')}"
+        upsert_entity(conn, "call_pattern", entity_id, row.get("managerCallText") or row.get("characterArrivalText") or entity_id, row.get("characterId", ""), row)
+        add_link(conn, "character", row.get("characterId", ""), "call_pattern", entity_id, "call_pattern")
+
+    for row in cache.get("Card", {}).values():
+        upsert_entity(conn, "card", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        add_link(conn, "character", row.get("characterId", ""), "card", row["id"], "has_card")
+        for key in ("skillId1", "skillId2", "skillId3", "skillId4"):
+            add_link(conn, "card", row["id"], "skill", row.get(key, ""), key)
+        add_link(conn, "card", row["id"], "live_ability", row.get("liveAbilityId", ""), "liveAbilityId")
+        add_link(conn, "card", row["id"], "activity_ability", row.get("activityAbilityId", ""), "activityAbilityId")
+        add_link(conn, "card", row["id"], "costume", row.get("rewardCostumeId", ""), "reward_costume")
+        for story in row.get("stories", []) or []:
+            add_link(conn, "card", row["id"], "story", story.get("storyId", ""), "card_story", story)
+        for message in row.get("messages", []) or []:
+            add_link(conn, "card", row["id"], "message", message.get("messageId", ""), "card_message", message)
+            add_link(conn, "card", row["id"], "telephone", message.get("telephoneId", ""), "card_telephone", message)
+        for home_talk in row.get("homeTalks", []) or []:
+            add_link(conn, "card", row["id"], "home_talk", home_talk.get("homeTalkId", ""), "card_home_talk", home_talk)
+
+    for typ, cat in (("story", "Story"), ("message", "Message"), ("home_talk", "HomeTalk"), ("telephone", "Telephone")):
+        for row in cache.get(cat, {}).values():
+            entity_id = str(row.get("id") or row.get("homeTalkId"))
+            upsert_entity(conn, typ, entity_id, row.get("name") or row.get("title") or entity_id, row.get("assetId", ""), row)
+            add_link(conn, "character", row.get("characterId", ""), typ, entity_id, f"has_{typ}")
+            add_link(conn, "card", row.get("cardId", ""), typ, entity_id, f"has_{typ}")
+            if typ in {"message", "telephone"}:
+                add_link(conn, typ, entity_id, "message_group", row.get("messageGroupId", ""), "in_group")
+                add_link(conn, "message_group", row.get("messageGroupId", ""), typ, entity_id, f"has_{typ}")
+
+    for row in cache.get("Skill", {}).values():
+        upsert_entity(conn, "skill", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+
+    for typ, cat in (("live_ability", "LiveAbility"), ("activity_ability", "ActivityAbility"), ("skill_efficacy", "SkillEfficacy")):
+        for row in cache.get(cat, {}).values():
+            upsert_entity(conn, typ, row["id"], row.get("name", row["id"]), row.get("description", ""), row)
+
+    for row in cache.get("Costume", {}).values():
+        upsert_entity(conn, "costume", row["id"], row.get("name", row["id"]), row.get("bodyAssetId", ""), row)
+        add_link(conn, "character", row.get("characterId", ""), "costume", row["id"], "has_costume")
+
+    for row in cache.get("CardEvolutionMessage", {}).values():
+        entity_id = f"{row.get('cardId', '')}_{row.get('evolutionLevel', '')}_{row.get('number', '')}"
+        upsert_entity(conn, "card_evolution_message", entity_id, row.get("evolveMessage", entity_id), row.get("cardId", ""), row)
+        add_link(conn, "card", row.get("cardId", ""), "card_evolution_message", entity_id, "evolution_message", row)
+        add_link(conn, "card", row.get("cardId", ""), "character", row.get("characterId", ""), "evolution_voice")
+
+    for row in cache.get("Story", {}).values():
+        for asset in row.get("advAssetIds", []) or []:
+            add_adv_link(conn, "story", row["id"], asset, "uses_adv")
+        for choice in row.get("branchChoices", []) or []:
+            add_adv_link(conn, "story", row["id"], choice.get("advAssetId"), "choice_adv", choice)
+
+    for row in cache.get("ExtraStoryPart", {}).values():
+        upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+
+    for cat in ("EventStory", "ExtraStory"):
+        for row in cache.get(cat, {}).values():
+            upsert_entity(conn, "story_collection", row["id"], row.get("name", row["id"]), row.get("description", ""), row)
+            add_link(conn, "story_part", row.get("extraStoryPartId", ""), "story_collection", row["id"], "contains")
+            for episode in row.get("episodes", []) or []:
+                add_link(conn, "story_collection", row["id"], "story", episode.get("storyId", ""), "episode", episode)
+                add_adv_link(conn, "story_collection", row["id"], episode.get("assetId"), "episode_adv", episode)
+
+    for row in cache.get("StoryPart", {}).values():
+        upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        for chapter in row.get("chapters", []) or []:
+            for episode in chapter.get("episodes", []) or []:
+                add_link(conn, "story_part", row["id"], "story", episode.get("storyId", ""), "chapter_episode", episode)
+                add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", episode)
+
+    for row in cache.get("LoveStoryEpisode", {}).values():
+        upsert_entity(conn, "love", row.get("loveId", ""), row.get("loveId", ""), "", row)
+        add_link(conn, "love", row.get("loveId", ""), "story", row.get("storyId", ""), "episode", row)
+        add_adv_link(conn, "love", row.get("loveId", ""), row.get("assetId"), "episode_adv", row)
+
+    for row in cache.get("Setting", {}).values():
+        upsert_entity(conn, "setting", row.get("id", "1"), row.get("tutorialAdvTitle") or row.get("id", "1"), row.get("tutorialAdvSubTitle", ""), row)
+        add_adv_link(conn, "setting", row.get("id", "1"), row.get("tutorialAdvAssetId"), "tutorial_adv", row)
+
+    link_short_card_advs(conn)
+
+    return cache
+
+
+def import_masterdb(conn: sqlite3.Connection) -> None:
+    for category, rule in IPR_RULES.items():
+        path = MASTERDB_DIR / f"{category}.json"
+        if not path.exists():
+            continue
+        pk_fields = rule.get("pk", ["id"])
+        for item in read_json(path):
+            if not isinstance(item, dict):
+                continue
+            record = pk_value(item, pk_fields)
+            scope_type, scope_id = infer_scope(category, item)
+            for parts, field_path in iter_rule_paths(rule):
+                for actual_path, original in extract_path(item, parts, field_path):
+                    unit_id = f"masterdb:{category}:{record}:{actual_path}"
+                    unit_upsert(
+                        conn,
+                        unit_id,
+                        "masterdb",
+                        category,
+                        path.name,
+                        record,
+                        actual_path,
+                        original,
+                        scope_type=scope_type,
+                        scope_id=scope_id,
+                        context={"pk": {key: item.get(key) for key in pk_fields}},
+                    )
+
+
+TAG_RE = re.compile(r"^\[(?P<tag>[a-zA-Z0-9_]+)\s*(?P<body>.*)\]$")
+ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
+
+
+def parse_attrs(body: str) -> dict[str, str]:
+    return {m.group("key"): m.group("value").strip() for m in ATTR_RE.finditer(body)}
+
+
+def adv_category(filename: str) -> str:
+    stem = filename.removeprefix("adv_").removesuffix(".txt")
+    return stem.split("_", 1)[0] if "_" in stem else stem
+
+
+def adv_scope(filename: str) -> tuple[str, str]:
+    stem = filename.removeprefix("adv_").removesuffix(".txt")
+    parts = stem.split("_")
+    if parts[0] == "bond" and len(parts) >= 2:
+        return "character", "char-" + parts[1]
+    if parts[0] == "hbd" and len(parts) >= 3:
+        return "character", "char-" + parts[2]
+    if parts[0] == "userhbd" and len(parts) >= 3:
+        return "character", "char-" + parts[2]
+    if parts[0] == "event" and len(parts) >= 4 and parts[1] == "cmn":
+        return "character", "char-" + parts[2]
+    if parts[0] == "event" and len(parts) >= 4 and re.fullmatch(r"\d{4}", parts[1]) and parts[2] == "02" and re.fullmatch(r"[a-z]{2,3}", parts[3]):
+        return "character", "char-" + parts[3]
+    return "adv_file", filename
+
+
+def adv_name_unit_id(filename: str, name: str) -> str:
+    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:12]
+    return f"adv:{filename}:name:{digest}"
+
+
+def import_adv(conn: sqlite3.Connection) -> None:
+    for path in sorted(ADV_DIR.glob("adv_*.txt")):
+        category = f"adv/{adv_category(path.name)}"
+        scope_type, scope_id = adv_scope(path.name)
+        upsert_entity(conn, "adv_file", path.name, path.name, category)
+        if scope_type != "adv_file":
+            add_link(conn, scope_type, scope_id, "adv_file", path.name, "has_adv")
+
+        order = 0
+        seen_names: set[str] = set()
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            match = TAG_RE.match(line)
+            if not match:
+                continue
+            tag = match.group("tag")
+            attrs = parse_attrs(match.group("body"))
+            name = attrs.get("name", "")
+            if tag in {"message", "narration"} and name and name not in seen_names and not should_ignore(name):
+                seen_names.add(name)
+                unit_upsert(
+                    conn,
+                    adv_name_unit_id(path.name, name),
+                    "adv",
+                    category,
+                    path.name,
+                    path.stem,
+                    "name",
+                    name,
+                    line_no=line_no,
+                    speaker=name,
+                    scope_type=scope_type,
+                    scope_id=scope_id,
+                    context={"tag": tag, "nameSource": "speaker"},
+                )
+            candidates: list[tuple[str, str, str]] = []
+            if tag in {"message", "narration"} and attrs.get("text"):
+                candidates.append(("text", attrs["text"], attrs.get("name", "__narration__")))
+            elif tag == "title" and attrs.get("title"):
+                candidates.append(("title", attrs["title"], "__title__"))
+            elif tag == "choicegroup":
+                for idx, text_match in enumerate(re.finditer(r"(?<![A-Za-z])text=(.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\])", match.group("body"))):
+                    candidates.append((f"choice[{idx}].text", text_match.group(1), ""))
+            for field, original, speaker in candidates:
+                if should_ignore(original):
+                    continue
+                order += 1
+                unit_id = f"adv:{path.name}:{order}:{field}"
+                unit_upsert(
+                    conn,
+                    unit_id,
+                    "adv",
+                    category,
+                    path.name,
+                    path.stem,
+                    field,
+                    original,
+                    line_no=line_no,
+                    speaker=speaker,
+                    scope_type=scope_type,
+                    scope_id=scope_id,
+                    context={"tag": tag, "order": order},
+                )
+
+
+def rebuild(db_path: Path) -> None:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        preserve_existing_translations(conn)
+        conn.executescript(
+            """
+            PRAGMA busy_timeout=5000;
+            DROP TABLE IF EXISTS translation_units;
+            DROP TABLE IF EXISTS links;
+            DROP TABLE IF EXISTS entities;
+            """
+        )
+        ensure_schema(conn)
+        seed_entities_and_links(conn)
+        import_masterdb(conn)
+        import_adv(conn)
+        restore_existing_translations(conn)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build the Hoshimi translation SQLite database.")
+    parser.add_argument("--db", type=Path, default=DB_PATH)
+    args = parser.parse_args()
+    rebuild(args.db)
+    conn = sqlite3.connect(args.db)
+    try:
+        units = conn.execute("SELECT COUNT(*) FROM translation_units").fetchone()[0]
+        entities = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+        links = conn.execute("SELECT COUNT(*) FROM links").fetchone()[0]
+        print(f"Built {args.db}")
+        print(f"translation_units={units} entities={entities} links={links}")
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    main()

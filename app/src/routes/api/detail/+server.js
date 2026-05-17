@@ -1,0 +1,248 @@
+import { all, get, json } from '$lib/server/db.js';
+
+const sectionMeta = {
+	direct: ['◈', '기본 프로필/정보'],
+	members: ['👤', '소속 멤버'],
+	cards: ['★', '소속 카드'],
+	skills: ['⚡', '스킬'],
+	costumes: ['▣', '의상'],
+	evolution: ['✦', '개화 대사'],
+	stories: ['📖', '연결 스토리'],
+	adv: ['▤', 'ADV 본문'],
+	common_messages: ['✉', '공통 문자'],
+	common_home_talks: ['⌂', '공통 홈 대화'],
+	common_telephones: ['☎', '공통 전화'],
+	call_patterns: ['☀', '접속 대사'],
+	card_messages: ['✉', '카드 문자'],
+	card_home_talks: ['⌂', '카드 홈 대화'],
+	card_telephones: ['☎', '카드 전화'],
+	group_messages: ['☷', '그룹 문자'],
+	group_telephones: ['☏', '그룹 통화'],
+	category: ['#', '카테고리']
+};
+
+function count(where, params) {
+	return get(
+		`SELECT COUNT(*) total,
+		        COALESCE(SUM(CASE WHEN translation_text <> '' THEN 1 ELSE 0 END), 0) done
+		 FROM translation_units
+		 WHERE ${where}`,
+		params
+	);
+}
+
+function section(key, where, params = {}, extra = {}) {
+	const [icon, label] = sectionMeta[key] ?? sectionMeta.direct;
+	const row = count(where, params);
+	return { key, icon, label, total: row.total ?? 0, done: row.done ?? 0, ...extra };
+}
+
+function directSection(type, id) {
+	const categoryByType = {
+		character: ['Character'],
+		group: ['CharacterGroup'],
+		card: ['Card'],
+		costume: ['Costume'],
+		skill: ['Skill'],
+		live_ability: ['LiveAbility'],
+		activity_ability: ['ActivityAbility'],
+		story: ['Story'],
+		story_part: ['StoryPart', 'ExtraStoryPart'],
+		story_collection: ['EventStory', 'ExtraStory'],
+		message_group: ['MessageGroup'],
+		message: ['Message'],
+		telephone: ['Telephone'],
+		home_talk: ['HomeTalk'],
+		call_pattern: ['HomeTalkCallPattern'],
+		card_evolution_message: ['CardEvolutionMessage']
+	};
+	const categories = categoryByType[type];
+	const params = { $type: type, $id: id };
+	let where = "source_type = 'masterdb' AND scope_type = $type AND scope_id = $id";
+	if (categories?.length) {
+		where += ` AND category IN (${placeholders(categories, params, 'cat')})`;
+	}
+	return section('direct', where, params);
+}
+
+function placeholders(values, params, prefix) {
+	return values
+		.map((value, index) => {
+			params[`$${prefix}${index}`] = value;
+			return `$${prefix}${index}`;
+		})
+		.join(',');
+}
+
+function linkedUnitSection(key, type, id, toTypes) {
+	const params = { $type: type, $id: id };
+	const toSql = placeholders(toTypes, params, 'to');
+	return section(
+		key,
+		`EXISTS (
+			SELECT 1
+			FROM links l
+			WHERE l.from_type = $type AND l.from_id = $id AND l.to_type IN (${toSql})
+			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
+		)`,
+		params
+	);
+}
+
+function characterCommonSection(key, id, toTypes) {
+	const params = { $id: id };
+	const toSql = placeholders(toTypes, params, 'to');
+	return section(
+		key,
+		`EXISTS (
+			SELECT 1 FROM links l
+			WHERE l.from_type = 'character' AND l.from_id = $id AND l.to_type IN (${toSql})
+			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM links c
+			WHERE c.from_type = 'card'
+			  AND c.to_type = translation_units.scope_type AND c.to_id = translation_units.scope_id
+		)`,
+		params
+	);
+}
+
+function characterCardSection(id) {
+	return section(
+		'cards',
+		`source_type = 'masterdb' AND category = 'Card' AND scope_type = 'card' AND scope_id IN (
+			SELECT to_id FROM links WHERE from_type = 'character' AND from_id = $id AND to_type = 'card'
+		)`,
+		{ $id: id }
+	);
+}
+
+function groupCardSection(id) {
+	return section(
+		'cards',
+		`source_type = 'masterdb' AND category = 'Card' AND scope_type = 'card' AND scope_id IN (
+			SELECT card.to_id
+			FROM links member
+			JOIN links card ON card.from_type = 'character' AND card.from_id = member.to_id AND card.to_type = 'card'
+			WHERE member.from_type = 'group' AND member.from_id = $id AND member.to_type = 'character'
+		)`,
+		{ $id: id }
+	);
+}
+
+function advSection(type, id) {
+	return section(
+		'adv',
+		`source_type = 'adv' AND (
+			(scope_type = $type AND scope_id = $id)
+			OR source_file IN (
+				SELECT to_id FROM links
+				WHERE from_type = $type AND from_id = $id AND to_type = 'adv_file'
+			)
+			OR source_file IN (
+				SELECT adv.to_id
+				FROM links story
+				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
+				WHERE story.from_type = $type AND story.from_id = $id AND story.to_type = 'story'
+			)
+			OR source_file IN (
+				SELECT adv.to_id
+				FROM links card
+				JOIN links story ON story.from_type = 'card' AND story.from_id = card.to_id AND story.to_type = 'story'
+				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
+				WHERE card.from_type = $type AND card.from_id = $id AND card.to_type = 'card'
+			)
+		)`,
+		{ $type: type, $id: id }
+	);
+}
+
+function linksFor(type, id) {
+	return all(
+		`
+		SELECT l.relation, l.to_type type, l.to_id id, COALESCE(e.label, l.to_id) label, COALESCE(e.subtitle, '') subtitle
+		FROM links l
+		LEFT JOIN entities e ON e.entity_type = l.to_type AND e.entity_id = l.to_id
+		WHERE l.from_type = $type AND l.from_id = $id
+		UNION ALL
+		SELECT l.relation, l.from_type type, l.from_id id, COALESCE(e.label, l.from_id) label, COALESCE(e.subtitle, '') subtitle
+		FROM links l
+		LEFT JOIN entities e ON e.entity_type = l.from_type AND e.entity_id = l.from_id
+		WHERE l.to_type = $type AND l.to_id = $id
+		ORDER BY relation, label
+		LIMIT 900
+		`,
+		{ $type: type, $id: id }
+	);
+}
+
+export function GET({ url }) {
+	const type = url.searchParams.get('type') || 'character';
+	const id = url.searchParams.get('id') || '';
+	if (!id) return json({ error: 'id is required' }, { status: 400 });
+
+	if (type === 'category') {
+		return json({
+			entity: { type, id, label: id, subtitle: '' },
+			sections: [section('category', 'category = $id', { $id: id }, { category: id })],
+			links: []
+		});
+	}
+
+	const entity =
+		get(
+			`SELECT entity_type type, entity_id id, label, subtitle
+			 FROM entities WHERE entity_type = $type AND entity_id = $id`,
+			{ $type: type, $id: id }
+		) ?? { type, id, label: id, subtitle: '' };
+
+	const sections = [directSection(type, id)];
+
+	if (type === 'group') {
+		sections.push(
+			section(
+				'members',
+				`source_type = 'masterdb' AND category = 'Character' AND scope_type = 'character' AND scope_id IN (
+					SELECT to_id FROM links WHERE from_type = 'group' AND from_id = $id AND to_type = 'character'
+				)`,
+				{ $id: id }
+			)
+		);
+		sections.push(groupCardSection(id));
+		sections.push(advSection(type, id));
+	}
+
+	if (type === 'character') {
+		sections.push(characterCardSection(id));
+		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
+		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));
+		sections.push(characterCommonSection('common_telephones', id, ['telephone']));
+		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
+		sections.push(advSection(type, id));
+	}
+
+	if (type === 'card') {
+		sections.push(linkedUnitSection('evolution', type, id, ['card_evolution_message']));
+		sections.push(linkedUnitSection('skills', type, id, ['skill', 'live_ability', 'activity_ability']));
+		sections.push(linkedUnitSection('costumes', type, id, ['costume']));
+		sections.push(linkedUnitSection('stories', type, id, ['story']));
+		sections.push(linkedUnitSection('card_messages', type, id, ['message']));
+		sections.push(linkedUnitSection('card_home_talks', type, id, ['home_talk']));
+		sections.push(linkedUnitSection('card_telephones', type, id, ['telephone']));
+		sections.push(advSection(type, id));
+	}
+
+	if (['story_part', 'story_collection', 'story', 'love'].includes(type)) {
+		sections.push(linkedUnitSection('stories', type, id, ['story', 'story_collection']));
+		sections.push(advSection(type, id));
+	}
+
+	if (type === 'message_group') {
+		sections.push(linkedUnitSection('group_messages', type, id, ['message']));
+		sections.push(linkedUnitSection('group_telephones', type, id, ['telephone']));
+	}
+
+	const links = linksFor(type, id);
+	return json({ entity, sections: sections.filter((item) => item.total > 0), links });
+}

@@ -13,9 +13,6 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
 
 # production
 /build
@@ -40,10 +37,23 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# 
-/res
+# project data / generated files
 /json-kor
 /adv-kor
-/output
-/scripts/__pycache__
+/output-db
+/note-scripts
+/image
+/data/
+/tmp/
 /api.json
+
+# Python / SQLite runtime files
+/scripts/__pycache__
+*.sqlite3-shm
+*.sqlite3-wal
+*.log
+
+/app/.svelte-kit/
+/app/build/
+/app/node_modules/
+/app/output/

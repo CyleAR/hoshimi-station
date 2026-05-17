@@ -1,0 +1,345 @@
+import { all, json } from '$lib/server/db.js';
+
+const fieldPriority = new Map(
+	[
+		'id',
+		'name',
+		'title',
+		'enName',
+		'firstName',
+		'groupName',
+		'cv',
+		'age',
+		'birthday',
+		'zodiacSign',
+		'hometown',
+		'favorite',
+		'unfavorite',
+		'catchphrase',
+		'profile',
+		'shortProfile',
+		'description',
+		'shortDescription',
+		'obtainMessage',
+		'evolveMessage',
+		'branchFirstText',
+		'branchCautionText',
+		'choiceText',
+		'managerText',
+		'text',
+		'word'
+	].map((field, index) => [field, index])
+);
+
+function placeholders(values, params, prefix) {
+	return values
+		.map((value, index) => {
+			params[`$${prefix}${index}`] = value;
+			return `$${prefix}${index}`;
+		})
+		.join(',');
+}
+
+function linkedWhere(type, id, toTypes) {
+	const params = { $type: type, $id: id };
+	const toSql = placeholders(toTypes, params, 'to');
+	return [
+		`EXISTS (
+			SELECT 1
+			FROM links l
+			WHERE l.from_type = $type AND l.from_id = $id AND l.to_type IN (${toSql})
+			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
+		)`,
+		params
+	];
+}
+
+function directWhere(type, id) {
+	const categoryByType = {
+		character: ['Character'],
+		group: ['CharacterGroup'],
+		card: ['Card'],
+		costume: ['Costume'],
+		skill: ['Skill'],
+		live_ability: ['LiveAbility'],
+		activity_ability: ['ActivityAbility'],
+		story: ['Story'],
+		story_part: ['StoryPart', 'ExtraStoryPart'],
+		story_collection: ['EventStory', 'ExtraStory'],
+		message_group: ['MessageGroup'],
+		message: ['Message'],
+		telephone: ['Telephone'],
+		home_talk: ['HomeTalk'],
+		call_pattern: ['HomeTalkCallPattern'],
+		card_evolution_message: ['CardEvolutionMessage']
+	};
+	const params = { $type: type, $id: id };
+	let where = "source_type = 'masterdb' AND scope_type = $type AND scope_id = $id";
+	const categories = categoryByType[type];
+	if (categories?.length) {
+		where += ` AND category IN (${placeholders(categories, params, 'cat')})`;
+	}
+	return [where, params];
+}
+
+function characterCommonWhere(id, toTypes) {
+	const params = { $id: id };
+	const toSql = placeholders(toTypes, params, 'to');
+	return [
+		`EXISTS (
+			SELECT 1 FROM links l
+			WHERE l.from_type = 'character' AND l.from_id = $id AND l.to_type IN (${toSql})
+			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM links c
+			WHERE c.from_type = 'card'
+			  AND c.to_type = translation_units.scope_type AND c.to_id = translation_units.scope_id
+		)`,
+		params
+	];
+}
+
+function advWhere(type, id) {
+	return [
+		`source_type = 'adv' AND (
+			(scope_type = $type AND scope_id = $id)
+			OR source_file IN (
+				SELECT to_id FROM links
+				WHERE from_type = $type AND from_id = $id AND to_type = 'adv_file'
+			)
+			OR source_file IN (
+				SELECT adv.to_id
+				FROM links story
+				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
+				WHERE story.from_type = $type AND story.from_id = $id AND story.to_type = 'story'
+			)
+			OR source_file IN (
+				SELECT adv.to_id
+				FROM links card
+				JOIN links story ON story.from_type = 'card' AND story.from_id = card.to_id AND story.to_type = 'story'
+				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
+				WHERE card.from_type = $type AND card.from_id = $id AND card.to_type = 'card'
+			)
+		)`,
+		{ $type: type, $id: id }
+	];
+}
+
+function whereFor(type, id, key, category) {
+	if (type === 'category' || key === 'category') return ['category = $category', { $category: category || id }];
+	if (key === 'direct') return directWhere(type, id);
+	if (key === 'adv') return advWhere(type, id);
+
+	if (type === 'group') {
+		if (key === 'members') {
+			return [
+				`source_type = 'masterdb' AND category = 'Character' AND scope_type = 'character' AND scope_id IN (
+					SELECT to_id FROM links WHERE from_type = 'group' AND from_id = $id AND to_type = 'character'
+				)`,
+				{ $id: id }
+			];
+		}
+		if (key === 'cards') {
+			return [
+				`source_type = 'masterdb' AND category = 'Card' AND scope_type = 'card' AND scope_id IN (
+					SELECT card.to_id
+					FROM links member
+					JOIN links card ON card.from_type = 'character' AND card.from_id = member.to_id AND card.to_type = 'card'
+					WHERE member.from_type = 'group' AND member.from_id = $id AND member.to_type = 'character'
+				)`,
+				{ $id: id }
+			];
+		}
+	}
+
+	if (type === 'character') {
+		if (key === 'cards') {
+			return [
+				`source_type = 'masterdb' AND category = 'Card' AND scope_type = 'card' AND scope_id IN (
+					SELECT to_id FROM links WHERE from_type = 'character' AND from_id = $id AND to_type = 'card'
+				)`,
+				{ $id: id }
+			];
+		}
+		if (key === 'common_home_talks') return characterCommonWhere(id, ['home_talk']);
+		if (key === 'common_messages') return characterCommonWhere(id, ['message', 'message_group']);
+		if (key === 'common_telephones') return characterCommonWhere(id, ['telephone']);
+		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
+	}
+
+	if (type === 'card') {
+		if (key === 'evolution') return linkedWhere(type, id, ['card_evolution_message']);
+		if (key === 'skills') return linkedWhere(type, id, ['skill', 'live_ability', 'activity_ability']);
+		if (key === 'costumes') return linkedWhere(type, id, ['costume']);
+		if (key === 'stories') return linkedWhere(type, id, ['story']);
+		if (key === 'card_messages') return linkedWhere(type, id, ['message']);
+		if (key === 'card_home_talks') return linkedWhere(type, id, ['home_talk']);
+		if (key === 'card_telephones') return linkedWhere(type, id, ['telephone']);
+	}
+
+	if (['story_part', 'story_collection', 'story', 'love'].includes(type) && key === 'stories') {
+		return linkedWhere(type, id, ['story', 'story_collection']);
+	}
+
+	if (type === 'message_group') {
+		if (key === 'group_messages') return linkedWhere(type, id, ['message']);
+		if (key === 'group_telephones') return linkedWhere(type, id, ['telephone']);
+	}
+
+	return ['1 = 0', {}];
+}
+
+function naturalParts(value) {
+	return String(value ?? '')
+		.split(/(\d+)/)
+		.map((part) => (/^\d+$/.test(part) ? Number(part) : part.toLowerCase()));
+}
+
+function naturalCompare(a, b) {
+	const left = naturalParts(a);
+	const right = naturalParts(b);
+	const length = Math.max(left.length, right.length);
+	for (let index = 0; index < length; index += 1) {
+		if (left[index] === undefined) return -1;
+		if (right[index] === undefined) return 1;
+		if (left[index] === right[index]) continue;
+		if (typeof left[index] === 'number' && typeof right[index] === 'number') return left[index] - right[index];
+		return String(left[index]).localeCompare(String(right[index]));
+	}
+	return 0;
+}
+
+function leafField(path) {
+	return String(path ?? '')
+		.replace(/\[[^\]]+\]/g, '')
+		.split('.')
+		.filter(Boolean)
+		.at(-1);
+}
+
+function headField(path) {
+	return String(path ?? '').split(/[.[\]]/).find(Boolean) ?? '';
+}
+
+function priority(path) {
+	const leaf = leafField(path);
+	const head = headField(path);
+	return fieldPriority.get(leaf) ?? fieldPriority.get(head) ?? 999;
+}
+
+function compareFieldPath(a, b) {
+	const aHead = headField(a);
+	const bHead = headField(b);
+	if (aHead !== bHead) return priority(a) - priority(b) || naturalCompare(a, b);
+	return naturalCompare(a, b) || priority(a) - priority(b);
+}
+
+function compareUnit(a, b) {
+	return (
+		naturalCompare(a.source_type, b.source_type) ||
+		naturalCompare(a.category, b.category) ||
+		naturalCompare(a.source_file, b.source_file) ||
+		naturalCompare(a.record_id, b.record_id) ||
+		Number(a.line_no ?? 0) - Number(b.line_no ?? 0) ||
+		compareFieldPath(a.field_path, b.field_path)
+	);
+}
+
+function attachAdvOwners(units) {
+	const files = [...new Set(units.filter((unit) => unit.source_type === 'adv' && unit.scope_type === 'adv_file').map((unit) => unit.source_file))];
+	if (!files.length) return units;
+
+	const params = {};
+	const fileSql = placeholders(files, params, 'file');
+	const owners = all(
+		`
+		SELECT *
+		FROM (
+			SELECT adv.to_id source_file,
+			       owner.from_type owner_type,
+			       owner.from_id owner_id,
+			       COALESCE(e.label, owner.from_id) owner_label,
+			       COALESCE(e.subtitle, '') owner_subtitle,
+			       CASE owner.from_type
+			       	 WHEN 'card' THEN 1
+			       	 WHEN 'story_collection' THEN 2
+			       	 WHEN 'story_part' THEN 3
+			       	 WHEN 'love' THEN 4
+			       	 WHEN 'story' THEN 5
+			       	 ELSE 9
+			       END priority
+			FROM links adv
+			JOIN links owner
+			  ON owner.to_type = 'story'
+			 AND owner.to_id = adv.from_id
+			 AND owner.from_type IN ('card', 'story_collection', 'story_part', 'love')
+			LEFT JOIN entities e ON e.entity_type = owner.from_type AND e.entity_id = owner.from_id
+			WHERE adv.to_type = 'adv_file' AND adv.to_id IN (${fileSql})
+			UNION ALL
+			SELECT direct.to_id source_file,
+			       direct.from_type owner_type,
+			       direct.from_id owner_id,
+			       COALESCE(e.label, direct.from_id) owner_label,
+			       COALESCE(e.subtitle, '') owner_subtitle,
+			       CASE direct.from_type
+			       	 WHEN 'card' THEN 1
+			       	 WHEN 'story_collection' THEN 2
+			       	 WHEN 'story_part' THEN 3
+			       	 WHEN 'love' THEN 4
+			       	 WHEN 'story' THEN 5
+			       	 ELSE 9
+			       END priority
+			FROM links direct
+			LEFT JOIN entities e ON e.entity_type = direct.from_type AND e.entity_id = direct.from_id
+			WHERE direct.to_type = 'adv_file'
+			  AND direct.from_type IN ('card', 'story_collection', 'story_part', 'love', 'story')
+			  AND direct.to_id IN (${fileSql})
+		)
+		ORDER BY source_file, priority
+		`,
+		params
+	);
+	const ownerMap = new Map();
+	for (const owner of owners) {
+		if (!ownerMap.has(owner.source_file)) ownerMap.set(owner.source_file, owner);
+	}
+
+	return units.map((unit) => {
+		const owner = ownerMap.get(unit.source_file);
+		if (!owner) return unit;
+		return {
+			...unit,
+			owner_type: owner.owner_type,
+			owner_id: owner.owner_id,
+			owner_label: owner.owner_label,
+			owner_subtitle: owner.owner_subtitle
+		};
+	});
+}
+
+export function GET({ url }) {
+	const type = url.searchParams.get('type') || 'character';
+	const id = url.searchParams.get('id') || '';
+	const key = url.searchParams.get('key') || 'direct';
+	const category = url.searchParams.get('category') || '';
+	const limit = Math.min(Number(url.searchParams.get('limit') || 900), 2500);
+	const [where, params] = whereFor(type, id, key, category);
+
+	const units = all(
+		`
+		SELECT translation_units.*,
+		       COALESCE(e.label, translation_units.scope_id) scope_label,
+		       COALESCE(e.subtitle, '') scope_subtitle
+		FROM translation_units
+		LEFT JOIN entities e
+		  ON e.entity_type = translation_units.scope_type
+		 AND e.entity_id = translation_units.scope_id
+		WHERE ${where}
+		ORDER BY source_type, category, source_file, record_id, line_no, field_path
+		LIMIT $limit
+		`,
+		{ ...params, $limit: limit }
+	).sort(compareUnit);
+	return json({ units: attachAdvOwners(units) });
+}
