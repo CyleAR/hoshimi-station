@@ -1,10 +1,27 @@
 import fs from 'fs';
 import path from 'path';
 
-// Path to the ipr-translate-manager data
-const DATA_ROOT = path.resolve(process.cwd(), '..');
-const MASTERDB_PATH = path.join(DATA_ROOT, 'res', 'masterdb');
-const ADV_PATH = path.join(DATA_ROOT, 'res', 'adv', 'resource');
+// Dynamically locate the project's own res folder, robust against starting directory
+function getResPath() {
+  const cwd = process.cwd();
+  
+  // If we are already in the hoshimi-station directory
+  if (cwd.endsWith('hoshimi-station')) {
+    return path.join(cwd, 'res');
+  }
+  
+  // If the process was started from the parent directory, resolve to hoshimi-station/res
+  const projectPath = path.join(cwd, 'hoshimi-station');
+  if (fs.existsSync(projectPath)) {
+    return path.join(projectPath, 'res');
+  }
+  
+  return path.join(cwd, 'res'); // Fallback
+}
+
+const RES_ROOT = getResPath();
+const MASTERDB_PATH = path.join(RES_ROOT, 'masterdb');
+const ADV_PATH = path.join(RES_ROOT, 'adv', 'resource');
 
 let jsonCache = {};
 
@@ -205,27 +222,15 @@ export function getCardDependencies(assetId) {
   return result;
 }
 
-// Get character display info
-const CHARACTER_NAMES = {
-  'char-ai': { name: '小美山 愛', nameKr: '코미야마 아이', short: 'AI' },
-  'char-ktn': { name: '長瀬 琴乃', nameKr: '나가세 코토노', short: 'KTN' },
-  'char-ngs': { name: '長瀬 麻奈', nameKr: '나가세 마나', short: 'NGS' },
-  'char-ski': { name: '伊吹 渚', nameKr: '이부키 나기사', short: 'SKI' },
-  'char-szk': { name: '佐伯 遙子', nameKr: '사에키 하루코', short: 'SZK' },
-  'char-chs': { name: '白石 千紗', nameKr: '시라이시 치사', short: 'CHS' },
-  'char-mei': { name: '兵藤 雫', nameKr: '효도 시즈쿠', short: 'MEI' },
-  'char-suz': { name: '早坂 芽衣', nameKr: '하야사카 메이', short: 'SUZ' },
-  'char-hrk': { name: '天動 瑠依', nameKr: '텐도 루이', short: 'HRK' },
-  'char-rei': { name: '奥山 すみれ', nameKr: '오쿠야마 스미레', short: 'REI' },
-  'char-rui': { name: '川咲 さくら', nameKr: '카와사키 사쿠라', short: 'RUI' },
-  'char-kkr': { name: '兵藤 雫', nameKr: '효도 시즈쿠', short: 'KKR' },
-  'char-aoi': { name: '一ノ瀬 怜', nameKr: '이치노세 레이', short: 'AOI' },
-  'char-yu': { name: '神崎 莉央', nameKr: '칸자키 리오', short: 'YU' },
-  'char-mna': { name: '長瀬 麻奈', nameKr: '나가세 마나', short: 'MNA' },
-};
-
+// Get character display info — loaded dynamically from Character.json
 export function getCharacterName(charId) {
-  return CHARACTER_NAMES[charId] || { name: charId, nameKr: charId, short: charId };
+  const characters = loadJson('Character') || [];
+  const char = characters.find(c => c.id === charId);
+  if (char) {
+    const short = (char.assetId || charId.replace('char-', '')).toUpperCase();
+    return { name: char.name, short };
+  }
+  return { name: charId, short: charId.replace('char-', '').toUpperCase() };
 }
 
 export function getCharacterList() {
@@ -569,76 +574,381 @@ export function getExtraWithDependencies(id) {
 }
 
 // ==========================================
-// Character Tracking
+// Character Tracking (Full Hierarchy)
 // ==========================================
 export function getAllCharactersList() {
   const characters = loadJson('Character') || [];
-  return characters.map(c => ({
-    id: c.id,
-    assetId: c.assetId,
-    name: c.name,
-    meta: c.cv || 'CV Unknown',
-    type: 'character'
-  }));
+  const groups = loadJson('CharacterGroup') || [];
+  const cards = loadJson('Card') || [];
+
+  // Count cards per character
+  const cardCounts = {};
+  cards.forEach(c => { cardCounts[c.characterId] = (cardCounts[c.characterId] || 0) + 1; });
+
+  return characters.map(c => {
+    const group = groups.find(g => g.id === c.characterGroupId);
+    return {
+      id: c.id,
+      assetId: c.assetId,
+      name: c.name,
+      groupName: group?.name || c.groupName || '',
+      color: c.color || '',
+      cv: c.cv || '',
+      cardCount: cardCounts[c.id] || 0,
+      meta: `${group?.name || ''} | ${c.cv || ''} | Cards: ${cardCounts[c.id] || 0}`,
+      type: 'character'
+    };
+  }).filter(c => c.cardCount > 0 || c.cv); // Only show characters that have cards or CV data
 }
 
-export function getCharacterWithDependencies(id) {
+export function getCharacterWithDependencies(charId) {
   const characters = loadJson('Character') || [];
-  const char = characters.find(c => c.id === id);
+  const char = characters.find(c => c.id === charId);
   if (!char) return null;
 
-  const dependencies = { info: [], adv: [] };
-  
-  dependencies.info.push({
-    id: `char_name_${char.id}`,
-    original: char.name,
-    current: '',
-    type: 'Character Name'
-  });
-  
-  if (char.cv) {
-    dependencies.info.push({
-      id: `char_cv_${char.id}`,
-      original: char.cv,
-      current: '',
-      type: 'CV'
-    });
-  }
-  if (char.favorite) {
-    dependencies.info.push({
-      id: `char_fav_${char.id}`,
-      original: char.favorite,
-      current: '',
-      type: 'Favorite'
-    });
-  }
-  if (char.unfavorite) {
-    dependencies.info.push({
-      id: `char_unfav_${char.id}`,
-      original: char.unfavorite,
-      current: '',
-      type: 'Unfavorite'
-    });
-  }
-  if (char.profile) {
-    dependencies.info.push({
-      id: `char_profile_${char.id}`,
-      original: char.profile,
-      current: '',
-      type: 'Profile'
-    });
-  }
+  const storyDb = loadJson('Story') || [];
+  const allMessages = loadJson('Message') || [];
+  const allTelephones = loadJson('Telephone') || [];
+  const allHomeTalks = loadJson('HomeTalk') || [];
+  const allCallPatterns = loadJson('HomeTalkCallPattern') || [];
+  const allCards = loadJson('Card') || [];
+  const allSkills = loadJson('Skill') || [];
+  const allCostumes = loadJson('Costume') || [];
+  const allEvoMsgs = loadJson('CardEvolutionMessage') || [];
+  const messageGroups = loadJson('MessageGroup') || [];
 
-  return {
+  // Build sets of card-linked IDs to identify non-card content
+  const cardLinkedMessageIds = new Set();
+  const cardLinkedTelephoneIds = new Set();
+  const cardLinkedHomeTalkIds = new Set();
+  allCards.forEach(c => {
+    (c.messages || []).forEach(m => {
+      if (m.messageId) cardLinkedMessageIds.add(m.messageId);
+      if (m.telephoneId) cardLinkedTelephoneIds.add(m.telephoneId);
+    });
+    (c.homeTalks || []).forEach(h => {
+      if (h.homeTalkId) cardLinkedHomeTalkIds.add(h.homeTalkId);
+    });
+  });
+
+  // Find messageGroups this character belongs to (solo only, not group chats)
+  const soloGroupIds = new Set();
+  messageGroups.forEach(mg => {
+    if (mg.characterIds.length === 1 && mg.characterIds[0] === charId) {
+      soloGroupIds.add(mg.id);
+    }
+  });
+
+  const result = {
     id: char.id,
     assetId: char.assetId,
     name: char.name,
-    dependencies
+    color: char.color || '',
+    groupName: char.groupName || '',
+
+    // Character profile fields
+    profile: {
+      name: char.name,
+      cv: char.cv || '',
+      age: char.age || '',
+      birthday: char.birthday || '',
+      height: char.height || '',
+      weight: char.weight || '',
+      zodiacSign: char.zodiacSign || '',
+      hometown: char.hometown || '',
+      favorite: char.favorite || '',
+      unfavorite: char.unfavorite || '',
+      profileText: char.profile || '',
+      shortProfile: char.shortProfile || '',
+      catchphrase: char.catchphrase || '',
+      threeSize: char.threeSize || '',
+      idiom: char.idiom || '',
+      activityFanEventWords: (char.activityFanEventWords || []).map(w => w.word),
+    },
+
+    // Cards belonging to this character (with full sub-deps)
+    cards: [],
+
+    // Non-card messages (instant, birthday, story, etc.)
+    nonCardMessages: {
+      instant: [],   // message-instant-*
+      birthday: [],  // message-hbd-*
+      story: [],     // message-story-*
+      other: [],     // suntory, vns, etc.
+    },
+
+    // Non-card telephones
+    nonCardTelephones: {
+      birthday: [],  // tel-hbd-*
+      message: [],   // tel-message-*
+      other: [],     // tel-suntory-* etc.
+    },
+
+    // Home talks not linked to any card
+    nonCardHomeTalks: {
+      character: [],  // home-talk-char-*
+      cardUnlinked: [], // home-talk-card-* but not in Card.homeTalks
+    },
+
+    // Call patterns (character-level greetings)
+    callPatterns: [],
+
+    // Company enjoy stories (Character.companyEnjoyStories)
+    companyStories: [],
+  };
+
+  // ---- Cards with sub-deps ----
+  const charCards = allCards.filter(c => c.characterId === charId);
+  for (const card of charCards) {
+    const cardData = {
+      id: card.id,
+      assetId: card.assetId,
+      name: card.name,
+      description: card.description || '',
+      obtainMessage: card.obtainMessage || '',
+      initialRarity: card.initialRarity,
+      releaseDate: card.releaseDate,
+      costume: null,
+      skills: [],
+      stories: [],
+      messages: [],
+      telephones: [],
+      homeTalks: [],
+      evolutionMessages: [],
+    };
+
+    // Skills
+    const skillIds = [card.skillId1, card.skillId2, card.skillId3, card.skillId4].filter(Boolean);
+    for (const sid of skillIds) {
+      const sk = allSkills.find(s => s.id === sid);
+      if (sk) {
+        cardData.skills.push({
+          id: sk.id, name: sk.name,
+          levels: (sk.levels || []).map(l => ({ 
+            level: l.level, 
+            description: l.description || '',
+            shortDescription: l.shortDescription || ''
+          })),
+        });
+      }
+    }
+
+    // Costume
+    if (card.rewardCostumeId) {
+      const cos = allCostumes.find(c => c.id === card.rewardCostumeId);
+      if (cos) cardData.costume = { id: cos.id, name: cos.name };
+    }
+
+    // Stories + ADV
+    for (const ref of (card.stories || [])) {
+      const st = storyDb.find(s => s.id === ref.storyId);
+      if (st) {
+        const advFiles = (st.advAssetIds || []).map(aid => {
+          const filename = `adv_${aid}.txt`;
+          return { assetId: aid, filename, exists: fs.existsSync(path.join(ADV_PATH, filename)) };
+        });
+        // Branch choices ADV
+        for (const bc of (st.branchChoices || [])) {
+          if (bc.advAssetId) {
+            const filename = `adv_${bc.advAssetId}.txt`;
+            advFiles.push({ assetId: bc.advAssetId, filename, exists: fs.existsSync(path.join(ADV_PATH, filename)) });
+          }
+        }
+        cardData.stories.push({ 
+          id: st.id, 
+          name: st.name, 
+          description: st.description || '', 
+          branchCautionText: st.branchCautionText || '',
+          branchFirstText: st.branchFirstText || '',
+          branchChoices: (st.branchChoices || []).map(bc => ({ index: bc.index, text: bc.text || '' })),
+          advFiles 
+        });
+      }
+    }
+
+    // Card-linked messages
+    for (const ref of (card.messages || [])) {
+      if (ref.messageId) {
+        const msg = allMessages.find(m => m.id === ref.messageId);
+        if (msg) {
+          cardData.messages.push({
+            id: msg.id, name: msg.name || '',
+            details: (msg.details || []).map(d => ({ messageDetailId: d.messageDetailId, text: d.text || '', choiceText: d.choiceText || '' })),
+          });
+        }
+      }
+      if (ref.telephoneId) {
+        const tel = allTelephones.find(t => t.id === ref.telephoneId);
+        if (tel) cardData.telephones.push({ id: tel.id, name: tel.name || '' });
+      }
+    }
+
+    // Card-linked home talks
+    for (const ref of (card.homeTalks || [])) {
+      const ht = allHomeTalks.find(h => h.homeTalkId === ref.homeTalkId);
+      if (ht) {
+        cardData.homeTalks.push({
+          id: ht.homeTalkId, title: ht.title || '',
+          choiceText: ht.choiceText || '', managerText: ht.managerText || '',
+          characterTalks: (ht.characterTalks || []).map(ct => ({ text: ct.text || '' })),
+        });
+      }
+    }
+
+    // Evolution messages
+    const evoMsgs = allEvoMsgs.filter(em => em.cardId === card.id);
+    for (const em of evoMsgs) {
+      cardData.evolutionMessages.push({
+        cardId: em.cardId, evolutionLevel: em.evolutionLevel,
+        number: em.number, evolveMessage: em.evolveMessage || '', characterId: em.characterId || '',
+      });
+    }
+
+    // Sort cards by releaseDate (newest first)
+    result.cards.push(cardData);
+  }
+  result.cards.sort((a, b) => (parseInt(b.releaseDate) || 0) - (parseInt(a.releaseDate) || 0));
+
+  // ---- Non-card Messages ----
+  // Find all messages belonging to this character's solo message groups
+  const charMessages = allMessages.filter(m => {
+    // Check if it belongs to a solo message group for this character
+    if (soloGroupIds.has(m.messageGroupId)) return true;
+    // Also check messages with this character's ID pattern
+    const charAsset = char.assetId;
+    if (m.id.includes(`-${charAsset}-`) || m.id.endsWith(`-${charAsset}`)) return true;
+    return false;
+  }).filter(m => !cardLinkedMessageIds.has(m.id));
+
+  for (const msg of charMessages) {
+    const entry = {
+      id: msg.id, name: msg.name || '',
+      detailCount: (msg.details || []).length,
+      details: (msg.details || []).map(d => ({ messageDetailId: d.messageDetailId, text: d.text || '', choiceText: d.choiceText || '' })),
+    };
+    if (msg.id.startsWith('message-instant-')) result.nonCardMessages.instant.push(entry);
+    else if (msg.id.startsWith('message-hbd-')) result.nonCardMessages.birthday.push(entry);
+    else if (msg.id.startsWith('message-story-')) result.nonCardMessages.story.push(entry);
+    else result.nonCardMessages.other.push(entry);
+  }
+
+  // ---- Non-card Telephones ----
+  const charTelephones = allTelephones.filter(t => t.characterId === charId && !cardLinkedTelephoneIds.has(t.id));
+  for (const tel of charTelephones) {
+    const entry = { id: tel.id, name: tel.name || '' };
+    if (tel.id.startsWith('tel-hbd-')) result.nonCardTelephones.birthday.push(entry);
+    else if (tel.id.startsWith('tel-message-')) result.nonCardTelephones.message.push(entry);
+    else result.nonCardTelephones.other.push(entry);
+  }
+
+  // ---- Non-card HomeTalks ----
+  const charHomeTalks = allHomeTalks.filter(ht => ht.characterId === charId && !cardLinkedHomeTalkIds.has(ht.homeTalkId));
+  for (const ht of charHomeTalks) {
+    const entry = {
+      id: ht.homeTalkId, title: ht.title || '',
+      choiceText: ht.choiceText || '', managerText: ht.managerText || '',
+      characterTalks: (ht.characterTalks || []).map(ct => ({ text: ct.text || '' })),
+    };
+    if (ht.homeTalkId.startsWith('home-talk-char-')) result.nonCardHomeTalks.character.push(entry);
+    else result.nonCardHomeTalks.cardUnlinked.push(entry);
+  }
+
+  // ---- Call Patterns (character-level greetings) ----
+  const charCallPatterns = allCallPatterns.filter(cp => cp.characterId === charId);
+  for (const cp of charCallPatterns) {
+    result.callPatterns.push({
+      patternId: cp.patternId,
+      managerCallText: cp.managerCallText || '',
+      characterArrivalText: cp.characterArrivalText || '',
+    });
+  }
+
+  // ---- Company Enjoy Stories ----
+  if (char.companyEnjoyStories && char.companyEnjoyStories.length > 0) {
+    for (const cs of char.companyEnjoyStories) {
+      const st = storyDb.find(s => s.id === cs.storyId);
+      if (st) {
+        const advFiles = (st.advAssetIds || []).map(aid => {
+          const filename = `adv_${aid}.txt`;
+          return { assetId: aid, filename, exists: fs.existsSync(path.join(ADV_PATH, filename)) };
+        });
+        result.companyStories.push({ id: st.id, name: st.name, description: st.description || '', number: cs.number, advFiles });
+      }
+    }
+  }
+
+  return result;
+}
+
+// ==========================================
+// Group Chat Rooms (MessageGroup with 2+ characters)
+// ==========================================
+export function getAllGroupChats() {
+  const messageGroups = loadJson('MessageGroup') || [];
+  const allMessages = loadJson('Message') || [];
+
+  // Only group chats (2+ characters)
+  return messageGroups
+    .filter(mg => mg.characterIds.length >= 2)
+    .map(mg => {
+      const messageCount = allMessages.filter(m => m.messageGroupId === mg.id).length;
+      const charNames = mg.characterIds.map(cid => {
+        const info = getCharacterName(cid);
+        return info.short;
+      });
+      return {
+        id: mg.id,
+        assetId: mg.assetId,
+        name: mg.name,
+        characterIds: mg.characterIds,
+        characterCount: mg.characterIds.length,
+        characterNames: charNames.join(', '),
+        messageCount,
+        meta: `${mg.characterIds.length}명 | ${messageCount}개 메시지`,
+        type: 'groupchat'
+      };
+    })
+    .filter(gc => gc.messageCount > 0);
+}
+
+export function getGroupChatDependencies(groupId) {
+  const messageGroups = loadJson('MessageGroup') || [];
+  const allMessages = loadJson('Message') || [];
+  const allTelephones = loadJson('Telephone') || [];
+
+  const group = messageGroups.find(mg => mg.id === groupId);
+  if (!group) return null;
+
+  // All messages in this group
+  const messages = allMessages.filter(m => m.messageGroupId === groupId);
+
+  // All telephones in this group
+  const telephones = allTelephones.filter(t => t.messageGroupId === groupId);
+
+  return {
+    id: group.id,
+    assetId: group.assetId,
+    name: group.name,
+    characterIds: group.characterIds,
+    characterNames: group.characterIds.map(cid => getCharacterName(cid)),
+    messages: messages.map(m => ({
+      id: m.id, name: m.name || '',
+      detailCount: (m.details || []).length,
+      details: (m.details || []).map(d => ({
+        messageDetailId: d.messageDetailId,
+        characterId: d.characterId || '',
+        text: d.text || '',
+        choiceText: d.choiceText || '',
+        stampAssetId: d.stampAssetId || '',
+        imageAssetId: d.imageAssetId || '',
+      })),
+    })),
+    telephones: telephones.map(t => ({ id: t.id, name: t.name || '', characterId: t.characterId || '' })),
   };
 }
 
 // ==========================================
-// Generic (Messages, HomeTalks, etc.)
+// Generic (Messages, HomeTalks, etc.) — Legacy compatibility
 // ==========================================
 export function getAllGenericList() {
   const list = [];

@@ -45,5 +45,5 @@ next-env.d.ts
 /json-kor
 /adv-kor
 /output
-/note-scripts
+/scripts/__pycache__
 /api.json

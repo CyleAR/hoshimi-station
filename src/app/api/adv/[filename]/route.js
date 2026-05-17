@@ -2,7 +2,26 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 
-const ADV_DIR = path.resolve(process.cwd(), '../res/adv/resource');
+import { existsSync } from 'fs';
+
+function getAdvDir() {
+  const cwd = process.cwd();
+  
+  // If we are already in the hoshimi-station directory
+  if (cwd.endsWith('hoshimi-station')) {
+    return path.resolve(cwd, 'res/adv/resource');
+  }
+  
+  // If the process was started from the parent directory, resolve to hoshimi-station/res/adv/resource
+  const projectPath = path.join(cwd, 'hoshimi-station');
+  if (existsSync(projectPath)) {
+    return path.resolve(projectPath, 'res/adv/resource');
+  }
+  
+  return path.resolve(cwd, 'res/adv/resource'); // Fallback
+}
+
+const ADV_DIR = getAdvDir();
 
 export async function GET(request, props) {
   try {
