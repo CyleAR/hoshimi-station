@@ -1,0 +1,9 @@
+[submodule "res/adv"]
+	path = res/adv
+	url = https://github.com/CyleAR/ipr-adv-txts
+[submodule "res/masterdb"]
+	path = res/masterdb
+	url = https://github.com/CyleAR/ipr-master-diff
+[submodule "output"]
+	path = output
+	url = https://github.com/CyleAR/ipr-translation-data-ko
