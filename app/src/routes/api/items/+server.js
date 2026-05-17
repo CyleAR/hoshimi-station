@@ -28,6 +28,59 @@ function like(value) {
 	return `%${value.trim()}%`;
 }
 
+function searchableUnitWhere(alias = 'tu') {
+	return `(
+		${alias}.unit_id LIKE $q
+		OR ${alias}.source_file LIKE $q
+		OR ${alias}.record_id LIKE $q
+		OR ${alias}.field_path LIKE $q
+		OR ${alias}.original_text LIKE $q
+		OR ${alias}.translation_text LIKE $q
+	)`;
+}
+
+function entitySearchWhere() {
+	const unitMatch = searchableUnitWhere('tu');
+	return `(
+		e.label LIKE $q
+		OR e.subtitle LIKE $q
+		OR e.entity_id LIKE $q
+		OR EXISTS (
+			SELECT 1
+			FROM translation_units tu
+			WHERE ${unitMatch}
+			  AND (
+			  	(tu.scope_type = e.entity_type AND tu.scope_id = e.entity_id)
+			  	OR EXISTS (
+			  		SELECT 1
+			  		FROM links l
+			  		WHERE l.from_type = e.entity_type AND l.from_id = e.entity_id
+			  		  AND (
+			  		  	(l.to_type = tu.scope_type AND l.to_id = tu.scope_id)
+			  		  	OR (l.to_type = 'adv_file' AND l.to_id = tu.source_file)
+			  		  )
+			  	)
+			  	OR EXISTS (
+			  		SELECT 1
+			  		FROM links l
+			  		WHERE l.to_type = e.entity_type AND l.to_id = e.entity_id
+			  		  AND l.from_type = tu.scope_type AND l.from_id = tu.scope_id
+			  	)
+			  	OR EXISTS (
+			  		SELECT 1
+			  		FROM links l1
+			  		JOIN links l2 ON l2.from_type = l1.to_type AND l2.from_id = l1.to_id
+			  		WHERE l1.from_type = e.entity_type AND l1.from_id = e.entity_id
+			  		  AND (
+			  		  	(l2.to_type = tu.scope_type AND l2.to_id = tu.scope_id)
+			  		  	OR (l2.to_type = 'adv_file' AND l2.to_id = tu.source_file)
+			  		  )
+			  	)
+			  )
+		)
+	)`;
+}
+
 function entityItems(entityTypes, q, limit = 900) {
 	const params = {};
 	const typeSql = entityTypes.map((_, index) => `$type${index}`).join(',');
@@ -43,7 +96,7 @@ function entityItems(entityTypes, q, limit = 900) {
 	}
 	const where = [`e.entity_type IN (${typeSql})`];
 	if (q) {
-		where.push('(e.label LIKE $q OR e.subtitle LIKE $q OR e.entity_id LIKE $q)');
+		where.push(entitySearchWhere());
 		params.$q = like(q);
 	}
 	return all(
@@ -99,7 +152,7 @@ function categoryItems(kind, q) {
 	else if (kind === 'masterdb') where.push("source_type = 'masterdb'");
 	else where.push('1 = 1');
 	if (q) {
-		where.push('(category LIKE $q OR source_file LIKE $q OR record_id LIKE $q OR original_text LIKE $q)');
+		where.push(`(category LIKE $q OR ${searchableUnitWhere('translation_units')})`);
 		params.$q = like(q);
 	}
 	return all(
@@ -117,9 +170,34 @@ function categoryItems(kind, q) {
 	);
 }
 
+function searchItem(q) {
+	const params = { $q: like(q) };
+	const row = all(
+		`
+		SELECT COUNT(*) total,
+		       COALESCE(SUM(CASE WHEN translation_text <> '' THEN 1 ELSE 0 END), 0) done
+		FROM translation_units
+		WHERE ${searchableUnitWhere('translation_units')}
+		`,
+		params
+	)[0] ?? { total: 0, done: 0 };
+	return {
+		type: 'search',
+		id: q.trim(),
+		label: `검색 결과: ${q.trim()}`,
+		subtitle: 'ID / 원문 / 번역 / 파일 / 필드',
+		total: row.total ?? 0,
+		done: row.done ?? 0
+	};
+}
+
 export function GET({ url }) {
 	const section = url.searchParams.get('section') || 'groups';
 	const q = url.searchParams.get('q') || '';
+	if (q.trim()) {
+		const groups = entityItems(['group'], '', 50);
+		return json({ items: [searchItem(q)], groups });
+	}
 	if (section === 'stories') {
 		const storyEntities = entityItems(entitySections.stories, q);
 		const advCategories = categoryItems('adv', q).map((item) => ({

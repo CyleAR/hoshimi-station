@@ -266,6 +266,7 @@ def infer_scope(category: str, item: dict[str, Any]) -> tuple[str, str]:
         "HomeTalk": "home_talk",
         "HomeTalkCallPattern": "call_pattern",
         "Telephone": "telephone",
+        "Costume": "costume",
         "Skill": "skill",
         "SkillEfficacy": "skill_efficacy",
         "LiveAbility": "live_ability",

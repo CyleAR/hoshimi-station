@@ -40,6 +40,17 @@ function placeholders(values, params, prefix) {
 		.join(',');
 }
 
+function searchableUnitWhere(alias = 'translation_units') {
+	return `(
+		${alias}.unit_id LIKE $q
+		OR ${alias}.source_file LIKE $q
+		OR ${alias}.record_id LIKE $q
+		OR ${alias}.field_path LIKE $q
+		OR ${alias}.original_text LIKE $q
+		OR ${alias}.translation_text LIKE $q
+	)`;
+}
+
 function linkedWhere(type, id, toTypes) {
 	const params = { $type: type, $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
@@ -100,9 +111,15 @@ function characterCommonWhere(id, toTypes) {
 	];
 }
 
-function advWhere(type, id) {
+function advWhere(type, id, category = '') {
+	const params = { $type: type, $id: id };
+	let categoryWhere = '';
+	if (category) {
+		params.$advCategory = category;
+		categoryWhere = 'AND category = $advCategory';
+	}
 	return [
-		`source_type = 'adv' AND (
+		`source_type = 'adv' ${categoryWhere} AND (
 			(scope_type = $type AND scope_id = $id)
 			OR source_file IN (
 				SELECT to_id FROM links
@@ -121,15 +138,46 @@ function advWhere(type, id) {
 				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
 				WHERE card.from_type = $type AND card.from_id = $id AND card.to_type = 'card'
 			)
+			OR (
+				$type = 'character' AND category = 'adv/love' AND source_file IN (
+					SELECT love.source_file
+					FROM translation_units love
+					WHERE love.category = 'adv/love'
+					  AND love.speaker IN (
+					  	SELECT names.original_text
+					  	FROM translation_units names
+					  	WHERE names.source_type = 'masterdb'
+					  	  AND names.category = 'Character'
+					  	  AND names.scope_type = 'character'
+					  	  AND names.scope_id = $id
+					  	  AND names.field_path IN ('name', 'firstName')
+					)
+				)
+			)
+			OR (
+				$type = 'group' AND category = 'adv/group' AND source_file LIKE (
+					SELECT 'adv_group_' || subtitle || '_%'
+					FROM entities
+					WHERE entity_type = 'group' AND entity_id = $id
+				)
+			)
 		)`,
-		{ $type: type, $id: id }
+		params
 	];
 }
 
 function whereFor(type, id, key, category) {
+	if (type === 'search' || key === 'search') return [searchableUnitWhere('translation_units'), { $q: `%${id}%` }];
 	if (type === 'category' || key === 'category') return ['category = $category', { $category: category || id }];
+	if (type === 'adv_file') return ["source_type = 'adv' AND source_file = $id", { $id: id }];
 	if (key === 'direct') return directWhere(type, id);
 	if (key === 'adv') return advWhere(type, id);
+	if (key === 'adv_card') return advWhere(type, id, 'adv/card');
+	if (key === 'adv_bond') return advWhere(type, id, 'adv/bond');
+	if (key === 'adv_hbd') return advWhere(type, id, 'adv/hbd');
+	if (key === 'adv_love') return advWhere(type, id, 'adv/love');
+	if (key === 'adv_userhbd') return advWhere(type, id, 'adv/userhbd');
+	if (key === 'adv_group') return advWhere(type, id, 'adv/group');
 
 	if (type === 'group') {
 		if (key === 'members') {
@@ -166,6 +214,7 @@ function whereFor(type, id, key, category) {
 		if (key === 'common_messages') return characterCommonWhere(id, ['message', 'message_group']);
 		if (key === 'common_telephones') return characterCommonWhere(id, ['telephone']);
 		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
+		if (key === 'costumes') return linkedWhere(type, id, ['costume']);
 	}
 
 	if (type === 'card') {

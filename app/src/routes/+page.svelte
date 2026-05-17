@@ -1,4 +1,4 @@
-<script>
+﻿<script>
 	import { onMount } from 'svelte';
 
 	const tabs = [
@@ -24,13 +24,14 @@
 		story_part: '스토리 파트',
 		story_collection: '스토리 묶음',
 		story: '스토리',
-		love: '러브 스토리',
+		love: '모시코이 스토리',
 		message_group: '메시지 그룹',
 		message: '문자',
 		telephone: '전화',
 		home_talk: '홈 대사',
 		call_pattern: '접속 대사',
 		adv_file: 'ADV 파일',
+		search: '검색',
 		category: '카테고리'
 	};
 
@@ -125,6 +126,7 @@
 	let loadingUnits = $state(false);
 	let error = $state('');
 	let notice = $state('');
+	let navStack = $state([]);
 	let searchTimer;
 
 	async function fetchJson(url, options = {}) {
@@ -187,9 +189,42 @@
 		}
 	}
 
+	async function selectRootItem(item) {
+		navStack = [];
+		await selectItem(item);
+	}
+
+	function currentNavEntry() {
+		if (!selected) return null;
+		return {
+			item: {
+				type: selected.type,
+				id: selected.id,
+				label: detail?.entity?.label ?? selected.label,
+				subtitle: detail?.entity?.subtitle || selected.subtitle
+			},
+			sectionKey: activeSection?.key ?? ''
+		};
+	}
+
+	async function navigateToItem(item, preferredKey = '') {
+		const previous = currentNavEntry();
+		if (previous && (previous.item.type !== item.type || previous.item.id !== item.id)) {
+			navStack = [...navStack, previous].slice(-20);
+		}
+		await selectItem(item, preferredKey);
+	}
+
+	async function goBack() {
+		const previous = navStack.at(-1);
+		if (!previous) return;
+		navStack = navStack.slice(0, -1);
+		await selectItem(previous.item, previous.sectionKey);
+	}
+
 	async function openUnitEntity(group, preferredKey = '') {
 		if (!group.scope_type || !group.scope_id || group.scope_type === 'category') return;
-		await selectItem(
+		await navigateToItem(
 			{
 				type: group.scope_type,
 				id: group.scope_id,
@@ -272,6 +307,7 @@
 
 	function changeSection(next) {
 		section = next;
+		navStack = [];
 		loadItems();
 	}
 
@@ -293,7 +329,7 @@
 	}
 
 	function selectedTitle() {
-		return detail?.entity?.label ?? selected?.label ?? '선택된 항목 없음';
+		return detail?.entity?.label ?? selected?.label ?? '선택한 항목 없음';
 	}
 
 	function selectedSubtitle() {
@@ -339,6 +375,19 @@
 		return unit.field_path;
 	}
 
+	function isManagerUnit(unit) {
+		return unit.speaker === '{user}' || String(unit.field_path ?? '').split('.').includes('managerText');
+	}
+
+	function untranslatedCount() {
+		return units.filter((unit) => !String(unit.translation_text ?? '').trim()).length;
+	}
+
+	function scrollToNextUntranslated() {
+		const target = document.querySelector('.unit-card.untranslated');
+		target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	}
+
 	function displayText(text) {
 		return String(text ?? '').replace(/\r\n/g, '\\n').replace(/\n/g, '\\n');
 	}
@@ -359,7 +408,13 @@
 			'costumes',
 			'evolution',
 			'group_messages',
-			'group_telephones'
+			'group_telephones',
+			'adv_card',
+			'adv_bond',
+			'adv_hbd',
+			'adv_love',
+			'adv_userhbd',
+			'adv_group'
 		];
 		return ownerGroupedKeys.includes(activeSection?.key) || (selected?.type === 'character' && activeSection?.key === 'adv');
 	}
@@ -470,15 +525,13 @@
 			<span>HoshimiStation</span>
 		</div>
 		<label class="search">
-			<span>⌕</span>
-			<input id="global-search" bind:value={query} oninput={queueSearch} placeholder="검색... (Ctrl+K)" />
+			<span>🔍</span>
+			<input id="global-search" bind:value={query} oninput={queueSearch} placeholder="ID / 원문 / 번역 검색... (Ctrl+K)" />
 		</label>
 		<div class="top-actions">
 			{#if summary}
 				<span class="summary-pill">{summary.done ?? 0}/{summary.units ?? 0}</span>
 			{/if}
-			<button class="soft" onclick={() => loadItems({ keepSelection: true })}>Sync</button>
-			<button class="primary">Export</button>
 		</div>
 	</header>
 
@@ -498,7 +551,7 @@
 			{#if section === 'characters' || section === 'cards'}
 				<div class="chips">
 					{#each groups as group}
-						<button onclick={() => selectItem(group)}>{group.label}</button>
+						<button onclick={() => selectRootItem(group)}>{group.label}</button>
 					{/each}
 				</div>
 			{/if}
@@ -510,7 +563,7 @@
 					<div class="state-card">표시할 항목이 없습니다.</div>
 				{:else}
 					{#each items as item}
-						<button class="item-card" class:selected={selected?.id === item.id && selected?.type === item.type} onclick={() => selectItem(item)}>
+						<button class="item-card" class:selected={selected?.id === item.id && selected?.type === item.type} onclick={() => selectRootItem(item)}>
 							<span class="type-badge">{typeNames[item.type] ?? item.type}</span>
 							<span class="item-main">
 								<strong>{item.label}</strong>
@@ -556,9 +609,14 @@
 								<span>{group.type} · {group.links.length}</span>
 							</header>
 							{#each group.links.slice(0, 8) as link}
-								<button class="mini-link" onclick={() => selectItem(link)}>
+								<button class="mini-link" onclick={() => navigateToItem(link)}>
 									<span>{typeNames[link.type] ?? link.type}</span>
-									<strong>{link.label}</strong>
+									<strong>
+										{link.label}
+										{#if link.translated_label}
+											<small>{link.translated_label}</small>
+										{/if}
+									</strong>
 								</button>
 							{/each}
 							{#if group.links.length > 8}
@@ -573,13 +631,19 @@
 		<main class="editor-pane">
 			<div class="editor-head">
 				<div>
-					<h1>{activeSection?.icon ?? '◇'} {activeSection?.label ?? '번역'}</h1>
+					<h1>{activeSection?.icon ?? '✦'} {activeSection?.label ?? '번역'}</h1>
 					<p>{selectedTitle()} <span>{selectedSubtitle()}</span></p>
 				</div>
 				<div class="editor-actions">
 					{#if notice}<span class="notice">{notice}</span>{/if}
-					<button class="soft" onclick={retry}>되돌리기</button>
-					<button class="save-all" onclick={() => Promise.all(units.filter((unit) => unit.dirty).map(saveUnit))}>저장</button>
+					{#if navStack.length}
+						<button class="soft" onclick={goBack}>이전 항목</button>
+					{/if}
+					<button class="soft" onclick={retry}>새로고침</button>
+					{#if untranslatedCount()}
+						<button class="soft jump" onclick={scrollToNextUntranslated}>미번역 {untranslatedCount()}</button>
+					{/if}
+					<button class="save-all" onclick={() => Promise.all(units.filter((unit) => unit.dirty).map(saveUnit))}>일괄 저장</button>
 				</div>
 			</div>
 
@@ -614,9 +678,14 @@
 							</header>
 							<div class="unit-stack">
 								{#each group.units as unit}
-									<article class="unit-card">
+									<article class="unit-card" class:manager={isManagerUnit(unit)} class:untranslated={!String(unit.translation_text ?? '').trim()}>
 										<header>
-											<strong>{unitTitle(unit)}</strong>
+											<strong>
+												{#if isManagerUnit(unit)}
+													<span class="speaker-chip">매니저</span>
+												{/if}
+												{unitTitle(unit)}
+											</strong>
 											<code>{unitCode(unit)}</code>
 										</header>
 										<div class="row">
@@ -738,7 +807,6 @@
 		font-size: 12px;
 	}
 	.soft,
-	.primary,
 	.save-all {
 		height: 30px;
 		border: 1px solid #284065;
@@ -747,21 +815,21 @@
 		background: #132039;
 		color: #9dc0ff;
 	}
-	.primary {
-		background: #2d72e8;
-		color: white;
-		border-color: #2d72e8;
-	}
 	.save-all {
 		background: #10b981;
 		border-color: #10b981;
 		color: #042016;
 		font-weight: 800;
 	}
+	.jump {
+		border-color: #7c5c24;
+		background: #21180a;
+		color: #ffd166;
+	}
 	.workspace {
 		min-height: 0;
 		display: grid;
-		grid-template-columns: 310px 430px minmax(0, 1fr);
+		grid-template-columns: clamp(340px, 24vw, 420px) clamp(430px, 27vw, 520px) minmax(0, 1fr);
 	}
 	.nav-pane,
 	.related-pane {
@@ -956,6 +1024,25 @@
 		color: #7192c4;
 		font-size: 11px;
 	}
+	.mini-link strong {
+		min-width: 0;
+		display: grid;
+		gap: 3px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		user-select: text;
+	}
+	.mini-link small {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: #b8d4ff;
+		font-size: 11px;
+		font-weight: 700;
+		user-select: text;
+	}
 	.more-line {
 		padding: 5px 8px 0;
 	}
@@ -1085,6 +1172,13 @@
 		background: #111a2c;
 		overflow: hidden;
 	}
+	.unit-card.untranslated {
+		border-color: #514168;
+	}
+	.unit-card.manager {
+		border-color: #2f6f75;
+		background: #0f2027;
+	}
 	.unit-card header {
 		display: flex;
 		align-items: center;
@@ -1093,6 +1187,23 @@
 		padding: 12px 14px;
 		border-bottom: 1px solid #22314c;
 		color: #9fbfff;
+	}
+	.unit-card.manager header {
+		border-bottom-color: #274d59;
+		color: #8ee6df;
+	}
+	.speaker-chip {
+		display: inline-flex;
+		align-items: center;
+		height: 20px;
+		margin-right: 8px;
+		padding: 0 8px;
+		border-radius: 999px;
+		background: #164e63;
+		color: #a7f3d0;
+		font-size: 11px;
+		font-weight: 900;
+		vertical-align: middle;
 	}
 	.unit-card header code {
 		color: #667fa8;
@@ -1116,6 +1227,12 @@
 	.current .row-label {
 		color: #f0a63b;
 	}
+	.manager .row-label {
+		color: #8ee6df;
+	}
+	.manager .current .row-label {
+		color: #f7c56b;
+	}
 	.row p {
 		margin: 0;
 		padding: 14px;
@@ -1133,6 +1250,9 @@
 		color: #f4f7ff;
 		font-weight: 700;
 	}
+	.manager .original {
+		color: #d9fffb;
+	}
 	textarea {
 		width: calc(100% - 24px);
 		min-height: 70px;
@@ -1144,6 +1264,10 @@
 		color: #e8eefc;
 		padding: 12px;
 		outline: none;
+	}
+	.manager textarea {
+		border-color: #2f6f75;
+		background: #09151d;
 	}
 	textarea:focus {
 		border-color: #3f7ee8;
@@ -1185,3 +1309,4 @@
 		}
 	}
 </style>
+

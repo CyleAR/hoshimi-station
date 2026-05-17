@@ -21,6 +21,45 @@ const sectionMeta = {
 	category: ['#', '카테고리']
 };
 
+const sectionOverrides = {
+	direct: ['▣', '기본 정보'],
+	members: ['👥', '소속 멤버'],
+	cards: ['★', '소속 카드'],
+	skills: ['⚡', '스킬'],
+	costumes: ['▣', '의상'],
+	evolution: ['✦', '개화 대사'],
+	stories: ['📖', '연결 스토리'],
+	adv: ['📜', 'ADV 본문'],
+	adv_card: ['📜', '카드 ADV'],
+	adv_bond: ['💬', 'Bond ADV'],
+	adv_hbd: ['🎂', '생일 ADV'],
+	adv_love: ['♡', '러브 ADV'],
+	adv_userhbd: ['🎁', '유저 생일 ADV'],
+	adv_group: ['📜', '그룹 ADV'],
+	common_messages: ['💬', '공통 문자'],
+	common_home_talks: ['🏠', '공통 홈 대사'],
+	common_telephones: ['☎', '공통 전화'],
+	call_patterns: ['📣', '접속 대사'],
+	card_messages: ['💬', '카드 문자'],
+	card_home_talks: ['🏠', '카드 홈 대사'],
+	card_telephones: ['☎', '카드 전화'],
+	group_messages: ['💬', '그룹 문자'],
+	group_telephones: ['☎', '그룹 통화'],
+	search: ['🔍', '검색 결과'],
+	category: ['#', '카테고리']
+};
+
+function searchableUnitWhere(alias = 'translation_units') {
+	return `(
+		${alias}.unit_id LIKE $q
+		OR ${alias}.source_file LIKE $q
+		OR ${alias}.record_id LIKE $q
+		OR ${alias}.field_path LIKE $q
+		OR ${alias}.original_text LIKE $q
+		OR ${alias}.translation_text LIKE $q
+	)`;
+}
+
 function count(where, params) {
 	return get(
 		`SELECT COUNT(*) total,
@@ -32,7 +71,7 @@ function count(where, params) {
 }
 
 function section(key, where, params = {}, extra = {}) {
-	const [icon, label] = sectionMeta[key] ?? sectionMeta.direct;
+	const [icon, label] = sectionOverrides[key] ?? sectionMeta[key] ?? sectionMeta.direct;
 	const row = count(where, params);
 	return { key, icon, label, total: row.total ?? 0, done: row.done ?? 0, ...extra };
 }
@@ -131,10 +170,16 @@ function groupCardSection(id) {
 	);
 }
 
-function advSection(type, id) {
+function advSection(type, id, category = '', key = 'adv') {
+	const params = { $type: type, $id: id };
+	let categoryWhere = '';
+	if (category) {
+		params.$advCategory = category;
+		categoryWhere = 'AND category = $advCategory';
+	}
 	return section(
-		'adv',
-		`source_type = 'adv' AND (
+		key,
+		`source_type = 'adv' ${categoryWhere} AND (
 			(scope_type = $type AND scope_id = $id)
 			OR source_file IN (
 				SELECT to_id FROM links
@@ -153,20 +198,65 @@ function advSection(type, id) {
 				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
 				WHERE card.from_type = $type AND card.from_id = $id AND card.to_type = 'card'
 			)
+			OR (
+				$type = 'character' AND category = 'adv/love' AND source_file IN (
+					SELECT love.source_file
+					FROM translation_units love
+					WHERE love.category = 'adv/love'
+					  AND love.speaker IN (
+					  	SELECT names.original_text
+					  	FROM translation_units names
+					  	WHERE names.source_type = 'masterdb'
+					  	  AND names.category = 'Character'
+					  	  AND names.scope_type = 'character'
+					  	  AND names.scope_id = $id
+					  	  AND names.field_path IN ('name', 'firstName')
+					)
+				)
+			)
+			OR (
+				$type = 'group' AND category = 'adv/group' AND source_file LIKE (
+					SELECT 'adv_group_' || subtitle || '_%'
+					FROM entities
+					WHERE entity_type = 'group' AND entity_id = $id
+				)
+			)
 		)`,
-		{ $type: type, $id: id }
+		params
 	);
 }
 
 function linksFor(type, id) {
 	return all(
 		`
-		SELECT l.relation, l.to_type type, l.to_id id, COALESCE(e.label, l.to_id) label, COALESCE(e.subtitle, '') subtitle
+		SELECT l.relation, l.to_type type, l.to_id id, COALESCE(e.label, l.to_id) label, COALESCE(e.subtitle, '') subtitle,
+		       (
+		       	SELECT tu.translation_text
+		       	FROM translation_units tu
+		       	WHERE tu.source_type = 'masterdb'
+		       	  AND tu.scope_type = l.to_type
+		       	  AND tu.scope_id = l.to_id
+		       	  AND tu.translation_text <> ''
+		       	  AND (tu.field_path = 'name' OR tu.field_path = 'title')
+		       	ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       	LIMIT 1
+		       ) translated_label
 		FROM links l
 		LEFT JOIN entities e ON e.entity_type = l.to_type AND e.entity_id = l.to_id
 		WHERE l.from_type = $type AND l.from_id = $id
 		UNION ALL
-		SELECT l.relation, l.from_type type, l.from_id id, COALESCE(e.label, l.from_id) label, COALESCE(e.subtitle, '') subtitle
+		SELECT l.relation, l.from_type type, l.from_id id, COALESCE(e.label, l.from_id) label, COALESCE(e.subtitle, '') subtitle,
+		       (
+		       	SELECT tu.translation_text
+		       	FROM translation_units tu
+		       	WHERE tu.source_type = 'masterdb'
+		       	  AND tu.scope_type = l.from_type
+		       	  AND tu.scope_id = l.from_id
+		       	  AND tu.translation_text <> ''
+		       	  AND (tu.field_path = 'name' OR tu.field_path = 'title')
+		       	ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       	LIMIT 1
+		       ) translated_label
 		FROM links l
 		LEFT JOIN entities e ON e.entity_type = l.from_type AND e.entity_id = l.from_id
 		WHERE l.to_type = $type AND l.to_id = $id
@@ -182,11 +272,33 @@ export function GET({ url }) {
 	const id = url.searchParams.get('id') || '';
 	if (!id) return json({ error: 'id is required' }, { status: 400 });
 
+	if (type === 'search') {
+		return json({
+			entity: { type, id, label: `검색 결과: ${id}`, subtitle: 'ID / 원문 / 번역 / 파일 / 필드' },
+			sections: [section('search', searchableUnitWhere('translation_units'), { $q: `%${id}%` })],
+			links: []
+		});
+	}
+
 	if (type === 'category') {
 		return json({
 			entity: { type, id, label: id, subtitle: '' },
 			sections: [section('category', 'category = $id', { $id: id }, { category: id })],
 			links: []
+		});
+	}
+
+	if (type === 'adv_file') {
+		const entity =
+			get(
+				`SELECT entity_type type, entity_id id, label, subtitle
+				 FROM entities WHERE entity_type = $type AND entity_id = $id`,
+				{ $type: type, $id: id }
+			) ?? { type, id, label: id, subtitle: 'ADV' };
+		return json({
+			entity,
+			sections: [section('adv', "source_type = 'adv' AND source_file = $id", { $id: id })].filter((item) => item.total > 0),
+			links: linksFor(type, id)
 		});
 	}
 
@@ -210,16 +322,21 @@ export function GET({ url }) {
 			)
 		);
 		sections.push(groupCardSection(id));
-		sections.push(advSection(type, id));
+		sections.push(advSection(type, id, 'adv/group', 'adv_group'));
 	}
 
 	if (type === 'character') {
 		sections.push(characterCardSection(id));
+		sections.push(linkedUnitSection('costumes', type, id, ['costume']));
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
 		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));
 		sections.push(characterCommonSection('common_telephones', id, ['telephone']));
 		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
-		sections.push(advSection(type, id));
+		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
+		sections.push(advSection(type, id, 'adv/bond', 'adv_bond'));
+		sections.push(advSection(type, id, 'adv/hbd', 'adv_hbd'));
+		sections.push(advSection(type, id, 'adv/love', 'adv_love'));
+		sections.push(advSection(type, id, 'adv/userhbd', 'adv_userhbd'));
 	}
 
 	if (type === 'card') {
@@ -230,7 +347,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('card_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('card_home_talks', type, id, ['home_talk']));
 		sections.push(linkedUnitSection('card_telephones', type, id, ['telephone']));
-		sections.push(advSection(type, id));
+		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
 	}
 
 	if (['story_part', 'story_collection', 'story', 'love'].includes(type)) {
