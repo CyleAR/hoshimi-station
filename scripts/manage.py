@@ -72,6 +72,59 @@ def git_status(path: Path) -> str:
     return capture(["git", "-C", str(path), "status", "--porcelain"])
 
 
+def current_branch(path: Path) -> str:
+    return capture(["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"])
+
+
+def remote_default_branch(path: Path) -> str:
+    run(["git", "-C", str(path), "fetch", "--prune", "origin"])
+    head = capture(["git", "-C", str(path), "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], check=False)
+    if head.startswith("origin/"):
+        return head.removeprefix("origin/")
+
+    remote_info = capture(["git", "-C", str(path), "remote", "show", "origin"], check=False)
+    for line in remote_info.splitlines():
+        line = line.strip()
+        if line.startswith("HEAD branch:"):
+            return line.split(":", 1)[1].strip()
+
+    for candidate in ("main", "master"):
+        exists = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--verify", f"origin/{candidate}"],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+        if exists.returncode == 0:
+            return candidate
+
+    raise SystemExit(f"Cannot determine default branch for {rel(path)}")
+
+
+def checkout_pullable_branch(path: Path) -> str:
+    branch = current_branch(path)
+    if branch != "HEAD":
+        return branch
+
+    default_branch = remote_default_branch(path)
+    print(f"detached HEAD 상태입니다. origin/{default_branch} 기준으로 브랜치를 체크아웃합니다.")
+    local_exists = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "--verify", default_branch],
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    if local_exists.returncode == 0:
+        run(["git", "-C", str(path), "checkout", default_branch])
+    else:
+        run(["git", "-C", str(path), "checkout", "-B", default_branch, f"origin/{default_branch}"])
+    return default_branch
+
+
 def print_submodule_diff(path: Path, before: str, after: str) -> None:
     name = rel(path)
     before_short = git_short(path, before)
@@ -125,6 +178,8 @@ def pull_submodules(paths: list[Path] | None = None) -> None:
         print()
         print(f"== {rel(path)} 최신화 ==")
         print(f"pull 전 해시: {git_short(path, before)}")
+        branch = checkout_pullable_branch(path)
+        print(f"branch: {branch}")
         run(["git", "-C", str(path), "pull", "--ff-only"])
         after = git_hash(path)
         print_submodule_diff(path, before, after)
@@ -181,6 +236,8 @@ def export_output() -> None:
     print()
     print("== output submodule 최신화 ==")
     before = git_hash(output_dir)
+    branch = checkout_pullable_branch(output_dir)
+    print(f"branch: {branch}")
     run(["git", "-C", str(output_dir), "pull", "--ff-only"])
     after = git_hash(output_dir)
     print_submodule_diff(output_dir, before, after)
