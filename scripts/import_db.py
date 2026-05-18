@@ -103,10 +103,17 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             original_text TEXT NOT NULL,
             translation_text TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'new',
+            translator_name TEXT NOT NULL DEFAULT '',
             scope_type TEXT NOT NULL DEFAULT 'category',
             scope_id TEXT NOT NULL DEFAULT '',
             context_json TEXT NOT NULL DEFAULT '{}',
             updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS users (
+            nickname TEXT PRIMARY KEY,
+            pin TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_units_category ON translation_units(category);
         CREATE INDEX IF NOT EXISTS idx_units_scope ON translation_units(scope_type, scope_id);
@@ -125,14 +132,19 @@ def table_exists(conn: sqlite3.Connection, name: str) -> bool:
     return row is not None
 
 
+def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    return any(row[1] == column for row in conn.execute(f"PRAGMA table_info({table})"))
+
+
 def preserve_existing_translations(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE IF EXISTS temp.saved_translations")
     if not table_exists(conn, "translation_units"):
         return
+    translator_expr = "translator_name" if column_exists(conn, "translation_units", "translator_name") else "'' AS translator_name"
     conn.execute(
-        """
+        f"""
         CREATE TEMP TABLE saved_translations AS
-        SELECT unit_id, original_text, translation_text, status, updated_at
+        SELECT unit_id, original_text, translation_text, status, {translator_expr}, updated_at
         FROM translation_units
         WHERE translation_text <> '' OR status <> 'new'
         """
@@ -162,6 +174,12 @@ def restore_existing_translations(conn: sqlite3.Connection) -> None:
             ),
             status = (
                 SELECT saved.status
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                  AND saved.original_text = translation_units.original_text
+            ),
+            translator_name = (
+                SELECT saved.translator_name
                 FROM saved_translations saved
                 WHERE saved.unit_id = translation_units.unit_id
                   AND saved.original_text = translation_units.original_text

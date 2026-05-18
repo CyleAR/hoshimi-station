@@ -127,6 +127,12 @@
 	let error = $state('');
 	let notice = $state('');
 	let navStack = $state([]);
+	let expandedLinkGroups = $state({});
+	let currentUser = $state(null);
+	let loginNickname = $state('');
+	let loginPin = $state('');
+	let loginError = $state('');
+	let loggingIn = $state(false);
 	let searchTimer;
 
 	async function fetchJson(url, options = {}) {
@@ -263,6 +269,10 @@
 	}
 
 	async function saveUnit(unit) {
+		if (!currentUser) {
+			loginError = '저장하려면 먼저 닉네임을 입력해 주세요.';
+			return;
+		}
 		const missing = missingPlaceholders(unit.original_text, unit.draft);
 		if (missing.length && unit.draft.trim()) {
 			const ok = confirm(`원문에 있는 placeholder가 번역문에 없습니다: ${missing.join(', ')}\n그래도 저장할까요?`);
@@ -278,10 +288,16 @@
 			const data = await fetchJson('/api/unit', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ unit_id: unit.unit_id, translation_text: unit.draft })
+				body: JSON.stringify({
+					unit_id: unit.unit_id,
+					translation_text: unit.draft,
+					nickname: currentUser.nickname,
+					pin: currentUser.pin
+				})
 			});
 			unit.translation_text = unit.draft;
 			unit.status = data.status;
+			unit.translator_name = data.translator_name ?? currentUser.nickname;
 			unit.dirty = false;
 			notice = '저장되었습니다.';
 			await loadSummary();
@@ -319,6 +335,49 @@
 	function retry() {
 		if (selected) selectItem(selected);
 		else loadItems();
+	}
+
+	function goHome() {
+		section = 'groups';
+		query = '';
+		navStack = [];
+		expandedLinkGroups = {};
+		loadItems();
+	}
+
+	async function login() {
+		loginError = '';
+		const nickname = loginNickname.trim();
+		const pin = loginPin.trim();
+		if (!nickname) {
+			loginError = '닉네임을 입력해 주세요.';
+			return;
+		}
+		if (!/^\d{6}$/.test(pin)) {
+			loginError = '비밀번호는 숫자 6자리로 입력해 주세요.';
+			return;
+		}
+		loggingIn = true;
+		try {
+			const data = await fetchJson('/api/user', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ nickname, pin })
+			});
+			currentUser = { nickname: data.user.nickname, pin };
+			sessionStorage.setItem('translatorUser', JSON.stringify(currentUser));
+			localStorage.setItem('translatorNickname', data.user.nickname);
+		} catch (err) {
+			loginError = err.message;
+		} finally {
+			loggingIn = false;
+		}
+	}
+
+	function logout() {
+		currentUser = null;
+		loginPin = '';
+		sessionStorage.removeItem('translatorUser');
 	}
 
 	function handleKeydown(event) {
@@ -506,7 +565,29 @@
 		return [...map.values()];
 	}
 
+	function visibleLinks(group) {
+		return expandedLinkGroups[group.key] ? group.links : group.links.slice(0, 8);
+	}
+
+	function toggleLinkGroup(group) {
+		expandedLinkGroups = {
+			...expandedLinkGroups,
+			[group.key]: !expandedLinkGroups[group.key]
+		};
+	}
+
 	onMount(() => {
+		try {
+			const saved = JSON.parse(sessionStorage.getItem('translatorUser') || 'null');
+			if (saved?.nickname && saved?.pin) {
+				currentUser = saved;
+				loginNickname = saved.nickname;
+			} else {
+				loginNickname = localStorage.getItem('translatorNickname') || '';
+			}
+		} catch {
+			loginNickname = localStorage.getItem('translatorNickname') || '';
+		}
 		loadSummary().catch((err) => (error = err.message));
 		loadItems();
 	});
@@ -520,10 +601,10 @@
 
 <div class="shell">
 	<header class="topbar">
-		<div class="brand">
+		<button class="brand" onclick={goHome} title="처음 화면으로">
 			<span class="brand-icon">★</span>
 			<span>HoshimiStation</span>
-		</div>
+		</button>
 		<label class="search">
 			<span>🔍</span>
 			<input id="global-search" bind:value={query} oninput={queueSearch} placeholder="ID / 원문 / 번역 검색... (Ctrl+K)" />
@@ -531,6 +612,10 @@
 		<div class="top-actions">
 			{#if summary}
 				<span class="summary-pill">{summary.done ?? 0}/{summary.units ?? 0}</span>
+			{/if}
+			{#if currentUser}
+				<span class="summary-pill">작업자: {currentUser.nickname}</span>
+				<button class="soft compact-button" onclick={logout}>나가기</button>
 			{/if}
 		</div>
 	</header>
@@ -579,7 +664,7 @@
 			</div>
 		</aside>
 
-		<aside class="related-pane">
+		<aside class="work-pane">
 			<div class="pane-title">
 				<span>작업 묶음</span>
 				<span>{detail?.sections?.length ?? 0}</span>
@@ -599,6 +684,9 @@
 					<div class="state-card">선택한 항목에 번역 단위가 없습니다.</div>
 				{/if}
 			</div>
+		</aside>
+
+		<aside class="links-pane">
 			{#if detail?.links?.length}
 				<div class="link-list">
 					<div class="pane-title compact">연결 항목 <span>{detail.links.length}</span></div>
@@ -608,7 +696,7 @@
 								<strong>{group.title}</strong>
 								<span>{group.type} · {group.links.length}</span>
 							</header>
-							{#each group.links.slice(0, 8) as link}
+							{#each visibleLinks(group) as link}
 								<button class="mini-link" onclick={() => navigateToItem(link)}>
 									<span>{typeNames[link.type] ?? link.type}</span>
 									<strong>
@@ -620,10 +708,20 @@
 								</button>
 							{/each}
 							{#if group.links.length > 8}
-								<div class="more-line">외 {group.links.length - 8}개</div>
+								<button class="more-line" onclick={() => toggleLinkGroup(group)}>
+									{expandedLinkGroups[group.key] ? '접기' : `외 ${group.links.length - 8}개 더 보기 (눌러서 펼침)`}
+								</button>
 							{/if}
 						</section>
 					{/each}
+				</div>
+			{:else}
+				<div class="pane-title">
+					<span>연결 항목</span>
+					<span>0</span>
+				</div>
+				<div class="link-list">
+					<div class="state-card">연결된 항목이 없습니다.</div>
 				</div>
 			{/if}
 		</aside>
@@ -708,7 +806,12 @@
 											></textarea>
 										</div>
 										<footer>
-											<span class:dirty={unit.dirty}>{unit.error || (unit.dirty ? '저장 필요' : unit.status)}</span>
+											<span class:dirty={unit.dirty}>
+												{unit.error || (unit.dirty ? '저장 필요' : unit.status)}
+												{#if unit.translator_name}
+													<small> · {unit.translator_name}</small>
+												{/if}
+											</span>
 											<button onclick={() => saveUnit(unit)} disabled={unit.saving}>{unit.saving ? '저장 중...' : '저장'}</button>
 										</footer>
 									</article>
@@ -721,6 +824,38 @@
 		</main>
 	</div>
 </div>
+
+{#if !currentUser}
+	<div class="login-backdrop">
+		<form
+			class="login-panel"
+			onsubmit={(event) => {
+				event.preventDefault();
+				login();
+			}}
+		>
+			<h2>작업자 입력</h2>
+			<p>닉네임과 숫자 6자리 비밀번호만 임시로 저장합니다.</p>
+			<div class="login-notice">
+				<strong>번역 주의사항</strong>
+				<span>placeholder와 줄바꿈 표기는 원문 기준으로 유지해 주세요.</span>
+				<span>캐릭터명/용어는 기존 번역과 맞춰 주세요.</span>
+			</div>
+			<label>
+				<span>닉네임</span>
+				<input bind:value={loginNickname} maxlength="24" autocomplete="username" placeholder="예: 마키노" />
+			</label>
+			<label>
+				<span>비밀번호</span>
+				<input bind:value={loginPin} inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="숫자 6자리" />
+			</label>
+			{#if loginError}
+				<div class="login-error">{loginError}</div>
+			{/if}
+			<button class="login-button" type="submit" disabled={loggingIn}>{loggingIn ? '확인 중...' : '들어가기'}</button>
+		</form>
+	</div>
+{/if}
 
 <style>
 	:global(*) {
@@ -765,6 +900,14 @@
 		gap: 10px;
 		font-weight: 800;
 		min-width: 150px;
+		border: 0;
+		background: transparent;
+		color: #e8eefc;
+		padding: 0;
+		text-align: left;
+	}
+	.brand:hover {
+		color: white;
 	}
 	.brand-icon {
 		width: 30px;
@@ -815,6 +958,9 @@
 		background: #132039;
 		color: #9dc0ff;
 	}
+	.compact-button {
+		padding: 0 9px;
+	}
 	.save-all {
 		background: #10b981;
 		border-color: #10b981;
@@ -829,17 +975,19 @@
 	.workspace {
 		min-height: 0;
 		display: grid;
-		grid-template-columns: clamp(340px, 24vw, 420px) clamp(430px, 27vw, 520px) minmax(0, 1fr);
+		grid-template-columns: clamp(300px, 20vw, 360px) clamp(230px, 15vw, 300px) clamp(330px, 22vw, 430px) minmax(460px, 1fr);
 	}
 	.nav-pane,
-	.related-pane {
+	.work-pane,
+	.links-pane {
 		min-height: 0;
 		background: #101827;
 		border-right: 1px solid #24334f;
 		display: flex;
 		flex-direction: column;
 	}
-	.related-pane {
+	.work-pane,
+	.links-pane {
 		background: #182238;
 	}
 	.pane-title {
@@ -882,22 +1030,24 @@
 		padding: 10px 8px 20px;
 	}
 	.section-list {
-		flex: 0 0 48%;
-		min-height: 280px;
-		max-height: 54%;
+		flex: 1 1 auto;
+		min-height: 0;
 		overflow: auto;
 		padding: 10px 8px 20px;
-		border-bottom: 1px solid #22314c;
 	}
 	.link-list {
 		flex: 1 1 0;
-		min-height: 120px;
+		min-height: 0;
 		overflow: auto;
-		padding: 0 10px 16px;
+		padding: 10px 10px 16px;
 	}
 	.pane-title.compact {
-		min-height: 34px;
-		padding: 0 4px;
+		min-height: 30px;
+		padding: 0 4px 6px;
+		position: sticky;
+		top: -10px;
+		z-index: 1;
+		background: #182238;
 	}
 	.item-card {
 		width: 100%;
@@ -1044,7 +1194,16 @@
 		user-select: text;
 	}
 	.more-line {
-		padding: 5px 8px 0;
+		width: 100%;
+		border: 0;
+		background: transparent;
+		padding: 7px 8px 0;
+		text-align: left;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.more-line:hover {
+		color: #9dc0ff;
 	}
 	.editor-pane {
 		min-height: 0;
@@ -1283,6 +1442,11 @@
 		color: #7488aa;
 		font-size: 12px;
 	}
+	.unit-card footer small {
+		color: #9db8e6;
+		font-size: 12px;
+		font-weight: 800;
+	}
 	.unit-card footer span.dirty {
 		color: #ffd166;
 	}
@@ -1301,12 +1465,95 @@
 		.workspace {
 			grid-template-columns: 280px 1fr;
 		}
-		.related-pane {
+		.work-pane,
+		.links-pane {
 			display: none;
 		}
 		.search {
 			width: min(360px, 42vw);
 		}
+	}
+	.login-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 20;
+		display: grid;
+		place-items: center;
+		background: rgba(5, 9, 16, 0.84);
+		backdrop-filter: blur(8px);
+	}
+	.login-panel {
+		width: min(380px, calc(100vw - 32px));
+		display: grid;
+		gap: 14px;
+		border: 1px solid #2d4770;
+		border-radius: 8px;
+		background: #111b2d;
+		padding: 22px;
+		box-shadow: 0 20px 80px rgba(0, 0, 0, 0.42);
+	}
+	.login-panel h2 {
+		margin: 0;
+		font-size: 18px;
+	}
+	.login-panel p {
+		margin: -4px 0 4px;
+		color: #8fa6ca;
+		font-size: 12px;
+	}
+	.login-notice {
+		display: grid;
+		gap: 6px;
+		border: 1px solid #294166;
+		border-radius: 7px;
+		background: #0c1526;
+		padding: 11px 12px;
+		color: #a8bbd8;
+		font-size: 12px;
+		line-height: 1.45;
+	}
+	.login-notice strong {
+		color: #dce8ff;
+		font-size: 13px;
+	}
+	.login-panel label {
+		display: grid;
+		gap: 7px;
+		color: #88b6ff;
+		font-size: 12px;
+		font-weight: 800;
+	}
+	.login-panel input {
+		height: 38px;
+		border: 1px solid #294166;
+		border-radius: 7px;
+		background: #080f1c;
+		color: #e8eefc;
+		padding: 0 12px;
+		outline: none;
+	}
+	.login-panel input:focus {
+		border-color: #3f7ee8;
+		box-shadow: 0 0 0 2px rgba(63, 126, 232, 0.18);
+	}
+	.login-error {
+		border: 1px solid #7f2d3a;
+		border-radius: 7px;
+		background: #25121a;
+		color: #ffc1ca;
+		padding: 10px 12px;
+		font-size: 12px;
+	}
+	.login-button {
+		height: 38px;
+		border: 0;
+		border-radius: 7px;
+		background: #2f70e7;
+		color: white;
+		font-weight: 900;
+	}
+	.login-button:disabled {
+		opacity: 0.55;
 	}
 </style>
 

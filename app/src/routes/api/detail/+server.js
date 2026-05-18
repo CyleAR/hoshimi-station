@@ -230,33 +230,91 @@ function linksFor(type, id) {
 	return all(
 		`
 		SELECT l.relation, l.to_type type, l.to_id id, COALESCE(e.label, l.to_id) label, COALESCE(e.subtitle, '') subtitle,
-		       (
-		       	SELECT tu.translation_text
-		       	FROM translation_units tu
-		       	WHERE tu.source_type = 'masterdb'
-		       	  AND tu.scope_type = l.to_type
-		       	  AND tu.scope_id = l.to_id
-		       	  AND tu.translation_text <> ''
-		       	  AND (tu.field_path = 'name' OR tu.field_path = 'title')
-		       	ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
-		       	LIMIT 1
-		       ) translated_label
+		       CASE
+		       	WHEN l.to_type = 'adv_file' THEN (
+		       		SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
+		       		FROM translation_units tu
+		       		WHERE tu.source_type = 'adv'
+		       		  AND tu.source_file = l.to_id
+		       		  AND tu.field_path = 'title'
+		       		ORDER BY tu.line_no, tu.unit_id
+		       		LIMIT 1
+		       	)
+		       	ELSE COALESCE(
+		       		(
+		       			SELECT tu.translation_text
+		       			FROM translation_units tu
+		       			WHERE tu.source_type = 'masterdb'
+		       			  AND tu.scope_type = l.to_type
+		       			  AND tu.scope_id = l.to_id
+		       			  AND tu.translation_text <> ''
+		       			  AND (tu.field_path = 'name' OR tu.field_path = 'title')
+		       			ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			LIMIT 1
+		       		),
+		       		(
+		       			SELECT child.translation_text
+		       			FROM links child_link
+		       			JOIN translation_units child
+		       			  ON child.scope_type = child_link.to_type
+		       			 AND child.scope_id = child_link.to_id
+		       			WHERE l.to_type = 'story_part'
+		       			  AND child_link.from_type = l.to_type
+		       			  AND child_link.from_id = l.to_id
+		       			  AND child_link.to_type = 'story_collection'
+		       			  AND child.source_type = 'masterdb'
+		       			  AND child.translation_text <> ''
+		       			  AND (child.field_path = 'name' OR child.field_path = 'title')
+		       			ORDER BY CASE child.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			LIMIT 1
+		       		)
+		       	)
+		       END translated_label
 		FROM links l
 		LEFT JOIN entities e ON e.entity_type = l.to_type AND e.entity_id = l.to_id
 		WHERE l.from_type = $type AND l.from_id = $id
 		UNION ALL
 		SELECT l.relation, l.from_type type, l.from_id id, COALESCE(e.label, l.from_id) label, COALESCE(e.subtitle, '') subtitle,
-		       (
-		       	SELECT tu.translation_text
-		       	FROM translation_units tu
-		       	WHERE tu.source_type = 'masterdb'
-		       	  AND tu.scope_type = l.from_type
-		       	  AND tu.scope_id = l.from_id
-		       	  AND tu.translation_text <> ''
-		       	  AND (tu.field_path = 'name' OR tu.field_path = 'title')
-		       	ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
-		       	LIMIT 1
-		       ) translated_label
+		       CASE
+		       	WHEN l.from_type = 'adv_file' THEN (
+		       		SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
+		       		FROM translation_units tu
+		       		WHERE tu.source_type = 'adv'
+		       		  AND tu.source_file = l.from_id
+		       		  AND tu.field_path = 'title'
+		       		ORDER BY tu.line_no, tu.unit_id
+		       		LIMIT 1
+		       	)
+		       	ELSE COALESCE(
+		       		(
+		       			SELECT tu.translation_text
+		       			FROM translation_units tu
+		       			WHERE tu.source_type = 'masterdb'
+		       			  AND tu.scope_type = l.from_type
+		       			  AND tu.scope_id = l.from_id
+		       			  AND tu.translation_text <> ''
+		       			  AND (tu.field_path = 'name' OR tu.field_path = 'title')
+		       			ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			LIMIT 1
+		       		),
+		       		(
+		       			SELECT child.translation_text
+		       			FROM links child_link
+		       			JOIN translation_units child
+		       			  ON child.scope_type = child_link.to_type
+		       			 AND child.scope_id = child_link.to_id
+		       			WHERE l.from_type = 'story_part'
+		       			  AND child_link.from_type = l.from_type
+		       			  AND child_link.from_id = l.from_id
+		       			  AND child_link.to_type = 'story_collection'
+		       			  AND child.source_type = 'masterdb'
+		       			  AND child.translation_text <> ''
+		       			  AND (child.field_path = 'name' OR child.field_path = 'title')
+		       			ORDER BY CASE child.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			LIMIT 1
+		       		)
+		       	)
+		       END translated_label
 		FROM links l
 		LEFT JOIN entities e ON e.entity_type = l.from_type AND e.entity_id = l.from_id
 		WHERE l.to_type = $type AND l.to_id = $id

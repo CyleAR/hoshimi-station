@@ -6,6 +6,24 @@ const dbPath = path.resolve(process.cwd(), '..', 'data', 'hoshimi.sqlite3');
 
 let db;
 
+function hasColumn(database, table, column) {
+	return database.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
+}
+
+function migrate(database) {
+	database.exec(`
+		CREATE TABLE IF NOT EXISTS users (
+			nickname TEXT PRIMARY KEY,
+			pin TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			last_seen_at TEXT NOT NULL
+		)
+	`);
+	if (!hasColumn(database, 'translation_units', 'translator_name')) {
+		database.exec("ALTER TABLE translation_units ADD COLUMN translator_name TEXT NOT NULL DEFAULT ''");
+	}
+}
+
 export function getDb() {
 	if (!db) {
 		db = new DatabaseSync(dbPath);
@@ -13,6 +31,7 @@ export function getDb() {
 		if (dev) {
 			db.exec('PRAGMA busy_timeout = 3000');
 		}
+		migrate(db);
 	}
 	return db;
 }
