@@ -14,7 +14,7 @@ module.exports = {
 				PROJECT_ROOT: __dirname,
 				DB_PATH: `${__dirname}/data/hoshimi.sqlite3`,
 				GUIDELINES_PATH: `${__dirname}/docs/translation-guidelines.md`,
-				HOST: '127.0.0.1',
+				HOST: '0.0.0.0',
 				PORT: 3042
 			}
 		}
