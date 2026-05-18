@@ -2,10 +2,11 @@ import { get, json, run } from '$lib/server/db.js';
 
 export async function POST({ request }) {
 	const body = await request.json();
-	const unitId = body.unit_id;
-	const translationText = body.translation_text ?? '';
-	const nickname = String(body.nickname ?? '').trim();
+	const unitId = String(body.unit_id ?? '').trim();
+	const translationText = String(body.translation_text ?? '');
+	const nickname = String(body.nickname ?? '').trim().slice(0, 24);
 	const pin = String(body.pin ?? '').trim();
+
 	if (!unitId) return json({ error: 'unit_id is required' }, { status: 400 });
 	if (!nickname) return json({ error: '닉네임을 입력해 주세요.' }, { status: 401 });
 	if (!/^\d{6}$/.test(pin)) return json({ error: '6자리 숫자 비밀번호를 입력해 주세요.' }, { status: 401 });
@@ -27,6 +28,6 @@ export async function POST({ request }) {
 	);
 
 	if (result.changes === 0) return json({ error: 'unit not found' }, { status: 404 });
-	run('UPDATE users SET last_seen_at = datetime(\'now\') WHERE nickname = $nickname', { $nickname: nickname });
+	run("UPDATE users SET last_seen_at = datetime('now') WHERE nickname = $nickname", { $nickname: nickname });
 	return json({ ok: true, status, translator_name: translationText.trim() ? nickname : '' });
 }
