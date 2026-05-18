@@ -65,10 +65,11 @@ def nested_identifier(child: dict[str, Any], index: int) -> Any:
 
 
 def output_rule_paths(rule: dict[str, Any]) -> list[str]:
-    paths = [f"id|{field}" for field in rule.get("fields", {})]
+    pk_prefix = "|".join(rule.get("pk", ["id"]))
+    paths = [f"{pk_prefix}|{field}" for field in rule.get("fields", {})]
     for nested_name, nested_rule in rule.get("nested", {}).items():
         for field in nested_rule.get("fields", {}):
-            paths.append(f"id|{nested_name}.{field}")
+            paths.append(f"{pk_prefix}|{nested_name}.{field}")
     return paths
 
 
