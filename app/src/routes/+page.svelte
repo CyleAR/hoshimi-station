@@ -1,5 +1,6 @@
 ﻿<script>
 	import { onMount } from 'svelte';
+	import './page.css';
 
 	const tabs = [
 		{ key: 'groups', label: '그룹' },
@@ -133,6 +134,7 @@
 	let loginPin = $state('');
 	let loginError = $state('');
 	let loggingIn = $state(false);
+	let guidelines = $state('');
 	let searchTimer;
 
 	async function fetchJson(url, options = {}) {
@@ -380,6 +382,40 @@
 		sessionStorage.removeItem('translatorUser');
 	}
 
+	async function loadGuidelines() {
+		const data = await fetchJson('/api/guidelines');
+		guidelines = data.markdown ?? '';
+	}
+
+	function markdownBlocks(markdown) {
+		const blocks = [];
+		let currentList = null;
+		for (const rawLine of String(markdown ?? '').split(/\r?\n/)) {
+			const line = rawLine.trim();
+			if (!line) {
+				currentList = null;
+				continue;
+			}
+			if (line.startsWith('# ')) {
+				blocks.push({ type: 'h1', text: line.slice(2).trim() });
+				currentList = null;
+			} else if (line.startsWith('## ')) {
+				blocks.push({ type: 'h2', text: line.slice(3).trim() });
+				currentList = null;
+			} else if (line.startsWith('- ')) {
+				if (!currentList) {
+					currentList = { type: 'ul', items: [] };
+					blocks.push(currentList);
+				}
+				currentList.items.push(line.slice(2).trim());
+			} else {
+				blocks.push({ type: 'p', text: line });
+				currentList = null;
+			}
+		}
+		return blocks;
+	}
+
 	function handleKeydown(event) {
 		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
 			event.preventDefault();
@@ -590,6 +626,7 @@
 		}
 		loadSummary().catch((err) => (error = err.message));
 		loadItems();
+		loadGuidelines().catch((err) => (loginError = err.message));
 	});
 </script>
 
@@ -827,733 +864,58 @@
 
 {#if !currentUser}
 	<div class="login-backdrop">
-		<form
-			class="login-panel"
-			onsubmit={(event) => {
-				event.preventDefault();
-				login();
-			}}
-		>
-			<h2>작업자 입력</h2>
-			<p>닉네임과 숫자 6자리 비밀번호만 임시로 저장합니다.</p>
-			<div class="login-notice">
-				<strong>번역 주의사항</strong>
-				<span>placeholder와 줄바꿈 표기는 원문 기준으로 유지해 주세요.</span>
-				<span>캐릭터명/용어는 기존 번역과 맞춰 주세요.</span>
+		<section class="guideline-panel">
+			<div class="guideline-inner">
+				{#if guidelines}
+					<div class="markdown-guidelines">
+						{#each markdownBlocks(guidelines) as block}
+							{#if block.type === 'h1'}
+								<h2>{block.text}</h2>
+							{:else if block.type === 'h2'}
+								<h3>{block.text}</h3>
+							{:else if block.type === 'p'}
+								<p>{block.text}</p>
+							{:else if block.type === 'ul'}
+								<ul>
+									{#each block.items as item}
+										<li>{item}</li>
+									{/each}
+								</ul>
+							{/if}
+						{/each}
+					</div>
+				{:else}
+					<div class="guideline-loading">번역 주의사항을 불러오는 중...</div>
+				{/if}
 			</div>
-			<label>
-				<span>닉네임</span>
-				<input bind:value={loginNickname} maxlength="24" autocomplete="username" placeholder="예: 마키노" />
-			</label>
-			<label>
-				<span>비밀번호</span>
-				<input bind:value={loginPin} inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="숫자 6자리" />
-			</label>
-			{#if loginError}
-				<div class="login-error">{loginError}</div>
-			{/if}
-			<button class="login-button" type="submit" disabled={loggingIn}>{loggingIn ? '확인 중...' : '들어가기'}</button>
-		</form>
+		</section>
+
+		<section class="login-side">
+			<form
+				class="login-panel"
+				onsubmit={(event) => {
+					event.preventDefault();
+					login();
+				}}
+			>
+				<div>
+					<h2>작업자 입력</h2>
+					<p>닉네임과 숫자 6자리 비밀번호만 임시로 저장합니다.</p>
+					<p class="plain-password-warning">비밀번호는 평문으로 저장됩니다. 다른 곳에서 쓰지 않는 단순 숫자를 사용해 주세요.</p>
+				</div>
+				<label>
+					<span>닉네임</span>
+					<input bind:value={loginNickname} maxlength="24" autocomplete="username" placeholder="예: 마키노" />
+				</label>
+				<label>
+					<span>비밀번호</span>
+					<input bind:value={loginPin} inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="숫자 6자리" />
+				</label>
+				{#if loginError}
+					<div class="login-error">{loginError}</div>
+				{/if}
+				<button class="login-button" type="submit" disabled={loggingIn}>{loggingIn ? '확인 중...' : '들어가기'}</button>
+			</form>
+		</section>
 	</div>
 {/if}
-
-<style>
-	:global(*) {
-		box-sizing: border-box;
-	}
-	:global(body) {
-		margin: 0;
-		background: #070c15;
-		color: #e8eefc;
-		font-family:
-			Inter, 'Noto Sans KR', 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-		overflow: hidden;
-	}
-	button,
-	input,
-	textarea {
-		font: inherit;
-	}
-	button {
-		cursor: pointer;
-	}
-	.shell {
-		height: 100vh;
-		display: grid;
-		grid-template-rows: 56px 1fr;
-		background:
-			linear-gradient(180deg, rgba(48, 111, 232, 0.18), transparent 90px),
-			#070c15;
-	}
-	.topbar {
-		display: flex;
-		align-items: center;
-		gap: 18px;
-		padding: 0 16px;
-		background: #101827;
-		border-bottom: 1px solid #24334f;
-		box-shadow: 0 0 28px rgba(45, 114, 255, 0.18);
-	}
-	.brand {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		font-weight: 800;
-		min-width: 150px;
-		border: 0;
-		background: transparent;
-		color: #e8eefc;
-		padding: 0;
-		text-align: left;
-	}
-	.brand:hover {
-		color: white;
-	}
-	.brand-icon {
-		width: 30px;
-		height: 30px;
-		display: grid;
-		place-items: center;
-		border-radius: 8px;
-		background: #2f6ee9;
-		color: #ffd24a;
-	}
-	.search {
-		width: min(430px, 36vw);
-		height: 34px;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 0 12px;
-		background: #0a111f;
-		border: 1px solid #294166;
-		border-radius: 7px;
-		color: #6da2ff;
-	}
-	.search input {
-		width: 100%;
-		border: 0;
-		outline: 0;
-		background: transparent;
-		color: #d9e7ff;
-	}
-	.top-actions,
-	.editor-actions {
-		margin-left: auto;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.summary-pill,
-	.notice {
-		color: #8fb8ff;
-		font-size: 12px;
-	}
-	.soft,
-	.save-all {
-		height: 30px;
-		border: 1px solid #284065;
-		border-radius: 8px;
-		padding: 0 12px;
-		background: #132039;
-		color: #9dc0ff;
-	}
-	.compact-button {
-		padding: 0 9px;
-	}
-	.save-all {
-		background: #10b981;
-		border-color: #10b981;
-		color: #042016;
-		font-weight: 800;
-	}
-	.jump {
-		border-color: #7c5c24;
-		background: #21180a;
-		color: #ffd166;
-	}
-	.workspace {
-		min-height: 0;
-		display: grid;
-		grid-template-columns: clamp(300px, 20vw, 360px) clamp(230px, 15vw, 300px) clamp(330px, 22vw, 430px) minmax(460px, 1fr);
-	}
-	.nav-pane,
-	.work-pane,
-	.links-pane {
-		min-height: 0;
-		background: #101827;
-		border-right: 1px solid #24334f;
-		display: flex;
-		flex-direction: column;
-	}
-	.work-pane,
-	.links-pane {
-		background: #182238;
-	}
-	.pane-title {
-		min-height: 44px;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 0 14px;
-		color: #82b4ff;
-		font-size: 12px;
-		font-weight: 800;
-	}
-	.tabs,
-	.chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
-		padding: 6px 12px 10px;
-		border-bottom: 1px solid #22314c;
-	}
-	.tabs button,
-	.chips button {
-		border: 1px solid #263b5d;
-		border-radius: 999px;
-		background: #0d1728;
-		color: #78a4e8;
-		padding: 4px 10px;
-		font-size: 12px;
-	}
-	.tabs button.active,
-	.chips button:hover {
-		background: #2f70e7;
-		color: white;
-		border-color: #2f70e7;
-	}
-	.scroll-list {
-		flex: 1 1 auto;
-		min-height: 0;
-		overflow: auto;
-		padding: 10px 8px 20px;
-	}
-	.section-list {
-		flex: 1 1 auto;
-		min-height: 0;
-		overflow: auto;
-		padding: 10px 8px 20px;
-	}
-	.link-list {
-		flex: 1 1 0;
-		min-height: 0;
-		overflow: auto;
-		padding: 10px 10px 16px;
-	}
-	.pane-title.compact {
-		min-height: 30px;
-		padding: 0 4px 6px;
-		position: sticky;
-		top: -10px;
-		z-index: 1;
-		background: #182238;
-	}
-	.item-card {
-		width: 100%;
-		display: grid;
-		grid-template-columns: 72px 1fr;
-		gap: 10px;
-		align-items: center;
-		border: 1px solid transparent;
-		border-radius: 8px;
-		background: transparent;
-		color: #e8eefc;
-		text-align: left;
-		padding: 10px 12px;
-	}
-	.item-card:hover,
-	.item-card.selected {
-		background: #223554;
-		border-color: #4773b8;
-	}
-	.type-badge {
-		min-width: 0;
-		border-radius: 6px;
-		background: #162641;
-		color: #8fb8ff;
-		padding: 4px 6px;
-		font-size: 11px;
-		text-align: center;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.item-main {
-		min-width: 0;
-		display: grid;
-		gap: 4px;
-	}
-	.item-main strong,
-	.item-main small,
-	.mini-link span,
-	.mini-link strong {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.item-main strong {
-		font-size: 14px;
-	}
-	.item-main small {
-		color: #6f8bb7;
-		font-size: 12px;
-	}
-	.item-main small.translated-name {
-		color: #b8d4ff;
-		font-weight: 700;
-	}
-	.item-main i {
-		height: 3px;
-		background: #0b1322;
-		border-radius: 99px;
-		overflow: hidden;
-	}
-	.item-main b {
-		display: block;
-		height: 100%;
-		background: #2fe4a8;
-	}
-	.section-row {
-		width: 100%;
-		display: grid;
-		grid-template-columns: 28px 1fr auto;
-		align-items: center;
-		gap: 8px;
-		border: 0;
-		border-radius: 8px;
-		background: transparent;
-		color: #b6c5dd;
-		text-align: left;
-		padding: 11px 12px;
-	}
-	.section-row:hover,
-	.section-row.active {
-		background: #263a5d;
-		color: white;
-	}
-	.section-row em {
-		font-style: normal;
-		color: #7fa8e8;
-		font-size: 12px;
-	}
-	.link-group {
-		border-top: 1px solid #22314c;
-		padding: 10px 0;
-	}
-	.link-group header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 0 4px 6px;
-		color: #d8e6ff;
-		font-size: 12px;
-	}
-	.link-group header span,
-	.more-line {
-		color: #6f8bb7;
-		font-size: 11px;
-	}
-	.mini-link {
-		width: 100%;
-		display: grid;
-		grid-template-columns: 82px 1fr;
-		gap: 8px;
-		align-items: center;
-		border: 0;
-		border-radius: 6px;
-		background: transparent;
-		color: #aebbd2;
-		text-align: left;
-		padding: 7px 8px;
-	}
-	.mini-link:hover {
-		background: #223554;
-	}
-	.mini-link span {
-		color: #7192c4;
-		font-size: 11px;
-	}
-	.mini-link strong {
-		min-width: 0;
-		display: grid;
-		gap: 3px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		user-select: text;
-	}
-	.mini-link small {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		color: #b8d4ff;
-		font-size: 11px;
-		font-weight: 700;
-		user-select: text;
-	}
-	.more-line {
-		width: 100%;
-		border: 0;
-		background: transparent;
-		padding: 7px 8px 0;
-		text-align: left;
-		text-decoration: underline;
-		text-underline-offset: 3px;
-	}
-	.more-line:hover {
-		color: #9dc0ff;
-	}
-	.editor-pane {
-		min-height: 0;
-		overflow: auto;
-		padding: 16px 22px;
-		background: #080d16;
-	}
-	.editor-head {
-		position: sticky;
-		top: -16px;
-		z-index: 2;
-		display: flex;
-		align-items: center;
-		gap: 16px;
-		padding: 0 0 16px;
-		background: #080d16;
-	}
-	.editor-head h1 {
-		margin: 0;
-		font-size: 16px;
-	}
-	.editor-head p {
-		margin: 5px 0 0;
-		color: #8ea1c2;
-		font-size: 12px;
-	}
-	.editor-head span {
-		color: #5f7ba9;
-	}
-	.state-card,
-	.error-box {
-		border: 1px solid #24334f;
-		border-radius: 8px;
-		background: #111b2d;
-		color: #98abc9;
-		padding: 14px;
-	}
-	.state-card.large,
-	.error-box {
-		margin-top: 12px;
-	}
-	.error-box {
-		border-color: #7f2d3a;
-		background: #25121a;
-		color: #ffc1ca;
-	}
-	.error-box button {
-		height: 30px;
-		border: 0;
-		border-radius: 7px;
-		background: #ef4462;
-		color: white;
-		padding: 0 12px;
-	}
-	.group-stack {
-		display: grid;
-		gap: 20px;
-		padding-bottom: 48px;
-	}
-	.unit-group {
-		border: 1px solid #24334f;
-		border-radius: 8px;
-		background: #101827;
-		overflow: hidden;
-	}
-	.group-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 14px;
-		padding: 13px 16px;
-		background: #182238;
-		border-bottom: 1px solid #24334f;
-	}
-	.group-head div {
-		min-width: 0;
-		display: grid;
-		gap: 4px;
-	}
-	.group-head strong {
-		color: #dce8ff;
-	}
-	.group-head code {
-		color: #6f86ad;
-		font-size: 11px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.group-actions {
-		flex: 0 0 auto;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.group-actions button {
-		height: 28px;
-		border: 1px solid #2b4369;
-		border-radius: 7px;
-		background: #101a2d;
-		color: #9dc0ff;
-		padding: 0 10px;
-		font-size: 12px;
-	}
-	.group-actions button.accent {
-		background: #2f70e7;
-		border-color: #2f70e7;
-		color: white;
-	}
-	.group-actions span {
-		border-radius: 999px;
-		background: #111b2d;
-		color: #8fb8ff;
-		padding: 3px 9px;
-		font-size: 12px;
-	}
-	.unit-stack {
-		display: grid;
-		gap: 14px;
-		padding: 14px;
-	}
-	.unit-card {
-		border: 1px solid #24334f;
-		border-radius: 8px;
-		background: #111a2c;
-		overflow: hidden;
-	}
-	.unit-card.untranslated {
-		border-color: #514168;
-	}
-	.unit-card.manager {
-		border-color: #2f6f75;
-		background: #0f2027;
-	}
-	.unit-card header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 12px 14px;
-		border-bottom: 1px solid #22314c;
-		color: #9fbfff;
-	}
-	.unit-card.manager header {
-		border-bottom-color: #274d59;
-		color: #8ee6df;
-	}
-	.speaker-chip {
-		display: inline-flex;
-		align-items: center;
-		height: 20px;
-		margin-right: 8px;
-		padding: 0 8px;
-		border-radius: 999px;
-		background: #164e63;
-		color: #a7f3d0;
-		font-size: 11px;
-		font-weight: 900;
-		vertical-align: middle;
-	}
-	.unit-card header code {
-		color: #667fa8;
-		font-size: 11px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.row {
-		display: grid;
-		grid-template-columns: 82px 1fr;
-		border-bottom: 1px solid #1e2b43;
-	}
-	.row-label {
-		padding: 14px;
-		color: #62e6b0;
-		font-size: 12px;
-		font-weight: 800;
-		border-right: 1px solid #1e2b43;
-	}
-	.current .row-label {
-		color: #f0a63b;
-	}
-	.manager .row-label {
-		color: #8ee6df;
-	}
-	.manager .current .row-label {
-		color: #f7c56b;
-	}
-	.row p {
-		margin: 0;
-		padding: 14px;
-		white-space: pre-wrap;
-		line-height: 1.6;
-	}
-	.row p.escaped {
-		white-space: normal;
-		word-break: break-word;
-	}
-	.current p {
-		color: #8b98ad;
-	}
-	.original {
-		color: #f4f7ff;
-		font-weight: 700;
-	}
-	.manager .original {
-		color: #d9fffb;
-	}
-	textarea {
-		width: calc(100% - 24px);
-		min-height: 70px;
-		margin: 12px;
-		resize: vertical;
-		border: 1px solid #273b5b;
-		border-radius: 7px;
-		background: #080f1c;
-		color: #e8eefc;
-		padding: 12px;
-		outline: none;
-	}
-	.manager textarea {
-		border-color: #2f6f75;
-		background: #09151d;
-	}
-	textarea:focus {
-		border-color: #3f7ee8;
-		box-shadow: 0 0 0 2px rgba(63, 126, 232, 0.18);
-	}
-	.unit-card footer {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 10px 14px;
-	}
-	.unit-card footer span {
-		color: #7488aa;
-		font-size: 12px;
-	}
-	.unit-card footer small {
-		color: #9db8e6;
-		font-size: 12px;
-		font-weight: 800;
-	}
-	.unit-card footer span.dirty {
-		color: #ffd166;
-	}
-	.unit-card footer button {
-		height: 30px;
-		border: 0;
-		border-radius: 7px;
-		background: #2f70e7;
-		color: white;
-		padding: 0 14px;
-	}
-	.unit-card footer button:disabled {
-		opacity: 0.5;
-	}
-	@media (max-width: 1100px) {
-		.workspace {
-			grid-template-columns: 280px 1fr;
-		}
-		.work-pane,
-		.links-pane {
-			display: none;
-		}
-		.search {
-			width: min(360px, 42vw);
-		}
-	}
-	.login-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 20;
-		display: grid;
-		place-items: center;
-		background: rgba(5, 9, 16, 0.84);
-		backdrop-filter: blur(8px);
-	}
-	.login-panel {
-		width: min(380px, calc(100vw - 32px));
-		display: grid;
-		gap: 14px;
-		border: 1px solid #2d4770;
-		border-radius: 8px;
-		background: #111b2d;
-		padding: 22px;
-		box-shadow: 0 20px 80px rgba(0, 0, 0, 0.42);
-	}
-	.login-panel h2 {
-		margin: 0;
-		font-size: 18px;
-	}
-	.login-panel p {
-		margin: -4px 0 4px;
-		color: #8fa6ca;
-		font-size: 12px;
-	}
-	.login-notice {
-		display: grid;
-		gap: 6px;
-		border: 1px solid #294166;
-		border-radius: 7px;
-		background: #0c1526;
-		padding: 11px 12px;
-		color: #a8bbd8;
-		font-size: 12px;
-		line-height: 1.45;
-	}
-	.login-notice strong {
-		color: #dce8ff;
-		font-size: 13px;
-	}
-	.login-panel label {
-		display: grid;
-		gap: 7px;
-		color: #88b6ff;
-		font-size: 12px;
-		font-weight: 800;
-	}
-	.login-panel input {
-		height: 38px;
-		border: 1px solid #294166;
-		border-radius: 7px;
-		background: #080f1c;
-		color: #e8eefc;
-		padding: 0 12px;
-		outline: none;
-	}
-	.login-panel input:focus {
-		border-color: #3f7ee8;
-		box-shadow: 0 0 0 2px rgba(63, 126, 232, 0.18);
-	}
-	.login-error {
-		border: 1px solid #7f2d3a;
-		border-radius: 7px;
-		background: #25121a;
-		color: #ffc1ca;
-		padding: 10px 12px;
-		font-size: 12px;
-	}
-	.login-button {
-		height: 38px;
-		border: 0;
-		border-radius: 7px;
-		background: #2f70e7;
-		color: white;
-		font-weight: 900;
-	}
-	.login-button:disabled {
-		opacity: 0.55;
-	}
-</style>
-
