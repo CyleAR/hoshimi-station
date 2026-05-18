@@ -6,6 +6,7 @@
     "preview": "npm --prefix app run preview",
     "serve": "npm run build && npm run preview",
     "start": "npm --prefix app run start",
+    "manage": "python scripts/manage.py",
     "import-db": "python scripts/import_db.py",
     "prefill-kor": "python scripts/prefill_kor.py",
     "export-output": "python scripts/export_output.py --overwrite"
