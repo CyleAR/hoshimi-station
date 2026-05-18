@@ -64,6 +64,21 @@ def git_hash(path: Path) -> str:
     return capture(["git", "-C", str(path), "rev-parse", "HEAD"])
 
 
+def try_git_hash(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    result = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
 def git_short(path: Path, commit: str) -> str:
     return capture(["git", "-C", str(path), "rev-parse", "--short", commit])
 
@@ -161,13 +176,10 @@ def indent(text: str, prefix: str) -> str:
 
 def pull_submodules(paths: list[Path] | None = None) -> bool:
     paths = paths or submodule_paths()
-    run(["git", "submodule", "update", "--init", "--recursive"])
-    changed_any = False
-
-    for path in paths:
-        if not path.exists():
-            raise SystemExit(f"Submodule path does not exist: {path}")
-
+    before_hashes = {path: try_git_hash(path) for path in paths}
+    for path, before in before_hashes.items():
+        if before is None:
+            continue
         dirty = git_status(path)
         if dirty:
             print()
@@ -175,16 +187,33 @@ def pull_submodules(paths: list[Path] | None = None) -> bool:
             print(indent(dirty, "  "))
             raise SystemExit("서브모듈에 로컬 변경사항이 있어 중단했습니다.")
 
-        before = git_hash(path)
+    run(["git", "submodule", "update", "--init", "--recursive"])
+    changed_any = False
+
+    for path in paths:
+        if not path.exists():
+            raise SystemExit(f"Submodule path does not exist: {path}")
+
+        before = before_hashes.get(path)
         print()
         print(f"== {rel(path)} 최신화 ==")
-        print(f"pull 전 해시: {git_short(path, before)}")
+        if before is None:
+            print("시작 전 해시: (초기화되지 않음)")
+        else:
+            print(f"시작 전 해시: {git_short(path, before)}")
         branch = checkout_pullable_branch(path)
         print(f"branch: {branch}")
         run(["git", "-C", str(path), "pull", "--ff-only"])
         after = git_hash(path)
-        print_submodule_diff(path, before, after)
-        changed_any = changed_any or before != after
+        if before is None:
+            print()
+            print(f"[{rel(path)}]")
+            print(f"  현재 해시: {git_short(path, after)}")
+            print("  새로 초기화됨")
+            changed_any = True
+        else:
+            print_submodule_diff(path, before, after)
+            changed_any = changed_any or before != after
 
     return changed_any
 
