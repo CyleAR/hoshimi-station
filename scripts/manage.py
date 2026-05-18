@@ -232,6 +232,29 @@ def backup_db() -> Path:
     return target_dir
 
 
+def checkpoint_db() -> None:
+    if not DB_PATH.exists():
+        raise SystemExit(f"Database not found: {DB_PATH}")
+
+    wal_path = DB_PATH.with_name(DB_PATH.name + "-wal")
+    before_size = wal_path.stat().st_size if wal_path.exists() else 0
+
+    print()
+    print("== SQLite WAL checkpoint ==")
+    print(f"DB: {rel(DB_PATH)}")
+    print(f"WAL before: {before_size:,} bytes")
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        result = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+    finally:
+        conn.close()
+
+    after_size = wal_path.stat().st_size if wal_path.exists() else 0
+    print(f"result: {result}")
+    print(f"WAL after: {after_size:,} bytes")
+
+
 def export_output() -> None:
     output_dir = ROOT / "output"
     if not output_dir.exists():
@@ -286,6 +309,10 @@ def menu() -> str:
     print("   - output을 git pull 한 뒤 DB에서 Localify output을 생성합니다.")
     print("   - 변경사항이 있으면 output 서브모듈에서 commit 후 push 합니다.")
     print()
+    print("4. SQLite WAL checkpoint")
+    print("   - sqlite3 CLI 없이 Python으로 PRAGMA wal_checkpoint(TRUNCATE)를 실행합니다.")
+    print("   - data/hoshimi.sqlite3-wal 내용을 DB 본체에 반영하고 WAL 크기를 줄입니다.")
+    print()
     print("q. 종료")
     print()
     return input("번호 입력 > ").strip().lower()
@@ -294,7 +321,7 @@ def menu() -> str:
 def main() -> None:
     configure_stdio()
     parser = argparse.ArgumentParser(description="HoshimiStation maintenance helper.")
-    parser.add_argument("action", nargs="?", choices=["1", "2", "3"], help="Action to run without interactive menu.")
+    parser.add_argument("action", nargs="?", choices=["1", "2", "3", "4"], help="Action to run without interactive menu.")
     args = parser.parse_args()
 
     choice = args.action or menu()
@@ -309,10 +336,12 @@ def main() -> None:
         backup_db()
     elif choice == "3":
         export_output()
+    elif choice == "4":
+        checkpoint_db()
     elif choice in {"q", "quit", "exit"}:
         return
     else:
-        raise SystemExit("1, 2, 3, q 중 하나를 입력하세요.")
+        raise SystemExit("1, 2, 3, 4, q 중 하나를 입력하세요.")
 
 
 if __name__ == "__main__":
