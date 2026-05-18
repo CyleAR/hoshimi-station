@@ -6,6 +6,10 @@ const sectionMeta = {
 	cards: ['★', '소속 카드'],
 	skills: ['⚡', '스킬'],
 	costumes: ['▣', '의상'],
+	hair: ['◇', '헤어'],
+	accessories: ['◌', '액세서리'],
+	goods: ['▦', '굿즈'],
+	home_actions: ['⌂', '홈 액션'],
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
 	adv: ['▤', 'ADV 본문'],
@@ -27,6 +31,10 @@ const sectionOverrides = {
 	cards: ['★', '소속 카드'],
 	skills: ['⚡', '스킬'],
 	costumes: ['▣', '의상'],
+	hair: ['◇', '헤어'],
+	accessories: ['◌', '액세서리'],
+	goods: ['▦', '굿즈'],
+	home_actions: ['🏠', '홈 액션'],
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
 	adv: ['📜', 'ADV 본문'],
@@ -93,7 +101,14 @@ function directSection(type, id) {
 		telephone: ['Telephone'],
 		home_talk: ['HomeTalk'],
 		call_pattern: ['HomeTalkCallPattern'],
-		card_evolution_message: ['CardEvolutionMessage']
+		card_evolution_message: ['CardEvolutionMessage'],
+		showcase_toy: ['ShowcaseToy'],
+		showcase_toy_category: ['ShowcaseToyCategory'],
+		hair: ['Hair'],
+		accessory: ['Accessory'],
+		home_action: ['HomeAction'],
+		love_home_action: ['LoveHomeAction'],
+		company_enjoy_home_action: ['CompanyEnjoyHomeAction']
 	};
 	const categories = categoryByType[type];
 	const params = { $type: type, $id: id };
@@ -380,12 +395,16 @@ export function GET({ url }) {
 			)
 		);
 		sections.push(groupCardSection(id));
+		sections.push(linkedUnitSection('accessories', type, id, ['accessory']));
 		sections.push(advSection(type, id, 'adv/group', 'adv_group'));
 	}
 
 	if (type === 'character') {
 		sections.push(characterCardSection(id));
 		sections.push(linkedUnitSection('costumes', type, id, ['costume']));
+		sections.push(linkedUnitSection('hair', type, id, ['hair']));
+		sections.push(linkedUnitSection('accessories', type, id, ['accessory']));
+		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
 		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));
 		sections.push(characterCommonSection('common_telephones', id, ['telephone']));
@@ -399,8 +418,10 @@ export function GET({ url }) {
 
 	if (type === 'card') {
 		sections.push(linkedUnitSection('evolution', type, id, ['card_evolution_message']));
-		sections.push(linkedUnitSection('skills', type, id, ['skill', 'live_ability', 'activity_ability']));
+		sections.push(linkedUnitSection('skills', type, id, ['skill', 'skill_efficacy', 'live_ability', 'activity_ability']));
 		sections.push(linkedUnitSection('costumes', type, id, ['costume']));
+		sections.push(linkedUnitSection('hair', type, id, ['hair']));
+		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
 		sections.push(linkedUnitSection('stories', type, id, ['story']));
 		sections.push(linkedUnitSection('card_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('card_home_talks', type, id, ['home_talk']));

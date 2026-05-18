@@ -82,7 +82,14 @@ function directWhere(type, id) {
 		telephone: ['Telephone'],
 		home_talk: ['HomeTalk'],
 		call_pattern: ['HomeTalkCallPattern'],
-		card_evolution_message: ['CardEvolutionMessage']
+		card_evolution_message: ['CardEvolutionMessage'],
+		showcase_toy: ['ShowcaseToy'],
+		showcase_toy_category: ['ShowcaseToyCategory'],
+		hair: ['Hair'],
+		accessory: ['Accessory'],
+		home_action: ['HomeAction'],
+		love_home_action: ['LoveHomeAction'],
+		company_enjoy_home_action: ['CompanyEnjoyHomeAction']
 	};
 	const params = { $type: type, $id: id };
 	let where = "source_type = 'masterdb' AND scope_type = $type AND scope_id = $id";
@@ -199,6 +206,7 @@ function whereFor(type, id, key, category) {
 				{ $id: id }
 			];
 		}
+		if (key === 'accessories') return linkedWhere(type, id, ['accessory']);
 	}
 
 	if (type === 'character') {
@@ -215,12 +223,17 @@ function whereFor(type, id, key, category) {
 		if (key === 'common_telephones') return characterCommonWhere(id, ['telephone']);
 		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
 		if (key === 'costumes') return linkedWhere(type, id, ['costume']);
+		if (key === 'hair') return linkedWhere(type, id, ['hair']);
+		if (key === 'accessories') return linkedWhere(type, id, ['accessory']);
+		if (key === 'home_actions') return linkedWhere(type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']);
 	}
 
 	if (type === 'card') {
 		if (key === 'evolution') return linkedWhere(type, id, ['card_evolution_message']);
-		if (key === 'skills') return linkedWhere(type, id, ['skill', 'live_ability', 'activity_ability']);
+		if (key === 'skills') return linkedWhere(type, id, ['skill', 'skill_efficacy', 'live_ability', 'activity_ability']);
 		if (key === 'costumes') return linkedWhere(type, id, ['costume']);
+		if (key === 'hair') return linkedWhere(type, id, ['hair']);
+		if (key === 'goods') return linkedWhere(type, id, ['showcase_toy']);
 		if (key === 'stories') return linkedWhere(type, id, ['story']);
 		if (key === 'card_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'card_home_talks') return linkedWhere(type, id, ['home_talk']);

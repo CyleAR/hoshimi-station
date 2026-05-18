@@ -67,6 +67,8 @@ def cache_key(category: str, row: dict[str, Any]) -> str:
         return pk_value(row, ["cardId", "evolutionLevel", "number"])
     if category == "HomeTalkCallPattern":
         return pk_value(row, ["characterId", "patternId"])
+    if category == "HomeAction":
+        return str(row.get("homeActionId") or pk_value(row, ["homeActionId"]))
     return str(row.get("id") or row.get("homeTalkId") or pk_value(row, ["id"]))
 
 
@@ -290,9 +292,17 @@ def infer_scope(category: str, item: dict[str, Any]) -> tuple[str, str]:
         "LiveAbility": "live_ability",
         "ActivityAbility": "activity_ability",
         "CardEvolutionMessage": "card_evolution_message",
+        "ShowcaseToy": "showcase_toy",
+        "ShowcaseToyCategory": "showcase_toy_category",
+        "Accessory": "accessory",
+        "Hair": "hair",
+        "HomeAction": "home_action",
+        "LoveHomeAction": "love_home_action",
+        "CompanyEnjoyHomeAction": "company_enjoy_home_action",
+        "ExtraStoryPart": "story_part",
     }
     if category in direct:
-        entity_id = item.get("id") or item.get("homeTalkId")
+        entity_id = item.get("id") or item.get("homeTalkId") or item.get("homeActionId")
         if entity_id:
             return direct[category], str(entity_id)
     if category == "Character" and item.get("id"):
@@ -330,6 +340,29 @@ def extract_path(item: Any, path: list[str], label_path: str) -> Iterable[tuple[
                 ident = child.get("id") or child.get("messageDetailId") or child.get("voiceAssetId") or child.get("level") or child.get("index") or idx
                 child_path = label_path.replace("[", f"[{ident};", 1) if "[" in label_path else label_path
                 yield from extract_path(child[key], rest, child_path)
+
+
+def skill_efficacy_ids(skill: dict[str, Any] | None) -> set[str]:
+    ids: set[str] = set()
+    if not skill:
+        return ids
+    for level in skill.get("levels", []) or []:
+        for detail in level.get("skillDetails", []) or []:
+            efficacy_id = detail.get("efficacyId")
+            if efficacy_id:
+                ids.add(str(efficacy_id))
+    return ids
+
+
+def level_skill_ids(ability: dict[str, Any] | None) -> set[str]:
+    ids: set[str] = set()
+    if not ability:
+        return ids
+    for level in ability.get("levels", []) or []:
+        skill_id = level.get("skillId")
+        if skill_id:
+            ids.add(str(skill_id))
+    return ids
 
 
 def unit_upsert(
@@ -412,9 +445,16 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
         upsert_entity(conn, "card", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
         add_link(conn, "character", row.get("characterId", ""), "card", row["id"], "has_card")
         for key in ("skillId1", "skillId2", "skillId3", "skillId4"):
-            add_link(conn, "card", row["id"], "skill", row.get(key, ""), key)
+            skill_id = row.get(key, "")
+            add_link(conn, "card", row["id"], "skill", skill_id, key)
+            for efficacy_id in skill_efficacy_ids(cache.get("Skill", {}).get(str(skill_id))):
+                add_link(conn, "card", row["id"], "skill_efficacy", efficacy_id, f"{key}_efficacy")
         add_link(conn, "card", row["id"], "live_ability", row.get("liveAbilityId", ""), "liveAbilityId")
         add_link(conn, "card", row["id"], "activity_ability", row.get("activityAbilityId", ""), "activityAbilityId")
+        for skill_id in level_skill_ids(cache.get("LiveAbility", {}).get(str(row.get("liveAbilityId", "")))):
+            add_link(conn, "card", row["id"], "skill", skill_id, "liveAbilitySkill")
+            for efficacy_id in skill_efficacy_ids(cache.get("Skill", {}).get(skill_id)):
+                add_link(conn, "card", row["id"], "skill_efficacy", efficacy_id, "liveAbilitySkill_efficacy")
         add_link(conn, "card", row["id"], "costume", row.get("rewardCostumeId", ""), "reward_costume")
         for story in row.get("stories", []) or []:
             add_link(conn, "card", row["id"], "story", story.get("storyId", ""), "card_story", story)
@@ -423,6 +463,20 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
             add_link(conn, "card", row["id"], "telephone", message.get("telephoneId", ""), "card_telephone", message)
         for home_talk in row.get("homeTalks", []) or []:
             add_link(conn, "card", row["id"], "home_talk", home_talk.get("homeTalkId", ""), "card_home_talk", home_talk)
+
+    for row in cache.get("ShowcaseToyCategory", {}).values():
+        upsert_entity(conn, "showcase_toy_category", row["id"], row.get("name", row["id"]), "", row)
+
+    for row in cache.get("ShowcaseToy", {}).values():
+        toy_id = row.get("id", "")
+        upsert_entity(conn, "showcase_toy", toy_id, row.get("name", toy_id), row.get("assetId", ""), row)
+        add_link(conn, "showcase_toy_category", row.get("categoryId", ""), "showcase_toy", toy_id, "has_showcase_toy")
+        if "_card-" in toy_id:
+            card_id = toy_id.split("_", 1)[1]
+            if card_id in cache.get("Card", {}):
+                add_link(conn, "card", card_id, "showcase_toy", toy_id, "card_goods", row)
+        for character_id in row.get("photoShootingCharacterIds", []) or []:
+            add_link(conn, "character", character_id, "showcase_toy", toy_id, "character_goods", row)
 
     for typ, cat in (("story", "Story"), ("message", "Message"), ("home_talk", "HomeTalk"), ("telephone", "Telephone")):
         for row in cache.get(cat, {}).values():
@@ -436,14 +490,40 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
 
     for row in cache.get("Skill", {}).values():
         upsert_entity(conn, "skill", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        for efficacy_id in skill_efficacy_ids(row):
+            add_link(conn, "skill", row["id"], "skill_efficacy", efficacy_id, "skill_efficacy")
 
     for typ, cat in (("live_ability", "LiveAbility"), ("activity_ability", "ActivityAbility"), ("skill_efficacy", "SkillEfficacy")):
         for row in cache.get(cat, {}).values():
             upsert_entity(conn, typ, row["id"], row.get("name", row["id"]), row.get("description", ""), row)
+            if typ in {"live_ability", "activity_ability"}:
+                for skill_id in level_skill_ids(row):
+                    add_link(conn, typ, row["id"], "skill", skill_id, "level_skill")
 
     for row in cache.get("Costume", {}).values():
         upsert_entity(conn, "costume", row["id"], row.get("name", row["id"]), row.get("bodyAssetId", ""), row)
         add_link(conn, "character", row.get("characterId", ""), "costume", row["id"], "has_costume")
+
+    for row in cache.get("Hair", {}).values():
+        upsert_entity(conn, "hair", row["id"], row.get("name", row["id"]), row.get("hairAssetId", ""), row)
+        add_link(conn, "character", row.get("characterId", ""), "hair", row["id"], "has_hair")
+        add_link(conn, "costume", row.get("fittingCostumeId", ""), "hair", row["id"], "fitting_hair")
+
+    for row in cache.get("Accessory", {}).values():
+        upsert_entity(conn, "accessory", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        add_link(conn, "character", row.get("characterId", ""), "accessory", row["id"], "has_accessory")
+        add_link(conn, "group", row.get("characterGroupId", ""), "accessory", row["id"], "has_accessory")
+
+    for entity_type, category, id_key, relation in (
+        ("home_action", "HomeAction", "homeActionId", "home_action"),
+        ("love_home_action", "LoveHomeAction", "id", "love_home_action"),
+        ("company_enjoy_home_action", "CompanyEnjoyHomeAction", "id", "company_enjoy_home_action"),
+    ):
+        for row in cache.get(category, {}).values():
+            entity_id = str(row.get(id_key) or row.get("id"))
+            upsert_entity(conn, entity_type, entity_id, row.get("text", entity_id), row.get("voiceAssetId", ""), row)
+            add_link(conn, "character", row.get("characterId", ""), entity_type, entity_id, relation)
+            add_link(conn, "costume", row.get("costumeId", ""), entity_type, entity_id, "costume_home_action")
 
     for row in cache.get("CardEvolutionMessage", {}).values():
         entity_id = f"{row.get('cardId', '')}_{row.get('evolutionLevel', '')}_{row.get('number', '')}"
