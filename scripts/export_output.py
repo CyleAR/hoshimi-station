@@ -73,19 +73,25 @@ def output_rule_paths(rule: dict[str, Any]) -> list[str]:
     return paths
 
 
-def build_path_map(category: str) -> dict[tuple[str, str], str]:
+def output_pk_value(item: dict[str, Any], pk_fields: list[str]) -> str:
+    return "|".join(str(item.get(field, "0")) for field in pk_fields)
+
+
+def build_export_maps(category: str) -> tuple[dict[tuple[str, str], str], dict[str, str]]:
     path = MASTERDB_DIR / f"{category}.json"
     if not path.exists():
-        return {}
+        return {}, {}
     rule = IPR_RULES[category]
     pk_fields = rule.get("pk", ["id"])
-    result: dict[tuple[str, str], str] = {}
+    path_map: dict[tuple[str, str], str] = {}
+    key_map: dict[str, str] = {}
     for item in read_json(path):
         if not isinstance(item, dict):
             continue
         record_id = pk_value(item, pk_fields)
+        key_map[record_id] = output_pk_value(item, pk_fields)
         for field in rule.get("fields", {}):
-            result[(record_id, field)] = field
+            path_map[(record_id, field)] = field
         for nested_name, nested_rule in rule.get("nested", {}).items():
             index_key = nested_rule.get("index_key", "index")
             child = item.get(nested_name)
@@ -95,12 +101,12 @@ def build_path_map(category: str) -> dict[tuple[str, str], str]:
                         continue
                     ident = nested_identifier(element, index)
                     for field in nested_rule.get("fields", {}):
-                        result[(record_id, f"{nested_name}[{ident};{index_key}].{field}")] = f"{nested_name}[{index}].{field}"
+                        path_map[(record_id, f"{nested_name}[{ident};{index_key}].{field}")] = f"{nested_name}[{index}].{field}"
             elif isinstance(child, dict):
                 for field in nested_rule.get("fields", {}):
-                    result[(record_id, f"{nested_name}[{index_key}].{field}")] = f"{nested_name}.{field}"
-                    result[(record_id, f"{nested_name}.{field}")] = f"{nested_name}.{field}"
-    return result
+                    path_map[(record_id, f"{nested_name}[{index_key}].{field}")] = f"{nested_name}.{field}"
+                    path_map[(record_id, f"{nested_name}.{field}")] = f"{nested_name}.{field}"
+    return path_map, key_map
 
 
 def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
@@ -121,11 +127,12 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
         ).fetchall()
         if not rows:
             continue
-        path_map = build_path_map(category)
+        path_map, key_map = build_export_maps(category)
         data: dict[str, str] = {}
         for record_id, field_path, translation in rows:
             export_path = path_map.get((record_id, field_path), field_path)
-            data[f"{record_id}|{export_path}"] = translation
+            export_key = key_map.get(record_id, record_id)
+            data[f"{export_key}|{export_path}"] = translation
         payload = {"rule": output_rule_paths(IPR_RULES[category]), "data": data}
         (master_dir / f"{category}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         total += len(data)
