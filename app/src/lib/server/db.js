@@ -1,8 +1,16 @@
 import { DatabaseSync } from 'node:sqlite';
 import { dev } from '$app/environment';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-const dbPath = path.resolve(process.cwd(), '..', 'data', 'hoshimi.sqlite3');
+function projectRoot() {
+	if (process.env.PROJECT_ROOT) return path.resolve(process.env.PROJECT_ROOT);
+	const cwd = process.cwd();
+	if (existsSync(path.resolve(cwd, 'data', 'hoshimi.sqlite3'))) return cwd;
+	return path.resolve(cwd, '..');
+}
+
+const dbPath = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.resolve(projectRoot(), 'data', 'hoshimi.sqlite3');
 
 let db;
 

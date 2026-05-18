@@ -50,7 +50,7 @@ npm run start
 HOST=0.0.0.0 PORT=3042 npm run start
 ```
 
-Nginx/Caddy 같은 리버스 프록시를 쓴다면 앱은 `127.0.0.1:3042`에 두고, 도메인과 HTTPS는 프록시에서 처리하면 됩니다. SQLite DB를 저장하는 `data/hoshimi.sqlite3`에는 Node 프로세스의 쓰기 권한이 필요합니다.
+Nginx/Caddy 같은 리버스 프록시를 쓴다면 앱은 `127.0.0.1:3042`에 두고, 도메인과 HTTPS는 프록시에서 처리하면 됩니다. SQLite DB를 저장하는 `data/hoshimi.sqlite3`에는 Node 프로세스의 쓰기 권한이 필요합니다. DB 경로를 직접 지정해야 하면 `DB_PATH=/path/to/hoshimi.sqlite3` 환경 변수를 사용할 수 있습니다.
 
 PM2로 관리하려면:
 
