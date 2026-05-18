@@ -284,6 +284,37 @@ def checkpoint_db() -> None:
     print(f"WAL after: {after_size:,} bytes")
 
 
+def bulk_replace_translation() -> None:
+    print()
+    print("== translation_text 일괄 변경 ==")
+    old = input("검색할 문자열 > ")
+    if not old:
+        print("검색 문자열이 비어 있어 취소합니다.")
+        return
+    new = input("바꿀 문자열 > ")
+    if old == new:
+        print("검색 문자열과 바꿀 문자열이 같아 취소합니다.")
+        return
+
+    print()
+    print("== 변경 미리보기 ==")
+    preview = run(
+        [python(), "scripts/replace_translation.py", old, new, "--db", str(DB_PATH), "--limit", "30"],
+        check=False,
+    )
+    if preview.returncode != 0:
+        raise SystemExit("미리보기 실행에 실패했습니다.")
+
+    answer = input("위 내용을 변경하시겠습니까? [y/N] > ").strip().lower()
+    if answer not in {"y", "yes"}:
+        print("변경을 취소했습니다.")
+        return
+
+    print()
+    print("== 변경 적용 ==")
+    run([python(), "scripts/replace_translation.py", old, new, "--db", str(DB_PATH), "--apply"])
+
+
 def export_output() -> None:
     output_dir = ROOT / "output"
     if not output_dir.exists():
@@ -342,6 +373,10 @@ def menu() -> str:
     print("   - sqlite3 CLI 없이 Python으로 PRAGMA wal_checkpoint(TRUNCATE)를 실행합니다.")
     print("   - data/hoshimi.sqlite3-wal 내용을 DB 본체에 반영하고 WAL 크기를 줄입니다.")
     print()
+    print("5. 번역문 일괄 변경")
+    print("   - 검색할 문자열과 바꿀 문자열을 입력받아 translation_text에서 일괄 치환합니다.")
+    print("   - 먼저 검색 결과 미리보기를 보여준 뒤 확인하면 실제 변경합니다.")
+    print()
     print("q. 종료")
     print()
     return input("번호 입력 > ").strip().lower()
@@ -350,7 +385,7 @@ def menu() -> str:
 def main() -> None:
     configure_stdio()
     parser = argparse.ArgumentParser(description="HoshimiStation maintenance helper.")
-    parser.add_argument("action", nargs="?", choices=["1", "2", "3", "4"], help="Action to run without interactive menu.")
+    parser.add_argument("action", nargs="?", choices=["1", "2", "3", "4", "5"], help="Action to run without interactive menu.")
     args = parser.parse_args()
 
     choice = args.action or menu()
@@ -367,10 +402,12 @@ def main() -> None:
         export_output()
     elif choice == "4":
         checkpoint_db()
+    elif choice == "5":
+        bulk_replace_translation()
     elif choice in {"q", "quit", "exit"}:
         return
     else:
-        raise SystemExit("1, 2, 3, 4, q 중 하나를 입력하세요.")
+        raise SystemExit("1, 2, 3, 4, 5, q 중 하나를 입력하세요.")
 
 
 if __name__ == "__main__":
