@@ -24,27 +24,37 @@ const directCategories = {
 	home_talk: ['HomeTalk']
 };
 
+const MAX_SEARCH_LENGTH = 80;
+
+function normalizeSearch(value) {
+	return String(value ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
+}
+
+function escapeLike(value) {
+	return normalizeSearch(value).replace(/!/g, '!!').replace(/%/g, '!%').replace(/_/g, '!_');
+}
+
 function like(value) {
-	return `%${value.trim()}%`;
+	return `%${escapeLike(value)}%`;
 }
 
 function searchableUnitWhere(alias = 'tu') {
 	return `(
-		${alias}.unit_id LIKE $q
-		OR ${alias}.source_file LIKE $q
-		OR ${alias}.record_id LIKE $q
-		OR ${alias}.field_path LIKE $q
-		OR ${alias}.original_text LIKE $q
-		OR ${alias}.translation_text LIKE $q
+		${alias}.unit_id LIKE $q ESCAPE '!'
+		OR ${alias}.source_file LIKE $q ESCAPE '!'
+		OR ${alias}.record_id LIKE $q ESCAPE '!'
+		OR ${alias}.field_path LIKE $q ESCAPE '!'
+		OR ${alias}.original_text LIKE $q ESCAPE '!'
+		OR ${alias}.translation_text LIKE $q ESCAPE '!'
 	)`;
 }
 
 function entitySearchWhere() {
 	const unitMatch = searchableUnitWhere('tu');
 	return `(
-		e.label LIKE $q
-		OR e.subtitle LIKE $q
-		OR e.entity_id LIKE $q
+		e.label LIKE $q ESCAPE '!'
+		OR e.subtitle LIKE $q ESCAPE '!'
+		OR e.entity_id LIKE $q ESCAPE '!'
 		OR EXISTS (
 			SELECT 1
 			FROM translation_units tu
@@ -152,7 +162,7 @@ function categoryItems(kind, q) {
 	else if (kind === 'masterdb') where.push("source_type = 'masterdb'");
 	else where.push('1 = 1');
 	if (q) {
-		where.push(`(category LIKE $q OR ${searchableUnitWhere('translation_units')})`);
+		where.push(`(category LIKE $q ESCAPE '!' OR ${searchableUnitWhere('translation_units')})`);
 		params.$q = like(q);
 	}
 	return all(
@@ -193,7 +203,7 @@ function searchItem(q) {
 
 export function GET({ url }) {
 	const section = url.searchParams.get('section') || 'groups';
-	const q = url.searchParams.get('q') || '';
+	const q = normalizeSearch(url.searchParams.get('q') || '');
 	if (q.trim()) {
 		const groups = entityItems(['group'], '', 50);
 		return json({ items: [searchItem(q)], groups });

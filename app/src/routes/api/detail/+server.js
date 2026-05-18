@@ -57,14 +57,28 @@ const sectionOverrides = {
 	category: ['#', '카테고리']
 };
 
+const MAX_SEARCH_LENGTH = 80;
+
+function normalizeSearch(value) {
+	return String(value ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
+}
+
+function escapeLike(value) {
+	return normalizeSearch(value).replace(/!/g, '!!').replace(/%/g, '!%').replace(/_/g, '!_');
+}
+
+function like(value) {
+	return `%${escapeLike(value)}%`;
+}
+
 function searchableUnitWhere(alias = 'translation_units') {
 	return `(
-		${alias}.unit_id LIKE $q
-		OR ${alias}.source_file LIKE $q
-		OR ${alias}.record_id LIKE $q
-		OR ${alias}.field_path LIKE $q
-		OR ${alias}.original_text LIKE $q
-		OR ${alias}.translation_text LIKE $q
+		${alias}.unit_id LIKE $q ESCAPE '!'
+		OR ${alias}.source_file LIKE $q ESCAPE '!'
+		OR ${alias}.record_id LIKE $q ESCAPE '!'
+		OR ${alias}.field_path LIKE $q ESCAPE '!'
+		OR ${alias}.original_text LIKE $q ESCAPE '!'
+		OR ${alias}.translation_text LIKE $q ESCAPE '!'
 	)`;
 }
 
@@ -346,9 +360,10 @@ export function GET({ url }) {
 	if (!id) return json({ error: 'id is required' }, { status: 400 });
 
 	if (type === 'search') {
+		const searchId = normalizeSearch(id);
 		return json({
-			entity: { type, id, label: `검색 결과: ${id}`, subtitle: 'ID / 원문 / 번역 / 파일 / 필드' },
-			sections: [section('search', searchableUnitWhere('translation_units'), { $q: `%${id}%` })],
+			entity: { type, id: searchId, label: `검색 결과: ${searchId}`, subtitle: 'ID / 원문 / 번역 / 파일 / 필드' },
+			sections: [section('search', searchableUnitWhere('translation_units'), { $q: like(searchId) })],
 			links: []
 		});
 	}

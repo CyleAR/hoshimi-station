@@ -40,14 +40,28 @@ function placeholders(values, params, prefix) {
 		.join(',');
 }
 
+const MAX_SEARCH_LENGTH = 80;
+
+function normalizeSearch(value) {
+	return String(value ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
+}
+
+function escapeLike(value) {
+	return normalizeSearch(value).replace(/!/g, '!!').replace(/%/g, '!%').replace(/_/g, '!_');
+}
+
+function like(value) {
+	return `%${escapeLike(value)}%`;
+}
+
 function searchableUnitWhere(alias = 'translation_units') {
 	return `(
-		${alias}.unit_id LIKE $q
-		OR ${alias}.source_file LIKE $q
-		OR ${alias}.record_id LIKE $q
-		OR ${alias}.field_path LIKE $q
-		OR ${alias}.original_text LIKE $q
-		OR ${alias}.translation_text LIKE $q
+		${alias}.unit_id LIKE $q ESCAPE '!'
+		OR ${alias}.source_file LIKE $q ESCAPE '!'
+		OR ${alias}.record_id LIKE $q ESCAPE '!'
+		OR ${alias}.field_path LIKE $q ESCAPE '!'
+		OR ${alias}.original_text LIKE $q ESCAPE '!'
+		OR ${alias}.translation_text LIKE $q ESCAPE '!'
 	)`;
 }
 
@@ -174,7 +188,7 @@ function advWhere(type, id, category = '') {
 }
 
 function whereFor(type, id, key, category) {
-	if (type === 'search' || key === 'search') return [searchableUnitWhere('translation_units'), { $q: `%${id}%` }];
+	if (type === 'search' || key === 'search') return [searchableUnitWhere('translation_units'), { $q: like(id) }];
 	if (type === 'category' || key === 'category') return ['category = $category', { $category: category || id }];
 	if (type === 'adv_file') return ["source_type = 'adv' AND source_file = $id", { $id: id }];
 	if (key === 'direct') return directWhere(type, id);
