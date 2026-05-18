@@ -159,9 +159,10 @@ def indent(text: str, prefix: str) -> str:
     return "\n".join(f"{prefix}{line}" for line in text.splitlines())
 
 
-def pull_submodules(paths: list[Path] | None = None) -> None:
+def pull_submodules(paths: list[Path] | None = None) -> bool:
     paths = paths or submodule_paths()
     run(["git", "submodule", "update", "--init", "--recursive"])
+    changed_any = False
 
     for path in paths:
         if not path.exists():
@@ -183,6 +184,9 @@ def pull_submodules(paths: list[Path] | None = None) -> None:
         run(["git", "-C", str(path), "pull", "--ff-only"])
         after = git_hash(path)
         print_submodule_diff(path, before, after)
+        changed_any = changed_any or before != after
+
+    return changed_any
 
 
 def import_db() -> None:
@@ -295,8 +299,12 @@ def main() -> None:
 
     choice = args.action or menu()
     if choice == "1":
-        pull_submodules()
-        import_db()
+        changed = pull_submodules()
+        if changed:
+            import_db()
+        else:
+            print()
+            print("서브모듈 해시 변경이 없어 DB import를 건너뜁니다.")
     elif choice == "2":
         backup_db()
     elif choice == "3":
