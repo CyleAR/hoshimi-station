@@ -219,6 +219,16 @@ def write_metadata(out_dir: Path, localization_json: str | None) -> None:
         target.write_text(localization_json, encoding="utf-8")
 
 
+def clear_output_dir(out_dir: Path) -> None:
+    for child in out_dir.iterdir():
+        if child.name == ".git":
+            continue
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export translated DB rows into Localify output files.")
     parser.add_argument("--db", type=Path, default=DB_PATH)
@@ -229,7 +239,7 @@ def main() -> None:
     out_dir = args.out.resolve()
     localization_json = read_existing_localization(out_dir)
     if out_dir.exists() and args.overwrite:
-        shutil.rmtree(out_dir)
+        clear_output_dir(out_dir)
     elif out_dir.exists() and any(out_dir.iterdir()):
         raise SystemExit(f"{out_dir} already exists. Pass --overwrite to replace it.")
 
