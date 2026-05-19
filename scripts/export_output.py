@@ -228,13 +228,18 @@ def write_metadata(out_dir: Path, localization_json: str | None) -> None:
 
 
 def clear_output_dir(out_dir: Path) -> None:
-    for child in out_dir.iterdir():
-        if child.name == ".git":
+    targets = [
+        out_dir / "version.txt",
+        out_dir / "local-files" / "masterTrans",
+        out_dir / "local-files" / "resource" / "adv",
+    ]
+    for target in targets:
+        if not target.exists():
             continue
-        if child.is_dir():
-            shutil.rmtree(child)
+        if target.is_dir():
+            shutil.rmtree(target)
         else:
-            child.unlink()
+            target.unlink()
 
 
 def main() -> None:
