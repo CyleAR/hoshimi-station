@@ -168,6 +168,13 @@
 	let loginError = $state('');
 	let loggingIn = $state(false);
 	let guidelines = $state('');
+	let bulkOpen = $state(false);
+	let bulkOriginal = $state('');
+	let bulkTranslation = $state('');
+	let bulkOverwrite = $state(false);
+	let bulkPreview = $state(null);
+	let bulkError = $state('');
+	let bulkWorking = $state(false);
 	let searchTimer;
 
 	async function fetchJson(url, options = {}) {
@@ -413,6 +420,87 @@
 		currentUser = null;
 		loginPin = '';
 		sessionStorage.removeItem('translatorUser');
+	}
+
+	function openBulkFill() {
+		bulkOpen = true;
+		bulkError = '';
+		bulkPreview = null;
+	}
+
+	function closeBulkFill() {
+		if (bulkWorking) return;
+		bulkOpen = false;
+		bulkError = '';
+		bulkPreview = null;
+	}
+
+	async function previewBulkFill() {
+		if (!currentUser) {
+			bulkError = '먼저 로그인해 주세요.';
+			return;
+		}
+		bulkError = '';
+		bulkPreview = null;
+		bulkWorking = true;
+		try {
+			bulkPreview = await fetchJson('/api/bulk-fill', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					original_text: bulkOriginal,
+					translation_text: bulkTranslation,
+					overwrite: bulkOverwrite,
+					apply: false,
+					nickname: currentUser.nickname,
+					pin: currentUser.pin
+				})
+			});
+		} catch (err) {
+			bulkError = err.message;
+		} finally {
+			bulkWorking = false;
+		}
+	}
+
+	async function applyBulkFill() {
+		if (!bulkPreview) {
+			await previewBulkFill();
+			if (!bulkPreview) return;
+		}
+		const targets = Number(bulkPreview.targets ?? 0);
+		if (!targets) {
+			bulkError = '변경할 항목이 없습니다.';
+			return;
+		}
+		const ok = confirm(`정확히 일치하는 원문 ${targets.toLocaleString()}개에 번역을 채울까요?`);
+		if (!ok) return;
+		bulkError = '';
+		bulkWorking = true;
+		try {
+			const data = await fetchJson('/api/bulk-fill', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					original_text: bulkOriginal,
+					translation_text: bulkTranslation,
+					overwrite: bulkOverwrite,
+					apply: true,
+					nickname: currentUser.nickname,
+					pin: currentUser.pin
+				})
+			});
+			notice = `일괄 번역 ${data.updated ?? 0}개 적용됨`;
+			bulkOpen = false;
+			bulkPreview = null;
+			await loadSummary();
+			if (activeSection) await loadUnits(activeSection);
+			await loadItems({ keepSelection: true });
+		} catch (err) {
+			bulkError = err.message;
+		} finally {
+			bulkWorking = false;
+		}
 	}
 
 	async function loadGuidelines() {
@@ -683,6 +771,7 @@
 			<span>🔍</span>
 			<input id="global-search" bind:value={query} oninput={queueSearch} placeholder="ID / 원문 / 번역 검색... (Ctrl+K)" />
 		</label>
+		<button class="soft compact-button" onclick={openBulkFill}>일괄 번역</button>
 		<div class="top-actions">
 			{#if summary}
 				<span class="summary-pill">{summary.done ?? 0}/{summary.units ?? 0}</span>
@@ -898,6 +987,64 @@
 		</main>
 	</div>
 </div>
+
+{#if bulkOpen}
+	<div class="modal-backdrop">
+		<section class="bulk-modal">
+			<header>
+				<div>
+					<h2>일괄 번역</h2>
+					<p>원문이 완전히 같은 번역 단위만 채웁니다.</p>
+				</div>
+				<button class="soft compact-button" onclick={closeBulkFill}>닫기</button>
+			</header>
+
+			<label>
+				<span>원문</span>
+				<textarea bind:value={bulkOriginal} oninput={() => (bulkPreview = null)} placeholder="정확히 일치시킬 일본어 원문"></textarea>
+			</label>
+			<label>
+				<span>번역문</span>
+				<textarea bind:value={bulkTranslation} oninput={() => (bulkPreview = null)} placeholder="채워 넣을 번역문"></textarea>
+			</label>
+			<label class="check-line">
+				<input type="checkbox" bind:checked={bulkOverwrite} onchange={() => (bulkPreview = null)} />
+				<span>이미 번역된 항목도 덮어쓰기</span>
+			</label>
+
+			{#if bulkError}
+				<div class="login-error">{bulkError}</div>
+			{/if}
+
+			{#if bulkPreview}
+				<div class="bulk-preview">
+					<strong>
+						대상 {bulkPreview.targets ?? 0}개 / 정확 일치 {bulkPreview.total ?? 0}개 / 기존 번역 {bulkPreview.already_translated ?? 0}개
+					</strong>
+					{#if bulkPreview.samples?.length}
+						<div class="bulk-samples">
+							{#each bulkPreview.samples as sample}
+								<div>
+									<code>{sample.category} · {sample.record_id} · {sample.field_path}</code>
+									{#if sample.translation_text}
+										<small>{displayText(sample.translation_text)}</small>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p>변경할 항목이 없습니다.</p>
+					{/if}
+				</div>
+			{/if}
+
+			<footer>
+				<button class="soft" onclick={previewBulkFill} disabled={bulkWorking}>{bulkWorking ? '확인 중...' : '미리보기'}</button>
+				<button class="save-all" onclick={applyBulkFill} disabled={bulkWorking || !bulkPreview?.targets}>적용</button>
+			</footer>
+		</section>
+	</div>
+{/if}
 
 {#if !currentUser}
 	<div class="login-backdrop">
