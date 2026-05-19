@@ -650,6 +650,22 @@
 		return String(text ?? '').replace(/\r\n/g, '\\n').replace(/\n/g, '\\n');
 	}
 
+	function displayKstTime(value) {
+		if (!value) return '';
+		const date = new Date(`${String(value).replace(' ', 'T')}Z`);
+		if (Number.isNaN(date.getTime())) return value;
+		return new Intl.DateTimeFormat('ko-KR', {
+			timeZone: 'Asia/Seoul',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+			hour12: false
+		}).format(date);
+	}
+
 	function shouldGroupByOwner() {
 		const ownerGroupedKeys = [
 			'members',
@@ -1129,7 +1145,7 @@
 						<article class="recent-row">
 							<header>
 								<strong>{item.translator_name}</strong>
-								<time>{item.updated_at}</time>
+								<time>{displayKstTime(item.updated_at)}</time>
 							</header>
 							<code>{item.category} · {item.source_file || item.record_id} · {item.field_path}</code>
 							<p class="recent-original">{displayText(item.original_text)}</p>
