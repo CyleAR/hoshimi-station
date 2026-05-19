@@ -103,7 +103,8 @@ function directWhere(type, id) {
 		accessory: ['Accessory'],
 		home_action: ['HomeAction'],
 		love_home_action: ['LoveHomeAction'],
-		company_enjoy_home_action: ['CompanyEnjoyHomeAction']
+		company_enjoy_home_action: ['CompanyEnjoyHomeAction'],
+		condition_description: ['ConditionDescription']
 	};
 	const params = { $type: type, $id: id };
 	let where = "source_type = 'masterdb' AND scope_type = $type AND scope_id = $id";
@@ -221,6 +222,7 @@ function whereFor(type, id, key, category) {
 			];
 		}
 		if (key === 'accessories') return linkedWhere(type, id, ['accessory']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
 	if (type === 'character') {
@@ -240,6 +242,7 @@ function whereFor(type, id, key, category) {
 		if (key === 'hair') return linkedWhere(type, id, ['hair']);
 		if (key === 'accessories') return linkedWhere(type, id, ['accessory']);
 		if (key === 'home_actions') return linkedWhere(type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
 	if (type === 'card') {
@@ -252,15 +255,62 @@ function whereFor(type, id, key, category) {
 		if (key === 'card_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'card_home_talks') return linkedWhere(type, id, ['home_talk']);
 		if (key === 'card_telephones') return linkedWhere(type, id, ['telephone']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
 	if (['story_part', 'story_collection', 'story', 'love'].includes(type) && key === 'stories') {
 		return linkedWhere(type, id, ['story', 'story_collection']);
 	}
+	if (['story_part', 'story_collection', 'story', 'love'].includes(type) && key === 'conditions') {
+		return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (type === 'costume') {
+		if (key === 'hair') return linkedWhere(type, id, ['hair']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (type === 'hair') {
+		if (key === 'costumes') return linkedWhere(type, id, ['costume']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (type === 'home_talk') {
+		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type) && key === 'conditions') {
+		return linkedWhere(type, id, ['condition_description']);
+	}
 
 	if (type === 'message_group') {
 		if (key === 'group_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'group_telephones') return linkedWhere(type, id, ['telephone']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (type === 'message') {
+		if (key === 'linked_telephones') return linkedWhere(type, id, ['telephone']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (type === 'telephone') {
+		if (key === 'linked_messages') {
+			return [
+				`EXISTS (
+					SELECT 1
+					FROM links l
+					WHERE l.from_type = 'message'
+					  AND l.to_type = 'telephone'
+					  AND l.to_id = $id
+					  AND l.from_type = translation_units.scope_type
+					  AND l.from_id = translation_units.scope_id
+				)`,
+				{ $id: id }
+			];
+		}
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
 	return ['1 = 0', {}];

@@ -270,6 +270,26 @@ def link_short_card_advs(conn: sqlite3.Connection) -> None:
             add_link(conn, from_type, from_id, "adv_file", short_name, f"{relation}_short", meta)
 
 
+def iter_condition_ids(item: Any) -> Iterable[tuple[str, str]]:
+    def walk(value: Any, path: str = "") -> Iterable[tuple[str, str]]:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f"{path}.{key}" if path else key
+                if "condition" in key.lower():
+                    if isinstance(child, str) and child:
+                        yield child_path, child
+                    elif isinstance(child, list):
+                        for nested in child:
+                            if isinstance(nested, str) and nested:
+                                yield child_path, nested
+                yield from walk(child, child_path)
+        elif isinstance(value, list):
+            for child in value:
+                yield from walk(child, path)
+
+    yield from walk(item)
+
+
 def infer_scope(category: str, item: dict[str, Any]) -> tuple[str, str]:
     if category == "CardEvolutionMessage":
         return "card_evolution_message", pk_value(item, ["cardId", "evolutionLevel", "number"])
@@ -299,6 +319,7 @@ def infer_scope(category: str, item: dict[str, Any]) -> tuple[str, str]:
         "HomeAction": "home_action",
         "LoveHomeAction": "love_home_action",
         "CompanyEnjoyHomeAction": "company_enjoy_home_action",
+        "ConditionDescription": "condition_description",
         "ExtraStoryPart": "story_part",
     }
     if category in direct:
@@ -436,6 +457,10 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
         for character_id in row.get("characterIds", []) or []:
             add_link(conn, "character", character_id, "message_group", row["id"], "message_group")
 
+    for row in cache.get("ConditionDescription", {}).values():
+        condition_id = row.get("id", "")
+        upsert_entity(conn, "condition_description", condition_id, row.get("description") or condition_id, "", row)
+
     for row in cache.get("HomeTalkCallPattern", {}).values():
         entity_id = f"{row.get('characterId', '')}_{row.get('patternId', '')}"
         upsert_entity(conn, "call_pattern", entity_id, row.get("managerCallText") or row.get("characterArrivalText") or entity_id, row.get("characterId", ""), row)
@@ -456,6 +481,8 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
             for efficacy_id in skill_efficacy_ids(cache.get("Skill", {}).get(skill_id)):
                 add_link(conn, "card", row["id"], "skill_efficacy", efficacy_id, "liveAbilitySkill_efficacy")
         add_link(conn, "card", row["id"], "costume", row.get("rewardCostumeId", ""), "reward_costume")
+        for hair_id in [row.get("rewardHairId", ""), *(row.get("rewardHairIds", []) or [])]:
+            add_link(conn, "card", row["id"], "hair", hair_id, "reward_hair")
         for story in row.get("stories", []) or []:
             add_link(conn, "card", row["id"], "story", story.get("storyId", ""), "card_story", story)
         for message in row.get("messages", []) or []:
@@ -484,9 +511,25 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
             upsert_entity(conn, typ, entity_id, row.get("name") or row.get("title") or entity_id, row.get("assetId", ""), row)
             add_link(conn, "character", row.get("characterId", ""), typ, entity_id, f"has_{typ}")
             add_link(conn, "card", row.get("cardId", ""), typ, entity_id, f"has_{typ}")
+            condition_id = row.get("unlockConditionId", "")
+            if condition_id:
+                add_link(conn, typ, entity_id, "condition_description", condition_id, "unlock_condition", row)
+                add_link(conn, "character", row.get("characterId", ""), "condition_description", condition_id, f"{typ}_condition", row)
+                add_link(conn, "card", row.get("cardId", ""), "condition_description", condition_id, f"{typ}_condition", row)
             if typ in {"message", "telephone"}:
                 add_link(conn, typ, entity_id, "message_group", row.get("messageGroupId", ""), "in_group")
                 add_link(conn, "message_group", row.get("messageGroupId", ""), typ, entity_id, f"has_{typ}")
+                if condition_id:
+                    add_link(conn, "message_group", row.get("messageGroupId", ""), "condition_description", condition_id, f"{typ}_condition", row)
+            if typ == "message":
+                for detail in row.get("details", []) or []:
+                    telephone_id = detail.get("telephoneId", "")
+                    if telephone_id:
+                        add_link(conn, "message", entity_id, "telephone", telephone_id, "message_telephone", detail)
+            if typ == "home_talk":
+                call_pattern_id = row.get("callPatternId", "")
+                if call_pattern_id:
+                    add_link(conn, "home_talk", entity_id, "call_pattern", f"{row.get('characterId', '')}_{call_pattern_id}", "call_pattern", row)
 
     for row in cache.get("Skill", {}).values():
         upsert_entity(conn, "skill", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
@@ -503,11 +546,16 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
     for row in cache.get("Costume", {}).values():
         upsert_entity(conn, "costume", row["id"], row.get("name", row["id"]), row.get("bodyAssetId", ""), row)
         add_link(conn, "character", row.get("characterId", ""), "costume", row["id"], "has_costume")
+        add_link(conn, "costume", row["id"], "hair", row.get("defaultHairId", ""), "default_hair", row)
 
     for row in cache.get("Hair", {}).values():
         upsert_entity(conn, "hair", row["id"], row.get("name", row["id"]), row.get("hairAssetId", ""), row)
         add_link(conn, "character", row.get("characterId", ""), "hair", row["id"], "has_hair")
         add_link(conn, "costume", row.get("fittingCostumeId", ""), "hair", row["id"], "fitting_hair")
+        for costume_id in row.get("wearableCostumeIds", []) or []:
+            add_link(conn, "hair", row["id"], "costume", costume_id, "wearable_costume", row)
+        for costume_id in row.get("notWearableCostumeIds", []) or []:
+            add_link(conn, "hair", row["id"], "costume", costume_id, "not_wearable_costume", row)
 
     for row in cache.get("Accessory", {}).values():
         upsert_entity(conn, "accessory", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
@@ -539,6 +587,8 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
 
     for row in cache.get("ExtraStoryPart", {}).values():
         upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        for story_id in row.get("extraStoryIds", []) or []:
+            add_link(conn, "story_part", row["id"], "story_collection", story_id, "contains")
 
     for cat in ("EventStory", "ExtraStory"):
         for row in cache.get(cat, {}).values():
@@ -555,6 +605,11 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
                 add_link(conn, "story_part", row["id"], "story", episode.get("storyId", ""), "chapter_episode", episode)
                 add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", episode)
 
+    for row in cache.get("Character", {}).values():
+        for story in row.get("companyEnjoyStories", []) or []:
+            add_link(conn, "character", row["id"], "story", story.get("storyId", ""), "company_enjoy_story", story)
+            add_adv_link(conn, "character", row["id"], story.get("assetId"), "company_enjoy_adv", story)
+
     for row in cache.get("LoveStoryEpisode", {}).values():
         upsert_entity(conn, "love", row.get("loveId", ""), row.get("loveId", ""), "", row)
         add_link(conn, "love", row.get("loveId", ""), "story", row.get("storyId", ""), "episode", row)
@@ -563,6 +618,16 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
     for row in cache.get("Setting", {}).values():
         upsert_entity(conn, "setting", row.get("id", "1"), row.get("tutorialAdvTitle") or row.get("id", "1"), row.get("tutorialAdvSubTitle", ""), row)
         add_adv_link(conn, "setting", row.get("id", "1"), row.get("tutorialAdvAssetId"), "tutorial_adv", row)
+
+    for category, rows in cache.items():
+        if category not in IPR_RULES:
+            continue
+        for row in rows.values():
+            scope_type, scope_id = infer_scope(category, row)
+            if scope_type == "condition_description":
+                continue
+            for path, condition_id in iter_condition_ids(row):
+                add_link(conn, scope_type, scope_id, "condition_description", condition_id, "condition", {"category": category, "path": path})
 
     link_short_card_advs(conn)
 

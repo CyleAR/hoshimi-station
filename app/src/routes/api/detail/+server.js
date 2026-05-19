@@ -22,6 +22,9 @@ const sectionMeta = {
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['☷', '그룹 문자'],
 	group_telephones: ['☏', '그룹 통화'],
+	linked_messages: ['💬', '연결 문자'],
+	linked_telephones: ['☏', '연결 전화'],
+	conditions: ['?', '조건 설명'],
 	category: ['#', '카테고리']
 };
 
@@ -53,6 +56,9 @@ const sectionOverrides = {
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['💬', '그룹 문자'],
 	group_telephones: ['☎', '그룹 통화'],
+	linked_messages: ['💬', '연결 문자'],
+	linked_telephones: ['☏', '연결 전화'],
+	conditions: ['?', '조건 설명'],
 	search: ['🔍', '검색 결과'],
 	category: ['#', '카테고리']
 };
@@ -122,7 +128,8 @@ function directSection(type, id) {
 		accessory: ['Accessory'],
 		home_action: ['HomeAction'],
 		love_home_action: ['LoveHomeAction'],
-		company_enjoy_home_action: ['CompanyEnjoyHomeAction']
+		company_enjoy_home_action: ['CompanyEnjoyHomeAction'],
+		condition_description: ['ConditionDescription']
 	};
 	const categories = categoryByType[type];
 	const params = { $type: type, $id: id };
@@ -411,6 +418,7 @@ export function GET({ url }) {
 		);
 		sections.push(groupCardSection(id));
 		sections.push(linkedUnitSection('accessories', type, id, ['accessory']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id, 'adv/group', 'adv_group'));
 	}
 
@@ -423,6 +431,7 @@ export function GET({ url }) {
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
 		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));
 		sections.push(characterCommonSection('common_telephones', id, ['telephone']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
 		sections.push(advSection(type, id, 'adv/bond', 'adv_bond'));
@@ -441,17 +450,49 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('card_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('card_home_talks', type, id, ['home_talk']));
 		sections.push(linkedUnitSection('card_telephones', type, id, ['telephone']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
 	}
 
 	if (['story_part', 'story_collection', 'story', 'love'].includes(type)) {
 		sections.push(linkedUnitSection('stories', type, id, ['story', 'story_collection']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id));
+	}
+
+	if (type === 'costume') {
+		sections.push(linkedUnitSection('hair', type, id, ['hair']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
+	if (type === 'hair') {
+		sections.push(linkedUnitSection('costumes', type, id, ['costume']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
+	if (type === 'home_talk') {
+		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
+	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type)) {
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
 	if (type === 'message_group') {
 		sections.push(linkedUnitSection('group_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('group_telephones', type, id, ['telephone']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
+	if (type === 'message') {
+		sections.push(linkedUnitSection('linked_telephones', type, id, ['telephone']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
+	if (type === 'telephone') {
+		sections.push(linkedUnitSection('linked_messages', type, id, ['message']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
 	const links = linksFor(type, id);
