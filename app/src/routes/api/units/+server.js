@@ -399,7 +399,7 @@ export function GET({ url }) {
 	const id = url.searchParams.get('id') || '';
 	const key = url.searchParams.get('key') || 'direct';
 	const category = url.searchParams.get('category') || '';
-	const limit = Math.min(Number(url.searchParams.get('limit') || 900), 2500);
+	const limit = Math.min(Number(url.searchParams.get('limit') || 5000), 10000);
 	const [where, params] = whereFor(type, id, key, category);
 
 	const units = all(
