@@ -181,6 +181,7 @@
 	let recentTranslator = $state('');
 	let recentError = $state('');
 	let recentLoading = $state(false);
+	let showOnlyUntranslated = $state(false);
 	let searchTimer;
 
 	async function fetchJson(url, options = {}) {
@@ -412,7 +413,7 @@
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ nickname, pin })
 			});
-			currentUser = { nickname: data.user.nickname, pin, is_admin: Boolean(data.user.is_admin) };
+			currentUser = { nickname: data.user.nickname, pin };
 			sessionStorage.setItem('translatorUser', JSON.stringify(currentUser));
 			localStorage.setItem('translatorNickname', data.user.nickname);
 		} catch (err) {
@@ -434,7 +435,7 @@
 	}
 
 	async function loadRecent() {
-		if (!currentUser?.is_admin) return;
+		if (!currentUser) return;
 		recentError = '';
 		recentLoading = true;
 		try {
@@ -734,7 +735,7 @@
 
 	function unitGroups() {
 		const map = new Map();
-		for (const unit of units) {
+		for (const unit of filteredUnits()) {
 			const key = ownerGroupKey(unit);
 			if (!map.has(key)) {
 				map.set(key, {
@@ -782,6 +783,11 @@
 			map.get(key).links.push(link);
 		}
 		return [...map.values()];
+	}
+
+	function filteredUnits() {
+		if (!showOnlyUntranslated) return units;
+		return units.filter((unit) => !String(unit.translation_text ?? '').trim());
 	}
 
 	function visibleLinks(group) {
@@ -836,9 +842,7 @@
 			{/if}
 			{#if currentUser}
 				<span class="summary-pill">작업자: {currentUser.nickname}</span>
-				{#if currentUser.is_admin}
-					<button class="soft compact-button" onclick={openRecent}>최근 작업</button>
-				{/if}
+				<button class="soft compact-button" onclick={openRecent}>최근 작업</button>
 				<button class="soft compact-button" onclick={logout}>나가기</button>
 			{/if}
 		</div>
@@ -965,6 +969,10 @@
 					{#if untranslatedCount()}
 						<button class="soft jump" onclick={scrollToNextUntranslated}>미번역 {untranslatedCount()}</button>
 					{/if}
+					<label class="inline-check">
+						<input type="checkbox" bind:checked={showOnlyUntranslated} />
+						<span>미번역만 보기</span>
+					</label>
 					<button class="save-all" onclick={() => Promise.all(units.filter((unit) => unit.dirty).map(saveUnit))}>일괄 저장</button>
 				</div>
 			</div>
@@ -979,6 +987,8 @@
 				<section class="state-card large">번역 단위를 불러오는 중...</section>
 			{:else if !units.length}
 				<section class="state-card large">이 묶음에는 번역 단위가 없습니다.</section>
+			{:else if showOnlyUntranslated && !filteredUnits().length}
+				<section class="state-card large">이 묶음에는 미번역 항목이 없습니다.</section>
 			{:else}
 				<div class="group-stack">
 					{#each unitGroups() as group}

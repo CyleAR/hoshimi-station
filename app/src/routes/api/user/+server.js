@@ -1,5 +1,4 @@
 import { get, json, run } from '$lib/server/db.js';
-import { isAdminNickname } from '$lib/server/admin.js';
 
 function cleanNickname(value) {
 	return String(value ?? '').trim().slice(0, 24);
@@ -34,5 +33,5 @@ export async function POST({ request }) {
 		);
 	}
 
-	return json({ ok: true, user: { nickname, is_admin: isAdminNickname(nickname) } });
+	return json({ ok: true, user: { nickname } });
 }
