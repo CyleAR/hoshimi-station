@@ -175,6 +175,12 @@
 	let bulkPreview = $state(null);
 	let bulkError = $state('');
 	let bulkWorking = $state(false);
+	let recentOpen = $state(false);
+	let recentItems = $state([]);
+	let recentTranslators = $state([]);
+	let recentTranslator = $state('');
+	let recentError = $state('');
+	let recentLoading = $state(false);
 	let searchTimer;
 
 	async function fetchJson(url, options = {}) {
@@ -406,13 +412,49 @@
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ nickname, pin })
 			});
-			currentUser = { nickname: data.user.nickname, pin };
+			currentUser = { nickname: data.user.nickname, pin, is_admin: Boolean(data.user.is_admin) };
 			sessionStorage.setItem('translatorUser', JSON.stringify(currentUser));
 			localStorage.setItem('translatorNickname', data.user.nickname);
 		} catch (err) {
 			loginError = err.message;
 		} finally {
 			loggingIn = false;
+		}
+	}
+
+	async function openRecent() {
+		recentOpen = true;
+		await loadRecent();
+	}
+
+	function closeRecent() {
+		if (recentLoading) return;
+		recentOpen = false;
+		recentError = '';
+	}
+
+	async function loadRecent() {
+		if (!currentUser?.is_admin) return;
+		recentError = '';
+		recentLoading = true;
+		try {
+			const data = await fetchJson('/api/admin/recent', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					nickname: currentUser.nickname,
+					pin: currentUser.pin,
+					translator_name: recentTranslator,
+					limit: 150
+				})
+			});
+			recentItems = data.items ?? [];
+			recentTranslators = data.translators ?? [];
+		} catch (err) {
+			recentError = err.message;
+			recentItems = [];
+		} finally {
+			recentLoading = false;
 		}
 	}
 
@@ -778,6 +820,9 @@
 			{/if}
 			{#if currentUser}
 				<span class="summary-pill">작업자: {currentUser.nickname}</span>
+				{#if currentUser.is_admin}
+					<button class="soft compact-button" onclick={openRecent}>최근 작업</button>
+				{/if}
 				<button class="soft compact-button" onclick={logout}>나가기</button>
 			{/if}
 		</div>
@@ -1042,6 +1087,57 @@
 				<button class="soft" onclick={previewBulkFill} disabled={bulkWorking}>{bulkWorking ? '확인 중...' : '미리보기'}</button>
 				<button class="save-all" onclick={applyBulkFill} disabled={bulkWorking || !bulkPreview?.targets}>적용</button>
 			</footer>
+		</section>
+	</div>
+{/if}
+
+{#if recentOpen}
+	<div class="modal-backdrop">
+		<section class="recent-modal">
+			<header>
+				<div>
+					<h2>최근 번역</h2>
+					<p>마지막 저장 기준으로 번역자와 수정 시간을 확인합니다.</p>
+				</div>
+				<button class="soft compact-button" onclick={closeRecent}>닫기</button>
+			</header>
+
+			<div class="recent-controls">
+				<label>
+					<span>작업자</span>
+					<select bind:value={recentTranslator} onchange={loadRecent}>
+						<option value="">전체</option>
+						{#each recentTranslators as translator}
+							<option value={translator.translator_name}>
+								{translator.translator_name} · {translator.count}
+							</option>
+						{/each}
+					</select>
+				</label>
+				<button class="soft" onclick={loadRecent} disabled={recentLoading}>{recentLoading ? '불러오는 중...' : '새로고침'}</button>
+			</div>
+
+			{#if recentError}
+				<div class="login-error">{recentError}</div>
+			{:else if recentLoading}
+				<div class="state-card">최근 작업을 불러오는 중...</div>
+			{:else if !recentItems.length}
+				<div class="state-card">표시할 최근 작업이 없습니다.</div>
+			{:else}
+				<div class="recent-list">
+					{#each recentItems as item}
+						<article class="recent-row">
+							<header>
+								<strong>{item.translator_name}</strong>
+								<time>{item.updated_at}</time>
+							</header>
+							<code>{item.category} · {item.source_file || item.record_id} · {item.field_path}</code>
+							<p class="recent-original">{displayText(item.original_text)}</p>
+							<p class="recent-translation">{displayText(item.translation_text)}</p>
+						</article>
+					{/each}
+				</div>
+			{/if}
 		</section>
 	</div>
 {/if}
