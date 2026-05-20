@@ -138,6 +138,11 @@
 		background: var(--surface-2);
 		color: var(--accent-text);
 	}
+	.soft.active {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: white;
+	}
 	.compact-button {
 		padding: 0 9px;
 	}
@@ -798,6 +803,96 @@
 	.markdown-guidelines li + li {
 		margin-top: 7px;
 	}
+	.guideline-table-wrap {
+		overflow: auto;
+		border: 1px solid var(--border-strong);
+		border-radius: 8px;
+		background: var(--surface);
+	}
+	.guideline-table {
+		width: 100%;
+		min-width: 520px;
+		border-collapse: collapse;
+		font-size: 13px;
+	}
+	.guideline-table th,
+	.guideline-table td {
+		border-bottom: 1px solid var(--border-soft);
+		border-right: 1px solid var(--border-soft);
+		padding: 9px 11px;
+		color: var(--text-soft);
+		text-align: left;
+		vertical-align: top;
+		white-space: nowrap;
+	}
+	.guideline-table th:last-child,
+	.guideline-table td:last-child {
+		border-right: 0;
+	}
+	.guideline-table tr:last-child td {
+		border-bottom: 0;
+	}
+	.guideline-table th {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+		background: var(--surface-2);
+		color: var(--text);
+		font-weight: 900;
+	}
+	.guideline-popover-wrap {
+		position: relative;
+	}
+	.guideline-popover {
+		position: fixed;
+		top: 48px;
+		left: 16px;
+		z-index: 10;
+		width: min(760px, calc(100vw - 480px));
+		min-width: 560px;
+		max-height: calc(100vh - 64px);
+		display: grid;
+		grid-template-rows: 46px 1fr;
+		border: 1px solid var(--border-strong);
+		border-radius: 8px;
+		background: var(--panel);
+		box-shadow: 0 20px 70px rgba(0, 0, 0, 0.48);
+	}
+	.guideline-popover > header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 0 12px 0 16px;
+		border-bottom: 1px solid var(--border);
+		background: var(--panel-2);
+	}
+	.guideline-popover > header strong {
+		color: var(--text);
+		font-size: 13px;
+	}
+	.floating-guideline-body {
+		min-height: 0;
+		overflow: auto;
+		padding: 16px;
+	}
+	.compact-guidelines {
+		gap: 10px;
+	}
+	.compact-guidelines h2 {
+		font-size: 20px;
+	}
+	.compact-guidelines h3 {
+		margin-top: 12px;
+		font-size: 15px;
+	}
+	.compact-guidelines p,
+	.compact-guidelines li {
+		font-size: 12px;
+	}
+	.compact-guidelines ul {
+		padding: 12px 14px 12px 28px;
+	}
 	.guideline-loading {
 		border: 1px solid var(--border-strong);
 		border-radius: 8px;
@@ -1053,6 +1148,11 @@
 		font-weight: 700;
 	}
 	@media (max-width: 980px) {
+		.guideline-popover {
+			width: calc(100vw - 28px);
+			min-width: 0;
+			left: 14px;
+		}
 		.login-backdrop {
 			grid-template-columns: 1fr;
 			grid-template-rows: minmax(0, 1fr) auto;

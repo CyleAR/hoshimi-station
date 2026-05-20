@@ -1,4 +1,4 @@
-﻿<script>
+<script>
 	import { onMount } from 'svelte';
 	import './page.css';
 
@@ -186,6 +186,7 @@
 	let loginError = $state('');
 	let loggingIn = $state(false);
 	let guidelines = $state('');
+	let guidelinesOpen = $state(false);
 	let bulkOpen = $state(false);
 	let bulkOriginal = $state('');
 	let bulkTranslation = $state('');
@@ -513,7 +514,7 @@
 		}
 		const targets = filteredUnits()
 			.filter((unit) => !String(unit.translation_text ?? '').trim() && !String(unit.draft ?? '').trim())
-			.slice(0, 30);
+			.slice(0, 60);
 		if (!targets.length) {
 			aiDraftError = '초벌을 채울 미번역 항목이 없습니다.';
 			return;
@@ -639,27 +640,49 @@
 	function markdownBlocks(markdown) {
 		const blocks = [];
 		let currentList = null;
+		let currentTable = null;
+		const tableCells = (line) =>
+			line
+				.replace(/^\|/, '')
+				.replace(/\|$/, '')
+				.split('|')
+				.map((cell) => cell.trim());
+		const isTableSeparator = (line) => /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line);
 		for (const rawLine of String(markdown ?? '').split(/\r?\n/)) {
 			const line = rawLine.trim();
 			if (!line) {
 				currentList = null;
+				currentTable = null;
 				continue;
 			}
 			if (line.startsWith('# ')) {
 				blocks.push({ type: 'h1', text: line.slice(2).trim() });
 				currentList = null;
+				currentTable = null;
 			} else if (line.startsWith('## ')) {
 				blocks.push({ type: 'h2', text: line.slice(3).trim() });
 				currentList = null;
+				currentTable = null;
 			} else if (line.startsWith('- ')) {
 				if (!currentList) {
 					currentList = { type: 'ul', items: [] };
 					blocks.push(currentList);
 				}
 				currentList.items.push(line.slice(2).trim());
+				currentTable = null;
+			} else if (line.includes('|') && isTableSeparator(line)) {
+				currentList = null;
+			} else if (line.startsWith('|') && line.endsWith('|')) {
+				currentList = null;
+				if (!currentTable) {
+					currentTable = { type: 'table', rows: [] };
+					blocks.push(currentTable);
+				}
+				currentTable.rows.push(tableCells(line));
 			} else {
 				blocks.push({ type: 'p', text: line });
 				currentList = null;
+				currentTable = null;
 			}
 		}
 		return blocks;
@@ -949,6 +972,60 @@
 			<span>🔍</span>
 			<input id="global-search" bind:value={query} oninput={queueSearch} placeholder="ID / 원문 / 번역 검색... (Ctrl+K)" />
 		</label>
+		<div class="guideline-popover-wrap">
+			<button class="soft compact-button" class:active={guidelinesOpen} type="button" onclick={() => (guidelinesOpen = !guidelinesOpen)} aria-expanded={guidelinesOpen}>
+				번역 지침
+			</button>
+			{#if guidelinesOpen}
+			<aside class="guideline-popover" aria-label="번역 지침">
+				<header>
+					<strong>번역 지침</strong>
+					<button class="soft compact-button" type="button" onclick={() => (guidelinesOpen = false)}>닫기</button>
+				</header>
+				<div class="floating-guideline-body">
+					{#if guidelines}
+						<div class="markdown-guidelines compact-guidelines">
+							{#each markdownBlocks(guidelines) as block}
+								{#if block.type === 'h1'}
+									<h2>{block.text}</h2>
+								{:else if block.type === 'h2'}
+									<h3>{block.text}</h3>
+								{:else if block.type === 'p'}
+									<p>{block.text}</p>
+								{:else if block.type === 'ul'}
+									<ul>
+										{#each block.items as item}
+											<li>{item}</li>
+										{/each}
+									</ul>
+								{:else if block.type === 'table'}
+									<div class="guideline-table-wrap">
+										<table class="guideline-table">
+											<tbody>
+												{#each block.rows as row, rowIndex}
+													<tr>
+														{#each row as cell}
+															{#if rowIndex === 0}
+																<th>{cell}</th>
+															{:else}
+																<td>{cell}</td>
+															{/if}
+														{/each}
+													</tr>
+												{/each}
+											</tbody>
+										</table>
+									</div>
+								{/if}
+							{/each}
+						</div>
+					{:else}
+						<div class="guideline-loading">번역 주의사항을 불러오는 중...</div>
+					{/if}
+				</div>
+			</aside>
+			{/if}
+		</div>
 		<button class="soft compact-button" onclick={openBulkFill}>일괄 번역</button>
 		<div class="top-actions">
 			{#if summary}
@@ -1189,6 +1266,7 @@
 			{/if}
 		</main>
 	</div>
+
 </div>
 
 {#if bulkOpen}
@@ -1319,6 +1397,24 @@
 										<li>{item}</li>
 									{/each}
 								</ul>
+							{:else if block.type === 'table'}
+								<div class="guideline-table-wrap">
+									<table class="guideline-table">
+										<tbody>
+											{#each block.rows as row, rowIndex}
+												<tr>
+													{#each row as cell}
+														{#if rowIndex === 0}
+															<th>{cell}</th>
+														{:else}
+															<td>{cell}</td>
+														{/if}
+													{/each}
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
 							{/if}
 						{/each}
 					</div>

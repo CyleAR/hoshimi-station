@@ -47,7 +47,7 @@ next-env.d.ts
 /backups/
 /tmp/
 /api.json
-
+/docs/codex-worklog.md
 # Python / SQLite runtime files
 /scripts/__pycache__
 *.sqlite3-shm
