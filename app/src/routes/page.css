@@ -147,6 +147,15 @@
 		background: #21180a;
 		color: var(--warning);
 	}
+	.ai-button {
+		border-color: color-mix(in srgb, #b590ff 45%, var(--border));
+		background: color-mix(in srgb, #b590ff 14%, var(--field));
+		color: #d6c4ff;
+	}
+	.ai-button:disabled {
+		cursor: wait;
+		opacity: 0.62;
+	}
 	.inline-check {
 		height: 30px;
 		display: inline-flex;
@@ -444,6 +453,36 @@
 		border-color: var(--danger-border);
 		background: var(--danger-bg);
 		color: var(--danger-text);
+	}
+	.warning-box {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin: 0 0 12px;
+		border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border));
+		border-radius: 8px;
+		background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+		color: var(--text-soft);
+		padding: 10px 12px;
+	}
+	.warning-box strong {
+		color: var(--warning);
+		flex: 0 0 auto;
+	}
+	.warning-box p {
+		flex: 1 1 auto;
+		margin: 0;
+		white-space: pre-wrap;
+		word-break: break-word;
+		font-size: 12px;
+	}
+	.warning-box button {
+		height: 28px;
+		border: 1px solid var(--border);
+		border-radius: 7px;
+		background: var(--field);
+		color: var(--text-soft);
+		padding: 0 10px;
 	}
 	.error-box button {
 		height: 30px;

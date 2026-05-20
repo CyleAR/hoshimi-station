@@ -196,11 +196,13 @@
 	let recentError = $state('');
 	let recentLoading = $state(false);
 	let showOnlyUntranslated = $state(false);
+	let aiDrafting = $state(false);
+	let aiDraftError = $state('');
 	let searchTimer;
 
-	async function fetchJson(url, options = {}) {
+	async function fetchJson(url, options = {}, timeoutMs = 15000) {
 		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), 15000);
+		const timer = setTimeout(() => controller.abort(), timeoutMs);
 		try {
 			const response = await fetch(url, { ...options, signal: controller.signal });
 			const data = await response.json();
@@ -427,7 +429,7 @@
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ nickname, pin })
 			});
-			currentUser = { nickname: data.user.nickname, pin };
+			currentUser = { nickname: data.user.nickname, pin, is_admin: Boolean(data.user.is_admin) };
 			sessionStorage.setItem('translatorUser', JSON.stringify(currentUser));
 			localStorage.setItem('translatorNickname', data.user.nickname);
 		} catch (err) {
@@ -483,6 +485,64 @@
 		bulkOpen = true;
 		bulkError = '';
 		bulkPreview = null;
+	}
+
+	function canUseAiDraft() {
+		return Boolean(currentUser?.is_admin || currentUser?.nickname === '사일');
+	}
+
+	async function runAiDraft() {
+		if (!currentUser) {
+			aiDraftError = '먼저 로그인해 주세요.';
+			return;
+		}
+		if (!canUseAiDraft()) {
+			aiDraftError = 'AI 초벌 권한이 없습니다.';
+			return;
+		}
+		const targets = filteredUnits()
+			.filter((unit) => !String(unit.translation_text ?? '').trim() && !String(unit.draft ?? '').trim())
+			.slice(0, 30);
+		if (!targets.length) {
+			aiDraftError = '초벌을 채울 미번역 항목이 없습니다.';
+			return;
+		}
+		const ok = confirm(`현재 표시된 미번역 ${targets.length}개에 AI 초벌을 채울까요?\n초안만 입력되고 저장은 직접 해야 합니다.`);
+		if (!ok) return;
+
+		aiDrafting = true;
+		aiDraftError = '';
+		notice = '';
+		try {
+			const data = await fetchJson(
+				'/api/ai-translate',
+				{
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						unit_ids: targets.map((unit) => unit.unit_id),
+						nickname: currentUser.nickname,
+						pin: currentUser.pin
+					})
+				},
+				120000
+			);
+			const translated = new Map((data.translations ?? []).map((item) => [String(item.unit_id), item.translation_text ?? '']));
+			let applied = 0;
+			for (const unit of units) {
+				if (!translated.has(String(unit.unit_id))) continue;
+				unit.draft = translated.get(String(unit.unit_id));
+				unit.dirty = unit.draft !== unit.translation_text;
+				unit.error = '';
+				applied += 1;
+			}
+			notice = `AI 초벌 ${applied}개 입력됨`;
+			if (data.warnings?.length) aiDraftError = data.warnings.map((warning) => `${warning.unit_id}: ${warning.message}`).join('\n');
+		} catch (err) {
+			aiDraftError = err.message;
+		} finally {
+			aiDrafting = false;
+		}
 	}
 
 	function closeBulkFill() {
@@ -823,7 +883,7 @@
 		try {
 			const saved = JSON.parse(sessionStorage.getItem('translatorUser') || 'null');
 			if (saved?.nickname && saved?.pin) {
-				currentUser = saved;
+				currentUser = { ...saved, is_admin: Boolean(saved.is_admin) || saved.nickname === '사일' };
 				loginNickname = saved.nickname;
 			} else {
 				loginNickname = localStorage.getItem('translatorNickname') || '';
@@ -987,6 +1047,11 @@
 					{#if untranslatedCount()}
 						<button class="soft jump" onclick={scrollToNextUntranslated}>미번역 {untranslatedCount()}</button>
 					{/if}
+					{#if canUseAiDraft()}
+						<button class="soft ai-button" onclick={runAiDraft} disabled={aiDrafting || loadingUnits}>
+							{aiDrafting ? 'AI 초벌 중...' : 'AI 초벌'}
+						</button>
+					{/if}
 					<label class="inline-check">
 						<input type="checkbox" bind:checked={showOnlyUntranslated} />
 						<span>미번역만 보기</span>
@@ -994,6 +1059,14 @@
 					<button class="save-all" onclick={() => Promise.all(units.filter((unit) => unit.dirty).map(saveUnit))}>일괄 저장</button>
 				</div>
 			</div>
+
+			{#if aiDraftError}
+				<section class="warning-box">
+					<strong>AI 초벌 확인 필요</strong>
+					<p>{aiDraftError}</p>
+					<button onclick={() => (aiDraftError = '')}>닫기</button>
+				</section>
+			{/if}
 
 			{#if error}
 				<section class="error-box">
