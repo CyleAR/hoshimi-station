@@ -703,10 +703,12 @@
 	}
 
 	function unitTitle(unit) {
+		const speaker = displaySpeaker(unit);
 		if (unit.source_type === 'adv') {
-			const speaker = unit.speaker && !unit.speaker.startsWith('__') ? `${unit.speaker} · ` : '';
-			return `${speaker}${unit.field_path}${unit.line_no ? ` · line ${unit.line_no}` : ''}`;
+			const prefix = speaker ? `${speaker} · ` : '';
+			return `${prefix}${unit.field_path}${unit.line_no ? ` · line ${unit.line_no}` : ''}`;
 		}
+		if (speaker) return `${speaker} · ${fieldLabel(unit.field_path)}`;
 		return fieldLabel(unit.field_path);
 	}
 
@@ -716,7 +718,29 @@
 	}
 
 	function isManagerUnit(unit) {
-		return unit.speaker === '{user}' || String(unit.field_path ?? '').split('.').includes('managerText');
+		return unit.speaker === '{user}' || unitFieldName(unit) === 'managerText';
+	}
+
+	function isPlayerChoiceUnit(unit) {
+		return ['__player_choice__', '__player_text__'].includes(unit.speaker) || unitFieldName(unit) === 'choiceText';
+	}
+
+	function unitFieldName(unit) {
+		return String(unit.field_path ?? '').replace(/\[[^\]]+\]/g, '').split('.').pop();
+	}
+
+	function speakerLabel(unit) {
+		if (unit.speaker === '__player_choice__' || unitFieldName(unit) === 'choiceText') return '플레이어 선택';
+		if (unit.speaker === '__player_text__') return '플레이어';
+		if (isManagerUnit(unit)) return '매니저';
+		if (displaySpeaker(unit)) return '발화자';
+		return '';
+	}
+
+	function displaySpeaker(unit) {
+		const speaker = String(unit.speaker ?? '');
+		if (!speaker || speaker.startsWith('__') || speaker === '{user}') return '';
+		return speaker;
 	}
 
 	function untranslatedCount() {
@@ -1108,11 +1132,16 @@
 							</header>
 							<div class="unit-stack">
 								{#each group.units as unit}
-									<article class="unit-card" class:manager={isManagerUnit(unit)} class:untranslated={!String(unit.translation_text ?? '').trim()}>
+									<article
+										class="unit-card"
+										class:manager={isManagerUnit(unit)}
+										class:player-choice={isPlayerChoiceUnit(unit)}
+										class:untranslated={!String(unit.translation_text ?? '').trim()}
+									>
 										<header>
 											<strong>
-												{#if isManagerUnit(unit)}
-													<span class="speaker-chip">매니저</span>
+												{#if speakerLabel(unit)}
+													<span class="speaker-chip">{speakerLabel(unit)}</span>
 												{/if}
 												{unitTitle(unit)}
 											</strong>

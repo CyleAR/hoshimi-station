@@ -363,6 +363,34 @@ def extract_path(item: Any, path: list[str], label_path: str) -> Iterable[tuple[
                 yield from extract_path(child[key], rest, child_path)
 
 
+DETAIL_ID_RE = re.compile(r"details\[([^;\]]+);messageDetailId\]\.(.+)$")
+
+
+def message_detail_for_path(item: dict[str, Any], actual_path: str) -> tuple[dict[str, Any] | None, str]:
+    match = DETAIL_ID_RE.match(actual_path)
+    if not match:
+        return None, ""
+    detail_id, field = match.groups()
+    for detail in item.get("details", []) or []:
+        if str(detail.get("messageDetailId", "")) == detail_id:
+            return detail, field
+    return None, field
+
+
+def message_speaker(item: dict[str, Any], actual_path: str, character_names: dict[str, str]) -> str:
+    detail, field = message_detail_for_path(item, actual_path)
+    if not detail:
+        return ""
+    if field == "choiceText":
+        return "__player_choice__"
+    character_id = str(detail.get("characterId") or "")
+    if character_id:
+        return character_names.get(character_id) or character_id
+    if field == "text" and detail.get("choiceText"):
+        return "__player_text__"
+    return ""
+
+
 def skill_efficacy_ids(skill: dict[str, Any] | None) -> set[str]:
     ids: set[str] = set()
     if not skill:
@@ -635,6 +663,7 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
 
 
 def import_masterdb(conn: sqlite3.Connection) -> None:
+    character_names = {str(row.get("id", "")): str(row.get("name") or row.get("id") or "") for row in read_json(MASTERDB_DIR / "Character.json")}
     for category, rule in IPR_RULES.items():
         path = MASTERDB_DIR / f"{category}.json"
         if not path.exists():
@@ -657,6 +686,7 @@ def import_masterdb(conn: sqlite3.Connection) -> None:
                         record,
                         actual_path,
                         original,
+                        speaker=message_speaker(item, actual_path, character_names) if category == "Message" else "",
                         scope_type=scope_type,
                         scope_id=scope_id,
                         context={"pk": {key: item.get(key) for key in pk_fields}},

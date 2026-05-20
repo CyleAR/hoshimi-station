@@ -32,6 +32,11 @@
 		--manager-field: #09151d;
 		--manager-text: #8ee6df;
 		--manager-chip: #164e63;
+		--player: #8667c8;
+		--player-bg: #18152a;
+		--player-field: #0f0d1d;
+		--player-text: #d9c8ff;
+		--player-chip: #4c327e;
 	}
 	* {
 		box-sizing: border-box;
@@ -572,6 +577,10 @@
 		border-color: var(--manager);
 		background: var(--manager-bg);
 	}
+	.unit-card.player-choice {
+		border-color: var(--player);
+		background: var(--player-bg);
+	}
 	.unit-card header {
 		display: flex;
 		align-items: center;
@@ -585,6 +594,10 @@
 		border-bottom-color: color-mix(in srgb, var(--manager) 64%, var(--border));
 		color: var(--manager-text);
 	}
+	.unit-card.player-choice header {
+		border-bottom-color: color-mix(in srgb, var(--player) 64%, var(--border));
+		color: var(--player-text);
+	}
 	.speaker-chip {
 		display: inline-flex;
 		align-items: center;
@@ -597,6 +610,14 @@
 		font-size: 11px;
 		font-weight: 900;
 		vertical-align: middle;
+	}
+	.player-choice .speaker-chip {
+		background: var(--player-chip);
+		color: var(--player-text);
+	}
+	.unit-card:not(.manager):not(.player-choice) .speaker-chip {
+		background: var(--surface-2);
+		color: var(--accent-text);
 	}
 	.unit-card header code {
 		color: var(--muted);
@@ -626,6 +647,12 @@
 	.manager .current .row-label {
 		color: #d9b56f;
 	}
+	.player-choice .row-label {
+		color: var(--player-text);
+	}
+	.player-choice .current .row-label {
+		color: #d9b56f;
+	}
 	.row p {
 		margin: 0;
 		padding: 14px;
@@ -646,6 +673,9 @@
 	.manager .original {
 		color: #d9fffb;
 	}
+	.player-choice .original {
+		color: #f1eaff;
+	}
 	textarea {
 		width: calc(100% - 24px);
 		min-height: 70px;
@@ -661,6 +691,10 @@
 	.manager textarea {
 		border-color: var(--manager);
 		background: var(--manager-field);
+	}
+	.player-choice textarea {
+		border-color: var(--player);
+		background: var(--player-field);
 	}
 	textarea:focus {
 		border-color: var(--accent-soft);
