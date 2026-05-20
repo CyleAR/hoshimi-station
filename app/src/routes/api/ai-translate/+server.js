@@ -132,16 +132,21 @@ export async function POST({ request }) {
 			data = raw ? JSON.parse(raw) : {};
 		} catch {
 			const snippet = raw.replace(/\s+/g, ' ').slice(0, 240);
-			return json({ error: `Upstream returned non-JSON from ${upstreamUrl}: ${snippet}` }, { status: 502 });
+			return json({ error: `Upstream returned non-JSON from ${upstreamUrl}: ${snippet}`, upstream_status: response.status });
 		}
 
 		if (!response.ok) {
 			const message = data?.error?.message || data?.message || `OpenAI API HTTP ${response.status}`;
-			return json({ error: message }, { status: 502 });
+			console.info(`[ai-translate] upstream error=${JSON.stringify(data).slice(0, 500)}`);
+			return json({
+				error: message,
+				upstream_status: response.status,
+				upstream_error: data?.error ?? data
+			});
 		}
 
 		const parsed = parseJsonText(extractOutputText(data));
-		if (!Array.isArray(parsed)) return json({ error: 'AI response is not a JSON array.' }, { status: 502 });
+		if (!Array.isArray(parsed)) return json({ error: 'AI response is not a JSON array.' });
 
 		const byId = new Map(rows.map((row) => [String(row.unit_id), row]));
 		const translations = [];
