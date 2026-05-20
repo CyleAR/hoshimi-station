@@ -32,6 +32,7 @@ function missingPlaceholders(original, translated) {
 
 function extractOutputText(response) {
 	if (typeof response.output_text === 'string') return response.output_text;
+	if (typeof response.choices?.[0]?.message?.content === 'string') return response.choices[0].message.content;
 	const parts = [];
 	for (const item of response.output ?? []) {
 		for (const content of item.content ?? []) {
@@ -56,6 +57,70 @@ function parseJsonText(text) {
 
 function openaiBaseUrl() {
 	return String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+}
+
+async function callJson(url, body) {
+	const response = await fetch(url, {
+		method: 'POST',
+		headers: {
+			authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+			'content-type': 'application/json'
+		},
+		body: JSON.stringify(body)
+	});
+	const raw = await response.text();
+	let data = {};
+	try {
+		data = raw ? JSON.parse(raw) : {};
+	} catch {
+		data = { error: { message: raw.replace(/\s+/g, ' ').slice(0, 240), type: 'non_json_response' } };
+	}
+	return { response, raw, data };
+}
+
+async function requestAi(model, prompt) {
+	const baseUrl = openaiBaseUrl();
+	const attempts = [
+		{
+			name: 'responses.input_string',
+			url: `${baseUrl}/responses`,
+			body: { model, input: prompt }
+		},
+		{
+			name: 'responses.input_text_part',
+			url: `${baseUrl}/responses`,
+			body: {
+				model,
+				input: [
+					{
+						role: 'user',
+						content: [{ type: 'input_text', text: prompt }]
+					}
+				]
+			}
+		},
+		{
+			name: 'chat.completions',
+			url: `${baseUrl}/chat/completions`,
+			body: {
+				model,
+				messages: [{ role: 'user', content: prompt }]
+			}
+		}
+	];
+
+	const failures = [];
+	for (const attempt of attempts) {
+		const { response, raw, data } = await callJson(attempt.url, attempt.body);
+		console.info(`[ai-translate] ${attempt.name} status=${response.status} bytes=${raw.length}`);
+		if (response.ok) return { data, attempt: attempt.name };
+		failures.push({
+			attempt: attempt.name,
+			status: response.status,
+			error: data?.error ?? data
+		});
+	}
+	return { failures };
 }
 
 function unitRows(unitIds) {
@@ -113,39 +178,18 @@ export async function POST({ request }) {
 			'',
 			`Translation units JSON:\n${JSON.stringify(payload, null, 2)}`
 		].join('\n');
-		const response = await fetch(upstreamUrl, {
-			method: 'POST',
-			headers: {
-				authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-				'content-type': 'application/json'
-			},
-			body: JSON.stringify({
-				model,
-				input: prompt
-			})
-		});
-
-		const raw = await response.text();
-		console.info(`[ai-translate] upstream status=${response.status} bytes=${raw.length}`);
-		let data = {};
-		try {
-			data = raw ? JSON.parse(raw) : {};
-		} catch {
-			const snippet = raw.replace(/\s+/g, ' ').slice(0, 240);
-			return json({ error: `Upstream returned non-JSON from ${upstreamUrl}: ${snippet}`, upstream_status: response.status });
-		}
-
-		if (!response.ok) {
-			const message = data?.error?.message || data?.message || `OpenAI API HTTP ${response.status}`;
-			console.info(`[ai-translate] upstream error=${JSON.stringify(data).slice(0, 500)}`);
+		const aiResult = await requestAi(model, prompt);
+		if (aiResult.failures) {
+			console.info(`[ai-translate] all attempts failed=${JSON.stringify(aiResult.failures).slice(0, 1200)}`);
 			return json({
-				error: message,
-				upstream_status: response.status,
-				upstream_error: data?.error ?? data
+				error: 'AI upstream rejected every supported payload format.',
+				upstream_url: upstreamUrl,
+				failures: aiResult.failures
 			});
 		}
 
-		const parsed = parseJsonText(extractOutputText(data));
+		console.info(`[ai-translate] success attempt=${aiResult.attempt}`);
+		const parsed = parseJsonText(extractOutputText(aiResult.data));
 		if (!Array.isArray(parsed)) return json({ error: 'AI response is not a JSON array.' });
 
 		const byId = new Map(rows.map((row) => [String(row.unit_id), row]));
