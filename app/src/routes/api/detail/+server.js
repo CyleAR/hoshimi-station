@@ -284,8 +284,16 @@ function linksFor(type, id) {
 		       			  AND tu.scope_type = l.to_type
 		       			  AND tu.scope_id = l.to_id
 		       			  AND tu.translation_text <> ''
-		       			  AND (tu.field_path = 'name' OR tu.field_path = 'title')
-		       			ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
+		       			ORDER BY CASE tu.field_path
+		       				WHEN 'name' THEN 0
+		       				WHEN 'title' THEN 1
+		       				WHEN 'description' THEN 2
+		       				WHEN 'text' THEN 3
+		       				WHEN 'managerCallText' THEN 4
+		       				WHEN 'characterArrivalText' THEN 5
+		       				ELSE 9
+		       			END
 		       			LIMIT 1
 		       		),
 		       		(
@@ -300,8 +308,14 @@ function linksFor(type, id) {
 		       			  AND child_link.to_type = 'story_collection'
 		       			  AND child.source_type = 'masterdb'
 		       			  AND child.translation_text <> ''
-		       			  AND (child.field_path = 'name' OR child.field_path = 'title')
-		       			ORDER BY CASE child.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			  AND child.field_path IN ('name', 'title', 'description', 'text')
+		       			ORDER BY CASE child.field_path
+		       				WHEN 'name' THEN 0
+		       				WHEN 'title' THEN 1
+		       				WHEN 'description' THEN 2
+		       				WHEN 'text' THEN 3
+		       				ELSE 9
+		       			END
 		       			LIMIT 1
 		       		)
 		       	)
@@ -329,8 +343,16 @@ function linksFor(type, id) {
 		       			  AND tu.scope_type = l.from_type
 		       			  AND tu.scope_id = l.from_id
 		       			  AND tu.translation_text <> ''
-		       			  AND (tu.field_path = 'name' OR tu.field_path = 'title')
-		       			ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
+		       			ORDER BY CASE tu.field_path
+		       				WHEN 'name' THEN 0
+		       				WHEN 'title' THEN 1
+		       				WHEN 'description' THEN 2
+		       				WHEN 'text' THEN 3
+		       				WHEN 'managerCallText' THEN 4
+		       				WHEN 'characterArrivalText' THEN 5
+		       				ELSE 9
+		       			END
 		       			LIMIT 1
 		       		),
 		       		(
@@ -345,8 +367,14 @@ function linksFor(type, id) {
 		       			  AND child_link.to_type = 'story_collection'
 		       			  AND child.source_type = 'masterdb'
 		       			  AND child.translation_text <> ''
-		       			  AND (child.field_path = 'name' OR child.field_path = 'title')
-		       			ORDER BY CASE child.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       			  AND child.field_path IN ('name', 'title', 'description', 'text')
+		       			ORDER BY CASE child.field_path
+		       				WHEN 'name' THEN 0
+		       				WHEN 'title' THEN 1
+		       				WHEN 'description' THEN 2
+		       				WHEN 'text' THEN 3
+		       				ELSE 9
+		       			END
 		       			LIMIT 1
 		       		)
 		       	)

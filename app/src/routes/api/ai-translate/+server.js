@@ -3,7 +3,7 @@ import path from 'node:path';
 import { verifyAdmin } from '$lib/server/admin.js';
 import { all, json } from '$lib/server/db.js';
 
-const MAX_UNITS = 30;
+const MAX_UNITS = 50;
 
 function projectRoot() {
 	if (process.env.PROJECT_ROOT) return path.resolve(process.env.PROJECT_ROOT);

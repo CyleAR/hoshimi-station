@@ -120,8 +120,16 @@ function entityItems(entityTypes, q, limit = 900) {
 		       	  AND tu.scope_type = e.entity_type
 		       	  AND tu.scope_id = e.entity_id
 		       	  AND tu.translation_text <> ''
-		       	  AND (tu.field_path = 'name' OR tu.field_path = 'title')
-		       	ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 2 END
+		       	  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
+		       	ORDER BY CASE tu.field_path
+		       		WHEN 'name' THEN 0
+		       		WHEN 'title' THEN 1
+		       		WHEN 'description' THEN 2
+		       		WHEN 'text' THEN 3
+		       		WHEN 'managerCallText' THEN 4
+		       		WHEN 'characterArrivalText' THEN 5
+		       		ELSE 9
+		       	END
 		       	LIMIT 1
 		       ) translated_label,
 		       COUNT(u.unit_id) total,
