@@ -117,6 +117,7 @@ function directSection(type, id) {
 		story_part: ['StoryPart', 'ExtraStoryPart'],
 		story_collection: ['EventStory', 'ExtraStory'],
 		message_group: ['MessageGroup'],
+		message_thread: [],
 		message: ['Message'],
 		telephone: ['Telephone'],
 		home_talk: ['HomeTalk'],
@@ -508,12 +509,20 @@ export function GET({ url }) {
 	}
 
 	if (type === 'message_group') {
+		sections.push(linkedUnitSection('message_threads', type, id, ['message_thread']));
 		sections.push(linkedUnitSection('group_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('group_telephones', type, id, ['telephone']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
+	if (type === 'message_thread') {
+		sections.push(linkedUnitSection('group_messages', type, id, ['message']));
+		sections.push(linkedUnitSection('linked_telephones', type, id, ['telephone']));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
 	if (type === 'message') {
+		sections.push(linkedUnitSection('message_threads', type, id, ['message_thread']));
 		sections.push(linkedUnitSection('linked_telephones', type, id, ['telephone']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}

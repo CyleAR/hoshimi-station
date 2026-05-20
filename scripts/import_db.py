@@ -40,6 +40,15 @@ def read_json(path: Path) -> list[dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
+def message_thread_id(message_id: str) -> str:
+    match = re.match(r"^(.+)-\d{3}$", str(message_id or ""))
+    return match.group(1) if match else ""
+
+
+def strip_thread_suffix(name: str) -> str:
+    return re.sub(r"[①②③④⑤⑥⑦⑧⑨⑩]$", "", str(name or "")).strip()
+
+
 def should_ignore(text: Any) -> bool:
     if not isinstance(text, str) or not text.strip():
         return True
@@ -519,6 +528,39 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
         for home_talk in row.get("homeTalks", []) or []:
             add_link(conn, "card", row["id"], "home_talk", home_talk.get("homeTalkId", ""), "card_home_talk", home_talk)
 
+    message_threads: dict[str, list[dict[str, Any]]] = {}
+    for row in cache.get("Message", {}).values():
+        thread_id = message_thread_id(row.get("id", ""))
+        if thread_id:
+            message_threads.setdefault(thread_id, []).append(row)
+
+    for thread_id, rows in message_threads.items():
+        if len(rows) < 2:
+            continue
+        rows.sort(key=lambda item: item.get("id", ""))
+        first = rows[0]
+        label = strip_thread_suffix(first.get("name", "")) or thread_id
+        group_id = first.get("messageGroupId", "")
+        upsert_entity(conn, "message_thread", thread_id, label, group_id, {"id": thread_id, "messages": [row.get("id") for row in rows]})
+        if group_id:
+            add_link(conn, "message_group", group_id, "message_thread", thread_id, "message_thread")
+            add_link(conn, "message_thread", thread_id, "message_group", group_id, "in_group")
+        for character_id in sorted({row.get("characterId", "") for row in rows if row.get("characterId", "")}):
+            add_link(conn, "character", character_id, "message_thread", thread_id, "message_thread")
+        for card_id in sorted({row.get("cardId", "") for row in rows if row.get("cardId", "")}):
+            add_link(conn, "card", card_id, "message_thread", thread_id, "message_thread")
+        for row in rows:
+            message_id = row.get("id", "")
+            add_link(conn, "message_thread", thread_id, "message", message_id, "thread_message", row)
+            add_link(conn, "message", message_id, "message_thread", thread_id, "in_thread", row)
+            condition_id = row.get("unlockConditionId", "")
+            if condition_id:
+                add_link(conn, "message_thread", thread_id, "condition_description", condition_id, "message_condition", row)
+            for detail in row.get("details", []) or []:
+                telephone_id = detail.get("telephoneId", "")
+                if telephone_id:
+                    add_link(conn, "message_thread", thread_id, "telephone", telephone_id, "message_telephone", detail)
+
     for row in cache.get("ShowcaseToyCategory", {}).values():
         upsert_entity(conn, "showcase_toy_category", row["id"], row.get("name", row["id"]), "", row)
 
@@ -624,14 +666,14 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
             add_link(conn, "story_part", row.get("extraStoryPartId", ""), "story_collection", row["id"], "contains")
             for episode in row.get("episodes", []) or []:
                 add_link(conn, "story_collection", row["id"], "story", episode.get("storyId", ""), "episode", episode)
-                add_adv_link(conn, "story_collection", row["id"], episode.get("assetId"), "episode_adv", episode)
 
     for row in cache.get("StoryPart", {}).values():
         upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
         for chapter in row.get("chapters", []) or []:
             for episode in chapter.get("episodes", []) or []:
                 add_link(conn, "story_part", row["id"], "story", episode.get("storyId", ""), "chapter_episode", episode)
-                add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", episode)
+                if episode.get("assetId") in (cache.get("Story", {}).get(episode.get("storyId", ""), {}).get("advAssetIds", []) or []):
+                    add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", episode)
 
     for row in cache.get("Character", {}).values():
         for story in row.get("companyEnjoyStories", []) or []:

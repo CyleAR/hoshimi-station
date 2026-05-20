@@ -92,6 +92,7 @@ function directWhere(type, id) {
 		story_part: ['StoryPart', 'ExtraStoryPart'],
 		story_collection: ['EventStory', 'ExtraStory'],
 		message_group: ['MessageGroup'],
+		message_thread: [],
 		message: ['Message'],
 		telephone: ['Telephone'],
 		home_talk: ['HomeTalk'],
@@ -285,12 +286,20 @@ function whereFor(type, id, key, category) {
 	}
 
 	if (type === 'message_group') {
+		if (key === 'message_threads') return linkedWhere(type, id, ['message_thread']);
 		if (key === 'group_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'group_telephones') return linkedWhere(type, id, ['telephone']);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
+	if (type === 'message_thread') {
+		if (key === 'group_messages') return linkedWhere(type, id, ['message']);
+		if (key === 'linked_telephones') return linkedWhere(type, id, ['telephone']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+	}
+
 	if (type === 'message') {
+		if (key === 'message_threads') return linkedWhere(type, id, ['message_thread']);
 		if (key === 'linked_telephones') return linkedWhere(type, id, ['telephone']);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
@@ -444,6 +453,48 @@ function attachAdvOwners(units) {
 	});
 }
 
+function attachMessageThreadOwners(units) {
+	const messageIds = [...new Set(units.filter((unit) => unit.scope_type === 'message').map((unit) => unit.scope_id))];
+	if (!messageIds.length) return units;
+
+	const params = {};
+	const messageSql = placeholders(messageIds, params, 'message');
+	const owners = all(
+		`
+		SELECT l.to_id message_id,
+		       thread.from_id owner_id,
+		       COALESCE(e.label, thread.from_id) owner_label,
+		       COALESCE(e.subtitle, '') owner_subtitle
+		FROM links l
+		JOIN links thread
+		  ON thread.from_type = 'message_thread'
+		 AND thread.to_type = 'message'
+		 AND thread.to_id = l.to_id
+		LEFT JOIN entities e ON e.entity_type = 'message_thread' AND e.entity_id = thread.from_id
+		WHERE l.to_type = 'message'
+		  AND l.to_id IN (${messageSql})
+		ORDER BY l.to_id, thread.from_id
+		`,
+		params
+	);
+	const ownerMap = new Map();
+	for (const owner of owners) {
+		if (!ownerMap.has(owner.message_id)) ownerMap.set(owner.message_id, owner);
+	}
+
+	return units.map((unit) => {
+		const owner = ownerMap.get(unit.scope_id);
+		if (!owner) return unit;
+		return {
+			...unit,
+			owner_type: 'message_thread',
+			owner_id: owner.owner_id,
+			owner_label: owner.owner_label,
+			owner_subtitle: owner.owner_subtitle
+		};
+	});
+}
+
 export function GET({ url }) {
 	const type = url.searchParams.get('type') || 'character';
 	const id = url.searchParams.get('id') || '';
@@ -467,5 +518,5 @@ export function GET({ url }) {
 		`,
 		{ ...params, $limit: limit }
 	).sort(compareUnit);
-	return json({ units: attachAdvOwners(units) });
+	return json({ units: attachMessageThreadOwners(attachAdvOwners(units)) });
 }
