@@ -82,6 +82,7 @@ export async function POST({ request }) {
 		const nickname = String(body.nickname ?? '').trim().slice(0, 24);
 		const pin = String(body.pin ?? '').trim();
 		const unitIds = Array.isArray(body.unit_ids) ? body.unit_ids.map((id) => String(id).trim()).filter(Boolean) : [];
+		console.info(`[ai-translate] request nickname=${nickname} units=${unitIds.length} base=${openaiBaseUrl()} model=${process.env.OPENAI_MODEL || 'gpt-5.2'}`);
 
 		if (!verifyAdmin(nickname, pin)) return json({ error: 'AI draft permission denied.' }, { status: 403 });
 		if (!process.env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY is not set.' }, { status: 500 });
@@ -129,6 +130,7 @@ export async function POST({ request }) {
 		});
 
 		const raw = await response.text();
+		console.info(`[ai-translate] upstream status=${response.status} bytes=${raw.length}`);
 		let data = {};
 		try {
 			data = raw ? JSON.parse(raw) : {};
@@ -160,6 +162,7 @@ export async function POST({ request }) {
 
 		return json({ ok: true, model, translations, warnings });
 	} catch (err) {
+		console.error('[ai-translate] failed', err);
 		return json({ error: err.message || String(err) }, { status: 500 });
 	}
 }
