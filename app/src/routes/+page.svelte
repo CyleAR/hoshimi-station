@@ -205,7 +205,14 @@
 		const timer = setTimeout(() => controller.abort(), timeoutMs);
 		try {
 			const response = await fetch(url, { ...options, signal: controller.signal });
-			const data = await response.json();
+			const text = await response.text();
+			let data = {};
+			try {
+				data = text ? JSON.parse(text) : {};
+			} catch {
+				const snippet = text.replace(/\s+/g, ' ').slice(0, 240);
+				throw new Error(`JSON이 아닌 응답입니다: ${response.status} ${response.url} ${snippet}`);
+			}
 			if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
 			return data;
 		} catch (err) {
