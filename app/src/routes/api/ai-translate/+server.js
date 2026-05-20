@@ -103,11 +103,15 @@ export async function POST({ request }) {
 
 		const model = process.env.OPENAI_MODEL || 'gpt-5.2';
 		const upstreamUrl = `${openaiBaseUrl()}/responses`;
-		const systemPrompt = [
+		const prompt = [
 			'You are preparing first-draft Korean translations for a Japanese game localization tool.',
 			'Return ONLY a JSON array. Each item must be {"unit_id":"...","translation_text":"..."} with no markdown.',
 			'Preserve placeholders exactly, including {user}. Preserve literal \\n when it appears in source text.',
-			'Do not translate IDs, tags, markup, or variables. Use the provided translation guidelines.'
+			'Do not translate IDs, tags, markup, or variables. Use the provided translation guidelines.',
+			'',
+			`Translation guidelines:\n${guidelines}`,
+			'',
+			`Translation units JSON:\n${JSON.stringify(payload, null, 2)}`
 		].join('\n');
 		const response = await fetch(upstreamUrl, {
 			method: 'POST',
@@ -117,19 +121,7 @@ export async function POST({ request }) {
 			},
 			body: JSON.stringify({
 				model,
-				input: [
-					{
-						role: 'system',
-						content: systemPrompt
-					},
-					{
-						role: 'user',
-						content: [
-							`Translation guidelines:\n${guidelines}`,
-							`Translation units JSON:\n${JSON.stringify(payload, null, 2)}`
-						].join('\n\n')
-					}
-				]
+				input: prompt
 			})
 		});
 
