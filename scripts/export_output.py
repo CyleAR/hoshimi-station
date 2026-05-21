@@ -16,7 +16,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 MASTERDB_DIR = ROOT / "res" / "masterdb"
 ADV_DIR = ROOT / "res" / "adv" / "resource"
-LEGACY_OUTPUT_DIR = ROOT / "output"
 DEFAULT_OUTPUT_DIR = ROOT / "output"
 
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
@@ -207,24 +206,9 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
     return exported
 
 
-def read_existing_localization(out_dir: Path) -> str | None:
-    candidates = [
-        out_dir / "local-files" / "localization.json",
-        LEGACY_OUTPUT_DIR / "local-files" / "localization.json",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path.read_text(encoding="utf-8")
-    return None
-
-
-def write_metadata(out_dir: Path, localization_json: str | None) -> None:
+def write_metadata(out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "version.txt").write_text(datetime.now().strftime("%Y%m%d_%H%M%S"), encoding="utf-8")
-    if localization_json is not None:
-        target = out_dir / "local-files" / "localization.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(localization_json, encoding="utf-8")
 
 
 def clear_output_dir(out_dir: Path) -> None:
@@ -250,7 +234,6 @@ def main() -> None:
     args = parser.parse_args()
 
     out_dir = args.out.resolve()
-    localization_json = read_existing_localization(out_dir)
     if out_dir.exists() and args.overwrite:
         clear_output_dir(out_dir)
     elif out_dir.exists() and any(out_dir.iterdir()):
@@ -259,7 +242,7 @@ def main() -> None:
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
     try:
-        write_metadata(out_dir, localization_json)
+        write_metadata(out_dir)
         master_count = export_masterdb(conn, out_dir)
         adv_count = export_adv(conn, out_dir)
     finally:
