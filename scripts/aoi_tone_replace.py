@@ -76,9 +76,17 @@ def original_addresses_protag(row: sqlite3.Row) -> bool:
     return any(marker in original for marker in ORIGINAL_YOU_MARKERS)
 
 
-def is_aoi_candidate(row: sqlite3.Row, *, risky_only: bool = False, allow_unmarked_you: bool = False) -> bool:
+def is_aoi_candidate(
+    row: sqlite3.Row,
+    *,
+    safe_only: bool = False,
+    risky_only: bool = False,
+    allow_unmarked_you: bool = False,
+) -> bool:
     text = row["translation_text"] or ""
     if not any(word in text for word in TARGET_WORDS):
+        return False
+    if safe_only and "당신" not in text:
         return False
     if risky_only and "오빠" not in text:
         return False
@@ -121,6 +129,7 @@ def is_aoi_candidate(row: sqlite3.Row, *, risky_only: bool = False, allow_unmark
 def replace_text(
     text: str,
     *,
+    safe_only: bool = False,
     include_risky: bool,
     risky_only: bool = False,
     allow_unmarked_you: bool = False,
@@ -130,6 +139,8 @@ def replace_text(
     result = text
     for item in REPLACEMENTS:
         if item.safe and risky_only:
+            continue
+        if not item.safe and safe_only:
             continue
         if item.safe and item.old.startswith("당신") and not allow_unmarked_you and not original_has_you_marker:
             continue
@@ -144,13 +155,19 @@ def replace_text(
 def candidate_rows(
     conn: sqlite3.Connection,
     *,
+    safe_only: bool = False,
     risky_only: bool = False,
     allow_unmarked_you: bool = False,
 ) -> list[sqlite3.Row]:
-    where = "translation_text LIKE '%오빠%'" if risky_only else """
+    if safe_only:
+        where = "translation_text LIKE '%당신%'"
+    elif risky_only:
+        where = "translation_text LIKE '%오빠%'"
+    else:
+        where = """
         translation_text LIKE '%당신%'
            OR translation_text LIKE '%오빠%'
-    """
+        """
     rows = conn.execute(
         f"""
         SELECT unit_id, source_type, category, source_file, record_id, field_path,
@@ -164,13 +181,19 @@ def candidate_rows(
     return [
         row
         for row in rows
-        if is_aoi_candidate(row, risky_only=risky_only, allow_unmarked_you=allow_unmarked_you)
+        if is_aoi_candidate(
+            row,
+            safe_only=safe_only,
+            risky_only=risky_only,
+            allow_unmarked_you=allow_unmarked_you,
+        )
     ]
 
 
 def print_preview(
     rows: list[sqlite3.Row],
     *,
+    safe_only: bool,
     include_risky: bool,
     risky_only: bool,
     allow_unmarked_you: bool,
@@ -185,12 +208,14 @@ def print_preview(
         original_has_you_marker = original_addresses_protag(row)
         after_safe, safe_changes = replace_text(
             before,
+            safe_only=True,
             include_risky=False,
             allow_unmarked_you=allow_unmarked_you,
             original_has_you_marker=original_has_you_marker,
         )
         after, all_changes = replace_text(
             before,
+            safe_only=safe_only,
             include_risky=include_risky,
             risky_only=risky_only,
             allow_unmarked_you=allow_unmarked_you,
@@ -200,13 +225,13 @@ def print_preview(
 
         if safe_changes and not risky_only:
             safe_count += 1
-        if risky_changes or "오빠" in before:
+        if not safe_only and (risky_changes or "오빠" in before):
             risky_count += 1
 
         if limit > 0 and printed >= limit:
             continue
         printed += 1
-        risk_label = " risky" if risky_changes or (not include_risky and "오빠" in before) else ""
+        risk_label = " risky" if not safe_only and (risky_changes or (not include_risky and "오빠" in before)) else ""
         print(f"- {row['unit_id']} [{row['source_type']}/{row['category']}]{risk_label}")
         print(f"  speaker: {row['speaker'] or '-'}")
         print(f"  field: {row['field_path']}")
@@ -223,6 +248,7 @@ def apply_rows(
     conn: sqlite3.Connection,
     rows: list[sqlite3.Row],
     *,
+    safe_only: bool,
     include_risky: bool,
     risky_only: bool,
     allow_unmarked_you: bool,
@@ -233,6 +259,7 @@ def apply_rows(
         before = row["translation_text"]
         after, changes = replace_text(
             before,
+            safe_only=safe_only,
             include_risky=include_risky,
             risky_only=risky_only,
             allow_unmarked_you=allow_unmarked_you,
@@ -259,6 +286,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Replace Aoi Igawa's Korean tone markers in translation_units.")
     parser.add_argument("--db", type=Path, default=DB_PATH)
     parser.add_argument("--apply", action="store_true", help="Actually update the database.")
+    parser.add_argument("--safe-only", action="store_true", help="Replace only 당신 -> 너 patterns.")
     parser.add_argument("--include-risky", action="store_true", help="Also replace 오빠 -> 형님 patterns.")
     parser.add_argument("--risky-only", action="store_true", help="Replace only risky 오빠 -> 형님 patterns.")
     parser.add_argument(
@@ -270,18 +298,22 @@ def main() -> None:
     args = parser.parse_args()
     if args.risky_only:
         args.include_risky = True
+    if args.safe_only and args.risky_only:
+        raise SystemExit("--safe-only and --risky-only cannot be used together.")
 
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
     try:
         rows = candidate_rows(
             conn,
+            safe_only=args.safe_only,
             risky_only=args.risky_only,
             allow_unmarked_you=args.allow_unmarked_you,
         )
         print(f"candidates={len(rows)}")
         safe_count, risky_count = print_preview(
             rows,
+            safe_only=args.safe_only,
             include_risky=args.include_risky,
             risky_only=args.risky_only,
             allow_unmarked_you=args.allow_unmarked_you,
@@ -297,6 +329,7 @@ def main() -> None:
         changed = apply_rows(
             conn,
             rows,
+            safe_only=args.safe_only,
             include_risky=args.include_risky,
             risky_only=args.risky_only,
             allow_unmarked_you=args.allow_unmarked_you,

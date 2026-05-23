@@ -319,49 +319,43 @@ def replace_aoi_tone() -> None:
     print()
     print("== Aoi tone replacement ==")
     print("Targets Aoi rows in translation_units only.")
-    print("Safe pass: 당신 -> 너 patterns.")
-    print("Risky pass: 오빠 -> 형님 patterns, confirm separately after preview.")
-
     print()
-    print("== Safe preview ==")
-    preview = run(
-        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--limit", "0"],
-        check=False,
-    )
-    if preview.returncode != 0:
-        raise SystemExit("Aoi safe preview failed.")
+    print("1. 당신만 바꾸기")
+    print("   - 원문에 君/キミ/きみ가 있는 아오이 대사의 당신 -> 너 계열만 바꿉니다.")
+    print("2. 오빠만 바꾸기")
+    print("   - 아오이 대사의 오빠 -> 형님 계열만 바꿉니다.")
+    print("q. 취소")
+    choice = input("번호 입력 > ").strip().lower()
 
-    answer = input("Apply safe Aoi tone replacements? [y/N] > ").strip().lower()
-    if answer in {"y", "yes"}:
-        print()
-        print("== Apply safe replacements ==")
-        run([python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--apply"])
+    if choice == "1":
+        label = "Aoi 당신 -> 너"
+        option = "--safe-only"
+    elif choice == "2":
+        label = "Aoi 오빠 -> 형님"
+        option = "--risky-only"
+    elif choice in {"q", "quit", "exit"}:
+        print("Skipped Aoi tone replacement.")
+        return
     else:
-        print("Skipped safe replacements.")
+        raise SystemExit("1, 2, q 중 하나를 입력하세요.")
 
     print()
-    risky_answer = input("Preview risky 오빠 -> 형님 replacements too? [y/N] > ").strip().lower()
-    if risky_answer not in {"y", "yes"}:
-        print("Skipped risky replacements.")
-        return
-
-    print()
-    print("== Risky preview ==")
+    print(f"== {label} preview ==")
     preview = run(
-        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--risky-only", "--limit", "0"],
+        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), option, "--limit", "0"],
         check=False,
     )
     if preview.returncode != 0:
-        raise SystemExit("Aoi risky preview failed.")
+        raise SystemExit(f"{label} preview failed.")
 
-    answer = input("Apply risky Aoi 오빠 -> 형님 replacements? [y/N] > ").strip().lower()
+    answer = input(f"Apply {label} replacements? [y/N] > ").strip().lower()
     if answer not in {"y", "yes"}:
-        print("Skipped risky replacements.")
+        print("Skipped replacements.")
         return
 
     print()
-    print("== Apply risky replacements ==")
-    run([python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--apply", "--risky-only"])
+    print(f"== Apply {label} replacements ==")
+    run([python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--apply", option])
 
 
 def export_output() -> None:
