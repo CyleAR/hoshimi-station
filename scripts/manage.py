@@ -325,7 +325,7 @@ def replace_aoi_tone() -> None:
     print()
     print("== Safe preview ==")
     preview = run(
-        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--limit", "50"],
+        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--limit", "0"],
         check=False,
     )
     if preview.returncode != 0:
@@ -348,7 +348,7 @@ def replace_aoi_tone() -> None:
     print()
     print("== Risky preview ==")
     preview = run(
-        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--risky-only", "--limit", "50"],
+        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--risky-only", "--limit", "0"],
         check=False,
     )
     if preview.returncode != 0:

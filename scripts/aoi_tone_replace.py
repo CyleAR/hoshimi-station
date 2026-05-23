@@ -203,7 +203,7 @@ def print_preview(
         if risky_changes or "오빠" in before:
             risky_count += 1
 
-        if printed >= limit:
+        if limit > 0 and printed >= limit:
             continue
         printed += 1
         risk_label = " risky" if risky_changes or (not include_risky and "오빠" in before) else ""
@@ -214,7 +214,7 @@ def print_preview(
         print(f"  before: {before}")
         print(f"  after:  {after if include_risky else after_safe}")
 
-    if len(rows) > limit:
+    if limit > 0 and len(rows) > limit:
         print(f"... {len(rows) - limit} more rows")
     return safe_count, risky_count
 
@@ -266,7 +266,7 @@ def main() -> None:
         action="store_true",
         help="Also replace 당신 when original_text has no 君/キミ/きみ marker.",
     )
-    parser.add_argument("--limit", type=int, default=40, help="Preview row limit.")
+    parser.add_argument("--limit", type=int, default=0, help="Preview row limit. Use 0 to print every row.")
     args = parser.parse_args()
     if args.risky_only:
         args.include_risky = True
