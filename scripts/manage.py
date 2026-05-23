@@ -315,6 +315,55 @@ def bulk_replace_translation() -> None:
     run([python(), "scripts/replace_translation.py", old, new, "--db", str(DB_PATH), "--apply"])
 
 
+def replace_aoi_tone() -> None:
+    print()
+    print("== Aoi tone replacement ==")
+    print("Targets Aoi rows in translation_units only.")
+    print("Safe pass: 당신 -> 너 patterns.")
+    print("Risky pass: 오빠 -> 형님 patterns, confirm separately after preview.")
+
+    print()
+    print("== Safe preview ==")
+    preview = run(
+        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--limit", "50"],
+        check=False,
+    )
+    if preview.returncode != 0:
+        raise SystemExit("Aoi safe preview failed.")
+
+    answer = input("Apply safe Aoi tone replacements? [y/N] > ").strip().lower()
+    if answer in {"y", "yes"}:
+        print()
+        print("== Apply safe replacements ==")
+        run([python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--apply"])
+    else:
+        print("Skipped safe replacements.")
+
+    print()
+    risky_answer = input("Preview risky 오빠 -> 형님 replacements too? [y/N] > ").strip().lower()
+    if risky_answer not in {"y", "yes"}:
+        print("Skipped risky replacements.")
+        return
+
+    print()
+    print("== Risky preview ==")
+    preview = run(
+        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--risky-only", "--limit", "50"],
+        check=False,
+    )
+    if preview.returncode != 0:
+        raise SystemExit("Aoi risky preview failed.")
+
+    answer = input("Apply risky Aoi 오빠 -> 형님 replacements? [y/N] > ").strip().lower()
+    if answer not in {"y", "yes"}:
+        print("Skipped risky replacements.")
+        return
+
+    print()
+    print("== Apply risky replacements ==")
+    run([python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--apply", "--risky-only"])
+
+
 def export_output() -> None:
     output_dir = ROOT / "output"
     if not output_dir.exists():
@@ -377,6 +426,10 @@ def menu() -> str:
     print("   - 검색할 문자열과 바꿀 문자열을 입력받아 translation_text에서 일괄 치환합니다.")
     print("   - 먼저 검색 결과 미리보기를 보여준 뒤 확인하면 실제 변경합니다.")
     print()
+    print("6. Aoi tone replacement")
+    print("   - Aoi rows only: 당신 -> 너 patterns.")
+    print("   - Optional risky pass: 오빠 -> 형님 patterns.")
+    print()
     print("q. 종료")
     print()
     return input("번호 입력 > ").strip().lower()
@@ -385,7 +438,7 @@ def menu() -> str:
 def main() -> None:
     configure_stdio()
     parser = argparse.ArgumentParser(description="HoshimiStation maintenance helper.")
-    parser.add_argument("action", nargs="?", choices=["1", "2", "3", "4", "5"], help="Action to run without interactive menu.")
+    parser.add_argument("action", nargs="?", choices=["1", "2", "3", "4", "5", "6"], help="Action to run without interactive menu.")
     args = parser.parse_args()
 
     choice = args.action or menu()
@@ -404,10 +457,12 @@ def main() -> None:
         checkpoint_db()
     elif choice == "5":
         bulk_replace_translation()
+    elif choice == "6":
+        replace_aoi_tone()
     elif choice in {"q", "quit", "exit"}:
         return
     else:
-        raise SystemExit("1, 2, 3, 4, 5, q 중 하나를 입력하세요.")
+        raise SystemExit("1, 2, 3, 4, 5, 6, q 중 하나를 입력하세요.")
 
 
 if __name__ == "__main__":
