@@ -625,7 +625,11 @@
 				applied += 1;
 			}
 			notice = `AI 초벌 ${applied}개 입력됨`;
-			if (data.warnings?.length) aiDraftError = data.warnings.map((warning) => `${warning.unit_id}: ${warning.message}`).join('\n');
+			if (data.warnings?.length) {
+				const shown = data.warnings.slice(0, 20).map((warning) => `${warning.unit_id}: ${warning.message}`).join('\n');
+				const hidden = data.warnings.length - 20;
+				aiDraftError = hidden > 0 ? `${shown}\n... 외 ${hidden}개` : shown;
+			}
 		} catch (err) {
 			aiDraftError = err.message;
 		} finally {

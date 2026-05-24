@@ -31,10 +31,26 @@ function missingPlaceholders(original, translated) {
 }
 
 function readTranslationText(item) {
-	for (const key of ['translation_text', 'translated_text', 'translation', 'text']) {
-		if (typeof item?.[key] === 'string') return item[key];
+	const keys = ['translation_text', 'translated_text', 'translatedText', 'translation', 'target_text', 'targetText', 'korean', 'ko', 'result', 'draft', 'text'];
+	for (const key of keys) {
+		const value = item?.[key];
+		if (typeof value === 'string') return value;
+		if (value && typeof value === 'object') {
+			for (const nestedKey of keys) {
+				if (typeof value[nestedKey] === 'string') return value[nestedKey];
+			}
+		}
 	}
 	return '';
+}
+
+function responseKeys(item) {
+	if (!item || typeof item !== 'object') return 'non-object';
+	return Object.keys(item).slice(0, 12).join(', ') || 'no keys';
+}
+
+function isSourceEcho(item) {
+	return Boolean(item && typeof item === 'object' && 'original_text' in item && !readTranslationText(item).trim());
 }
 
 function extractOutputText(response) {
@@ -103,7 +119,21 @@ async function callGeminiJson(apiKey, model, prompt) {
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({
 			contents: [{ role: 'user', parts: [{ text: prompt }] }],
-			generationConfig: { responseMimeType: 'application/json' }
+			generationConfig: {
+				responseMimeType: 'application/json',
+				temperature: 0.2,
+				responseSchema: {
+					type: 'ARRAY',
+					items: {
+						type: 'OBJECT',
+						properties: {
+							unit_id: { type: 'STRING' },
+							translation_text: { type: 'STRING' }
+						},
+						required: ['unit_id', 'translation_text']
+					}
+				}
+			}
 		})
 	});
 	const raw = await response.text();
@@ -217,12 +247,22 @@ export async function POST({ request }) {
 		const prompt = [
 			'You are preparing first-draft Korean translations for a Japanese game localization tool.',
 			'Return ONLY a JSON array. Each item must be {"unit_id":"...","translation_text":"..."} with no markdown.',
+			'Translate every input unit. Do not omit units and do not leave translation_text empty.',
+			'The input objects are SOURCE DATA ONLY. Do not copy them as the output.',
+			'Never include category, field_path, speaker, or original_text in the output.',
 			'Preserve placeholders exactly, including {user}. Preserve literal \\n when it appears in source text.',
 			'Do not translate IDs, tags, markup, or variables. Use the provided translation guidelines.',
 			'',
 			`Translation guidelines:\n${guidelines}`,
 			'',
-			`Translation units JSON:\n${JSON.stringify(payload, null, 2)}`
+			`Translation units JSON:\n${JSON.stringify(payload, null, 2)}`,
+			'',
+			'Output contract:',
+			'- Return one array element for every input unit_id.',
+			'- Use exactly these keys: unit_id, translation_text.',
+			'- unit_id must be copied exactly from the input.',
+			'- translation_text must be a non-empty Korean first-draft translation string.',
+			'- Never return null, empty string, an object, or an untranslated Japanese copy as translation_text.'
 		].join('\n');
 
 		let model;
@@ -257,6 +297,13 @@ export async function POST({ request }) {
 
 		const parsed = parseJsonText(responseText);
 		if (!Array.isArray(parsed)) return json({ error: 'AI response is not a JSON array.' });
+		const sourceEchoes = parsed.filter(isSourceEcho).length;
+		if (sourceEchoes >= Math.max(3, Math.ceil(parsed.length * 0.5))) {
+			return json({
+				error:
+					'Gemini returned the source JSON unchanged instead of translations. 다시 실행해 보거나 요청 개수를 줄여 주세요. 계속 반복되면 Gemini 모델명을 확인해 주세요.'
+			});
+		}
 
 		const byId = new Map(rows.map((row) => [String(row.unit_id), row]));
 		const translations = [];
@@ -267,7 +314,7 @@ export async function POST({ request }) {
 			if (!row) continue;
 			const translationText = readTranslationText(item).trim();
 			if (!translationText) {
-				warnings.push({ unit_id: unitId, message: 'empty translation_text' });
+				warnings.push({ unit_id: unitId, message: `empty translation_text (keys: ${responseKeys(item)})` });
 				continue;
 			}
 			const missing = missingPlaceholders(row.original_text, translationText);
