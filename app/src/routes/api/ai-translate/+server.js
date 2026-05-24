@@ -30,6 +30,13 @@ function missingPlaceholders(original, translated) {
 	return placeholders(original).filter((placeholder) => !draft.includes(placeholder));
 }
 
+function readTranslationText(item) {
+	for (const key of ['translation_text', 'translated_text', 'translation', 'text']) {
+		if (typeof item?.[key] === 'string') return item[key];
+	}
+	return '';
+}
+
 function extractOutputText(response) {
 	if (typeof response.output_text === 'string') return response.output_text;
 	if (typeof response.choices?.[0]?.message?.content === 'string') return response.choices[0].message.content;
@@ -258,7 +265,11 @@ export async function POST({ request }) {
 			const unitId = String(item?.unit_id ?? '').trim();
 			const row = byId.get(unitId);
 			if (!row) continue;
-			const translationText = String(item?.translation_text ?? '');
+			const translationText = readTranslationText(item).trim();
+			if (!translationText) {
+				warnings.push({ unit_id: unitId, message: 'empty translation_text' });
+				continue;
+			}
 			const missing = missingPlaceholders(row.original_text, translationText);
 			if (missing.length) {
 				warnings.push({ unit_id: unitId, message: `missing placeholder: ${missing.join(', ')}` });
