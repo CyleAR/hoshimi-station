@@ -10,41 +10,21 @@ const entitySections = {
 	home: ['home_talk']
 };
 
-const MAX_SEARCH_LENGTH = 80;
+const directCategories = {
+	character: ['Character'],
+	group: ['CharacterGroup'],
+	card: ['Card'],
+	story_part: ['StoryPart', 'ExtraStoryPart'],
+	story_collection: ['EventStory', 'ExtraStory'],
+	story: ['Story'],
+	love: ['LoveStoryEpisode'],
+	message_group: ['MessageGroup'],
+	message: ['Message'],
+	telephone: ['Telephone'],
+	home_talk: ['HomeTalk']
+};
 
-function entityUnitWhere(unitAlias = 'tu', entityAlias = 'e') {
-	return `(
-		(${unitAlias}.scope_type = ${entityAlias}.entity_type AND ${unitAlias}.scope_id = ${entityAlias}.entity_id)
-		OR EXISTS (
-			SELECT 1
-			FROM links l
-			WHERE l.from_type = ${entityAlias}.entity_type AND l.from_id = ${entityAlias}.entity_id
-			  AND (
-			  	(l.to_type = ${unitAlias}.scope_type AND l.to_id = ${unitAlias}.scope_id)
-			  	OR (l.to_type = 'adv_file' AND l.to_id = ${unitAlias}.source_file)
-			  )
-		)
-		OR EXISTS (
-			SELECT 1
-			FROM links l
-			WHERE l.to_type = ${entityAlias}.entity_type AND l.to_id = ${entityAlias}.entity_id
-			  AND (
-			  	(l.from_type = ${unitAlias}.scope_type AND l.from_id = ${unitAlias}.scope_id)
-			  	OR (l.from_type = 'adv_file' AND l.from_id = ${unitAlias}.source_file)
-			  )
-		)
-		OR EXISTS (
-			SELECT 1
-			FROM links l1
-			JOIN links l2 ON l2.from_type = l1.to_type AND l2.from_id = l1.to_id
-			WHERE l1.from_type = ${entityAlias}.entity_type AND l1.from_id = ${entityAlias}.entity_id
-			  AND (
-			  	(l2.to_type = ${unitAlias}.scope_type AND l2.to_id = ${unitAlias}.scope_id)
-			  	OR (l2.to_type = 'adv_file' AND l2.to_id = ${unitAlias}.source_file)
-			  )
-		)
-	)`;
-}
+const MAX_SEARCH_LENGTH = 80;
 
 function normalizeSearch(value) {
 	return String(value ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
@@ -115,7 +95,15 @@ function entityItems(entityTypes, q, limit = 900) {
 	const params = {};
 	const typeSql = entityTypes.map((_, index) => `$type${index}`).join(',');
 	for (const [index, value] of entityTypes.entries()) params[`$type${index}`] = value;
-	const unitWhere = entityUnitWhere('u', 'e');
+	const categoryPairs = [];
+	for (const entityType of entityTypes) {
+		for (const category of directCategories[entityType] ?? []) {
+			const index = categoryPairs.length;
+			params[`$pairType${index}`] = entityType;
+			params[`$pairCat${index}`] = category;
+			categoryPairs.push(`(u.scope_type = $pairType${index} AND u.category = $pairCat${index})`);
+		}
+	}
 	const where = [`e.entity_type IN (${typeSql})`];
 	if (q) {
 		where.push(entitySearchWhere());
@@ -144,18 +132,15 @@ function entityItems(entityTypes, q, limit = 900) {
 		       	END
 		       	LIMIT 1
 		       ) translated_label,
-		       (
-		       	SELECT COUNT(DISTINCT u.unit_id)
-		       	FROM translation_units u
-		       	WHERE ${unitWhere}
-		       ) total,
-		       (
-		       	SELECT COUNT(DISTINCT CASE WHEN u.translation_text <> '' THEN u.unit_id END)
-		       	FROM translation_units u
-		       	WHERE ${unitWhere}
-		       ) done
+		       COUNT(u.unit_id) total,
+		       COALESCE(SUM(CASE WHEN u.translation_text <> '' THEN 1 ELSE 0 END), 0) done
 		FROM entities e
+		LEFT JOIN translation_units u ON u.source_type = 'masterdb'
+			AND u.scope_type = e.entity_type
+			AND u.scope_id = e.entity_id
+			AND (${categoryPairs.length ? categoryPairs.join(' OR ') : '1 = 0'})
 		WHERE ${where.join(' AND ')}
+		GROUP BY e.entity_type, e.entity_id
 		ORDER BY
 			CASE e.entity_type
 				WHEN 'group' THEN 0
