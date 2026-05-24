@@ -242,6 +242,8 @@ function whereFor(type, id, key, category) {
 		if (key === 'costumes') return linkedWhere(type, id, ['costume']);
 		if (key === 'hair') return linkedWhere(type, id, ['hair']);
 		if (key === 'accessories') return linkedWhere(type, id, ['accessory']);
+		if (key === 'goods') return linkedWhere(type, id, ['showcase_toy']);
+		if (key === 'stories') return linkedWhere(type, id, ['story']);
 		if (key === 'home_actions') return linkedWhere(type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
@@ -268,6 +270,7 @@ function whereFor(type, id, key, category) {
 
 	if (type === 'costume') {
 		if (key === 'hair') return linkedWhere(type, id, ['hair']);
+		if (key === 'home_actions') return linkedWhere(type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
@@ -283,6 +286,18 @@ function whereFor(type, id, key, category) {
 
 	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type) && key === 'conditions') {
 		return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (type === 'showcase_toy_category' && key === 'goods') {
+		return linkedWhere(type, id, ['showcase_toy']);
+	}
+
+	if (type === 'skill' && key === 'skill_efficacies') {
+		return linkedWhere(type, id, ['skill_efficacy']);
+	}
+
+	if (['live_ability', 'activity_ability'].includes(type) && key === 'skills') {
+		return linkedWhere(type, id, ['skill']);
 	}
 
 	if (type === 'message_group') {

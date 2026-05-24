@@ -5,6 +5,7 @@ const sectionMeta = {
 	members: ['👤', '소속 멤버'],
 	cards: ['★', '소속 카드'],
 	skills: ['⚡', '스킬'],
+	skill_efficacies: ['⚙', '스킬 효과'],
 	costumes: ['▣', '의상'],
 	hair: ['◇', '헤어'],
 	accessories: ['◌', '액세서리'],
@@ -33,6 +34,7 @@ const sectionOverrides = {
 	members: ['👥', '소속 멤버'],
 	cards: ['★', '소속 카드'],
 	skills: ['⚡', '스킬'],
+	skill_efficacies: ['⚙', '스킬 효과'],
 	costumes: ['▣', '의상'],
 	hair: ['◇', '헤어'],
 	accessories: ['◌', '액세서리'],
@@ -390,6 +392,34 @@ function linksFor(type, id) {
 	);
 }
 
+function linkRank(link) {
+	const relation = String(link.relation ?? '');
+	if (relation === 'unlock_condition') return 0;
+	if (relation.endsWith('_condition')) return 1;
+	if (relation === 'card_home_talk') return 0;
+	if (relation === 'card_telephone') return 0;
+	if (relation === 'card_message') return 0;
+	if (relation === 'condition') return 8;
+	if (relation.startsWith('has_')) return 9;
+	return 4;
+}
+
+function dedupeLinks(links) {
+	const byTarget = new Map();
+	for (const link of links) {
+		const key = `${link.type}:${link.id}`;
+		const previous = byTarget.get(key);
+		if (!previous || linkRank(link) < linkRank(previous)) byTarget.set(key, link);
+	}
+	return [...byTarget.values()].sort((a, b) => {
+		const relation = String(a.relation ?? '').localeCompare(String(b.relation ?? ''), 'ko');
+		if (relation) return relation;
+		const type = String(a.type ?? '').localeCompare(String(b.type ?? ''), 'ko');
+		if (type) return type;
+		return String(a.label ?? '').localeCompare(String(b.label ?? ''), 'ko');
+	});
+}
+
 export function GET({ url }) {
 	const type = url.searchParams.get('type') || 'character';
 	const id = url.searchParams.get('id') || '';
@@ -456,6 +486,8 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('costumes', type, id, ['costume']));
 		sections.push(linkedUnitSection('hair', type, id, ['hair']));
 		sections.push(linkedUnitSection('accessories', type, id, ['accessory']));
+		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
+		sections.push(linkedUnitSection('stories', type, id, ['story']));
 		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
 		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));
@@ -491,6 +523,7 @@ export function GET({ url }) {
 
 	if (type === 'costume') {
 		sections.push(linkedUnitSection('hair', type, id, ['hair']));
+		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
@@ -506,6 +539,18 @@ export function GET({ url }) {
 
 	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type)) {
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
+	if (type === 'showcase_toy_category') {
+		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
+	}
+
+	if (type === 'skill') {
+		sections.push(linkedUnitSection('skill_efficacies', type, id, ['skill_efficacy']));
+	}
+
+	if (['live_ability', 'activity_ability'].includes(type)) {
+		sections.push(linkedUnitSection('skills', type, id, ['skill']));
 	}
 
 	if (type === 'message_group') {
@@ -532,6 +577,6 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
-	const links = linksFor(type, id);
+	const links = dedupeLinks(linksFor(type, id));
 	return json({ entity, sections: sections.filter((item) => item.total > 0), links });
 }
