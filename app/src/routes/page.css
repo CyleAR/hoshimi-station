@@ -328,6 +328,9 @@
 		height: 100%;
 		background: var(--success);
 	}
+	.item-main i.complete b {
+		background: var(--warning);
+	}
 	.section-row {
 		width: 100%;
 		display: grid;

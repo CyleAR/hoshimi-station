@@ -252,6 +252,45 @@
 		}
 	}
 
+	function sectionProgress(sections = []) {
+		return sections.reduce(
+			(total, part) => ({
+				done: total.done + Number(part.done ?? 0),
+				total: total.total + Number(part.total ?? 0)
+			}),
+			{ done: 0, total: 0 }
+		);
+	}
+
+	function applyDetailProgress(item, nextDetail = detail) {
+		if (!item || !nextDetail?.sections?.length) return;
+		const totals = sectionProgress(nextDetail.sections);
+		const patch = { done: totals.done, total: totals.total };
+		selected = selected?.type === item.type && selected?.id === item.id ? { ...selected, ...patch } : selected;
+		items = items.map((entry) => (entry.type === item.type && entry.id === item.id ? { ...entry, ...patch } : entry));
+	}
+
+	function preferredSection(sections = [], preferredKey = '') {
+		if (!sections.length) return null;
+		if (!preferredKey) return sections[0];
+		return sections.find((part) => part.key === preferredKey) ?? (preferredKey.startsWith('adv') ? sections.find((part) => part.key.startsWith('adv')) : null) ?? sections[0];
+	}
+
+	function refreshActiveSectionProgress() {
+		if (!detail || !activeSection) return;
+		const nextSection = {
+			...activeSection,
+			total: units.length,
+			done: units.filter((unit) => String(unit.translation_text ?? '').trim()).length
+		};
+		activeSection = nextSection;
+		detail = {
+			...detail,
+			sections: detail.sections.map((part) => (part.key === nextSection.key ? nextSection : part))
+		};
+		applyDetailProgress(selected, detail);
+	}
+
 	async function selectItem(item, preferredKey = '') {
 		selected = item;
 		detail = null;
@@ -263,7 +302,8 @@
 		error = '';
 		try {
 			detail = await fetchJson(`/api/detail?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}`);
-			activeSection = detail.sections?.find((part) => part.key === preferredKey) ?? detail.sections?.[0] ?? null;
+			applyDetailProgress(item, detail);
+			activeSection = preferredSection(detail.sections, preferredKey);
 			if (activeSection) await loadUnits(activeSection);
 		} catch (err) {
 			error = err.message;
@@ -376,6 +416,7 @@
 			unit.status = data.status;
 			unit.translator_name = data.translator_name ?? currentUser.nickname;
 			unit.dirty = false;
+			refreshActiveSectionProgress();
 			notice = '저장되었습니다.';
 			await loadSummary();
 		} catch (err) {
@@ -704,9 +745,14 @@
 	}
 
 	function metaLine(item) {
-		const type = typeNames[item.type] ?? item.type;
+		const done = Number(item.done ?? 0);
 		const total = Number(item.total ?? 0);
-		return `${type} · ${item.subtitle || item.id} · ${total.toLocaleString()}개`;
+		return `${item.subtitle || item.id} · ${done.toLocaleString()}/${total.toLocaleString()}`;
+	}
+
+	function isComplete(item) {
+		const total = Number(item.total ?? 0);
+		return total > 0 && Number(item.done ?? 0) >= total;
 	}
 
 	function fieldLabel(path) {
@@ -896,7 +942,14 @@
 	}
 
 	function canOpenAdv(group) {
-		return ['story', 'story_collection', 'story_part', 'love', 'card'].includes(group.scope_type);
+		return ['story', 'story_collection', 'story_part', 'love', 'card', 'group'].includes(group.scope_type);
+	}
+
+	function advSectionKey(group) {
+		if (group.scope_type === 'card') return 'adv_card';
+		if (group.scope_type === 'group') return 'adv_group';
+		if (group.scope_type === 'love') return 'adv';
+		return 'adv';
 	}
 
 	function entityButtonLabel(group) {
@@ -1075,7 +1128,7 @@
 									<small class="translated-name">{item.translated_label}</small>
 								{/if}
 								<small>{metaLine(item)}</small>
-								<i><b style={`width:${progress(item.done, item.total)}%`}></b></i>
+								<i class:complete={isComplete(item)}><b style={`width:${progress(item.done, item.total)}%`}></b></i>
 							</span>
 						</button>
 					{/each}
@@ -1207,7 +1260,7 @@
 										<button onclick={() => openUnitEntity(group)}>{entityButtonLabel(group)}</button>
 									{/if}
 									{#if canOpenAdv(group)}
-										<button class="accent" onclick={() => openUnitEntity(group, 'adv')}>ADV 본문</button>
+										<button class="accent" onclick={() => openUnitEntity(group, advSectionKey(group))}>ADV 본문</button>
 									{/if}
 									<span>{group.units.length}</span>
 								</div>
