@@ -982,7 +982,8 @@
 		background: rgba(0, 0, 0, 0.62);
 		padding: 24px;
 	}
-	.bulk-modal {
+	.bulk-modal,
+	.gemini-modal {
 		width: min(720px, 100%);
 		max-height: min(760px, calc(100vh - 48px));
 		overflow: auto;
@@ -994,23 +995,31 @@
 		padding: 18px;
 		box-shadow: 0 20px 80px rgba(0, 0, 0, 0.48);
 	}
+	.gemini-modal {
+		width: min(540px, 100%);
+	}
 	.bulk-modal header,
-	.bulk-modal footer {
+	.bulk-modal footer,
+	.gemini-modal header,
+	.gemini-modal footer {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
 	}
-	.bulk-modal h2 {
+	.bulk-modal h2,
+	.gemini-modal h2 {
 		margin: 0;
 		font-size: 17px;
 	}
-	.bulk-modal p {
+	.bulk-modal p,
+	.gemini-modal p {
 		margin: 4px 0 0;
 		color: var(--muted);
 		font-size: 12px;
 	}
-	.bulk-modal label {
+	.bulk-modal label,
+	.gemini-modal label {
 		display: grid;
 		gap: 7px;
 		color: var(--accent-text);
@@ -1021,6 +1030,19 @@
 		width: 100%;
 		min-height: 86px;
 		margin: 0;
+	}
+	.gemini-modal input {
+		height: 38px;
+		border: 1px solid var(--border-strong);
+		border-radius: 7px;
+		background: var(--field);
+		color: var(--text);
+		padding: 0 12px;
+		outline: none;
+	}
+	.gemini-modal input:focus {
+		border-color: var(--accent-soft);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft) 24%, transparent);
 	}
 	.check-line {
 		display: flex !important;

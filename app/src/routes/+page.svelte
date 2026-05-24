@@ -187,6 +187,10 @@
 	let loggingIn = $state(false);
 	let guidelines = $state('');
 	let guidelinesOpen = $state(false);
+	let geminiOpen = $state(false);
+	let geminiApiKey = $state('');
+	let geminiModel = $state('gemini-3.5-flash');
+	let geminiError = $state('');
 	let bulkOpen = $state(false);
 	let bulkOriginal = $state('');
 	let bulkTranslation = $state('');
@@ -534,6 +538,35 @@
 		sessionStorage.removeItem('translatorUser');
 	}
 
+	function hasGeminiKey() {
+		return Boolean(geminiApiKey.trim());
+	}
+
+	function saveGeminiSettings() {
+		geminiError = '';
+		const model = geminiModel.trim() || 'gemini-3.5-flash';
+		geminiModel = model;
+		if (hasGeminiKey()) {
+			sessionStorage.setItem(
+				'geminiAiDraft',
+				JSON.stringify({
+					apiKey: geminiApiKey.trim(),
+					model
+				})
+			);
+		} else {
+			sessionStorage.removeItem('geminiAiDraft');
+		}
+		geminiOpen = false;
+	}
+
+	function clearGeminiSettings() {
+		geminiApiKey = '';
+		geminiModel = 'gemini-3.5-flash';
+		geminiError = '';
+		sessionStorage.removeItem('geminiAiDraft');
+	}
+
 	function openBulkFill() {
 		bulkOpen = true;
 		bulkError = '';
@@ -541,7 +574,7 @@
 	}
 
 	function canUseAiDraft() {
-		return Boolean(currentUser?.is_admin || currentUser?.nickname === '사일');
+		return Boolean(currentUser?.is_admin || currentUser?.nickname === '사일' || hasGeminiKey());
 	}
 
 	async function runAiDraft() {
@@ -550,12 +583,12 @@
 			return;
 		}
 		if (!canUseAiDraft()) {
-			aiDraftError = 'AI 초벌 권한이 없습니다.';
+			aiDraftError = 'AI 초벌 권한이 없습니다. 개인 Gemini API 키를 입력하면 사용할 수 있습니다.';
 			return;
 		}
 		const targets = filteredUnits()
 			.filter((unit) => !String(unit.translation_text ?? '').trim() && !String(unit.draft ?? '').trim())
-			.slice(0, 60);
+			.slice(0, 100);
 		if (!targets.length) {
 			aiDraftError = '초벌을 채울 미번역 항목이 없습니다.';
 			return;
@@ -575,7 +608,9 @@
 					body: JSON.stringify({
 						unit_ids: targets.map((unit) => unit.unit_id),
 						nickname: currentUser.nickname,
-						pin: currentUser.pin
+						pin: currentUser.pin,
+						gemini_api_key: hasGeminiKey() ? geminiApiKey.trim() : '',
+						gemini_model: hasGeminiKey() ? geminiModel.trim() || 'gemini-3.5-flash' : ''
 					})
 				},
 				120000
@@ -1003,6 +1038,13 @@
 		} catch {
 			loginNickname = localStorage.getItem('translatorNickname') || '';
 		}
+		try {
+			const savedGemini = JSON.parse(sessionStorage.getItem('geminiAiDraft') || 'null');
+			if (savedGemini?.apiKey) geminiApiKey = savedGemini.apiKey;
+			if (savedGemini?.model) geminiModel = savedGemini.model;
+		} catch {
+			sessionStorage.removeItem('geminiAiDraft');
+		}
 		loadSummary().catch((err) => (error = err.message));
 		loadItems();
 		loadGuidelines().catch((err) => (loginError = err.message));
@@ -1086,6 +1128,9 @@
 			{/if}
 			{#if currentUser}
 				<span class="summary-pill">작업자: {currentUser.nickname}</span>
+				<button class="soft compact-button" class:active={hasGeminiKey()} onclick={() => (geminiOpen = true)}>
+					{hasGeminiKey() ? 'Gemini 사용 중' : 'Gemini 키'}
+				</button>
 				<button class="soft compact-button" onclick={openRecent}>최근 작업</button>
 				<button class="soft compact-button" onclick={logout}>나가기</button>
 			{/if}
@@ -1375,6 +1420,38 @@
 			<footer>
 				<button class="soft" onclick={previewBulkFill} disabled={bulkWorking}>{bulkWorking ? '확인 중...' : '미리보기'}</button>
 				<button class="save-all" onclick={applyBulkFill} disabled={bulkWorking || !bulkPreview?.targets}>적용</button>
+			</footer>
+		</section>
+	</div>
+{/if}
+
+{#if geminiOpen}
+	<div class="modal-backdrop">
+		<section class="gemini-modal">
+			<header>
+				<div>
+					<h2>개인 Gemini API</h2>
+					<p>키는 서버 DB에 저장하지 않고 현재 브라우저 세션에만 보관합니다.</p>
+				</div>
+				<button class="soft compact-button" onclick={() => (geminiOpen = false)}>닫기</button>
+			</header>
+
+			<label>
+				<span>API 키</span>
+				<input bind:value={geminiApiKey} autocomplete="off" spellcheck="false" placeholder="AIza..." />
+			</label>
+			<label>
+				<span>모델</span>
+				<input bind:value={geminiModel} spellcheck="false" placeholder="gemini-3.5-flash" />
+			</label>
+
+			{#if geminiError}
+				<div class="login-error">{geminiError}</div>
+			{/if}
+
+			<footer>
+				<button class="soft" onclick={clearGeminiSettings}>키 지우기</button>
+				<button class="save-all" onclick={saveGeminiSettings}>적용</button>
 			</footer>
 		</section>
 	</div>
