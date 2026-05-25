@@ -420,6 +420,37 @@ function dedupeLinks(links) {
 	});
 }
 
+function cardIdFromHomeTalkId(id) {
+	const match = String(id ?? '').match(/^home-talk-(card-.+)-talk-\d+$/);
+	return match ? match[1] : '';
+}
+
+function inferredHomeTalkCardLink(type, id) {
+	if (type !== 'home_talk') return null;
+	const cardId = cardIdFromHomeTalkId(id);
+	if (!cardId) return null;
+	return get(
+		`
+		SELECT 'has_home_talk' relation, e.entity_type type, e.entity_id id,
+		       COALESCE(e.label, e.entity_id) label, COALESCE(e.subtitle, '') subtitle,
+		       (
+		       	SELECT tu.translation_text
+		       	FROM translation_units tu
+		       	WHERE tu.source_type = 'masterdb'
+		       	  AND tu.scope_type = e.entity_type
+		       	  AND tu.scope_id = e.entity_id
+		       	  AND tu.translation_text <> ''
+		       	  AND tu.field_path IN ('name', 'title')
+		       	ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 9 END
+		       	LIMIT 1
+		       ) translated_label
+		FROM entities e
+		WHERE e.entity_type = 'card' AND e.entity_id = $cardId
+		`,
+		{ $cardId: cardId }
+	);
+}
+
 export function GET({ url }) {
 	const type = url.searchParams.get('type') || 'character';
 	const id = url.searchParams.get('id') || '';
@@ -577,6 +608,6 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
-	const links = dedupeLinks(linksFor(type, id));
+	const links = dedupeLinks([inferredHomeTalkCardLink(type, id), ...linksFor(type, id)].filter(Boolean));
 	return json({ entity, sections: sections.filter((item) => item.total > 0), links });
 }

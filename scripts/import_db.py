@@ -45,6 +45,11 @@ def message_thread_id(message_id: str) -> str:
     return match.group(1) if match else ""
 
 
+def card_id_from_home_talk_id(home_talk_id: str) -> str:
+    match = re.match(r"^home-talk-(card-.+)-talk-\d+$", str(home_talk_id or ""))
+    return match.group(1) if match else ""
+
+
 def strip_thread_suffix(name: str) -> str:
     return re.sub(r"[①②③④⑤⑥⑦⑧⑨⑩]$", "", str(name or "")).strip()
 
@@ -578,14 +583,19 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
     for typ, cat in (("story", "Story"), ("message", "Message"), ("home_talk", "HomeTalk"), ("telephone", "Telephone")):
         for row in cache.get(cat, {}).values():
             entity_id = str(row.get("id") or row.get("homeTalkId"))
+            card_id = str(row.get("cardId") or "")
+            if typ == "home_talk" and not card_id:
+                inferred_card_id = card_id_from_home_talk_id(entity_id)
+                if inferred_card_id in cache.get("Card", {}):
+                    card_id = inferred_card_id
             upsert_entity(conn, typ, entity_id, row.get("name") or row.get("title") or entity_id, row.get("assetId", ""), row)
             add_link(conn, "character", row.get("characterId", ""), typ, entity_id, f"has_{typ}")
-            add_link(conn, "card", row.get("cardId", ""), typ, entity_id, f"has_{typ}")
+            add_link(conn, "card", card_id, typ, entity_id, f"has_{typ}")
             condition_id = row.get("unlockConditionId", "")
             if condition_id:
                 add_link(conn, typ, entity_id, "condition_description", condition_id, "unlock_condition", row)
                 add_link(conn, "character", row.get("characterId", ""), "condition_description", condition_id, f"{typ}_condition", row)
-                add_link(conn, "card", row.get("cardId", ""), "condition_description", condition_id, f"{typ}_condition", row)
+                add_link(conn, "card", card_id, "condition_description", condition_id, f"{typ}_condition", row)
             if typ in {"message", "telephone"}:
                 add_link(conn, typ, entity_id, "message_group", row.get("messageGroupId", ""), "in_group")
                 add_link(conn, "message_group", row.get("messageGroupId", ""), typ, entity_id, f"has_{typ}")
