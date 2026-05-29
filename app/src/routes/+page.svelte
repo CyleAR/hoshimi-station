@@ -179,6 +179,8 @@
 	let error = $state('');
 	let notice = $state('');
 	let navStack = $state([]);
+	let historyReady = false;
+	let restoringHistory = false;
 	let expandedLinkGroups = $state({});
 	let currentUser = $state(null);
 	let loginNickname = $state('');
@@ -319,6 +321,7 @@
 	async function selectRootItem(item) {
 		navStack = [];
 		await selectItem(item);
+		writeHistory('push');
 	}
 
 	function currentNavEntry() {
@@ -334,15 +337,61 @@
 		};
 	}
 
+	function historySnapshot() {
+		return {
+			hoshimiStation: true,
+			section,
+			query,
+			selected: selected
+				? {
+						type: selected.type,
+						id: selected.id,
+						label: detail?.entity?.label ?? selected.label,
+						subtitle: detail?.entity?.subtitle || selected.subtitle
+					}
+				: null,
+			sectionKey: activeSection?.key ?? '',
+			navStack
+		};
+	}
+
+	function writeHistory(mode = 'push') {
+		if (!historyReady || restoringHistory || typeof window === 'undefined') return;
+		window.history[mode === 'replace' ? 'replaceState' : 'pushState'](historySnapshot(), '', window.location.href);
+	}
+
+	async function restoreHistory(snapshot) {
+		if (!snapshot?.hoshimiStation) return;
+		restoringHistory = true;
+		try {
+			section = snapshot.section || 'groups';
+			query = snapshot.query || '';
+			navStack = Array.isArray(snapshot.navStack) ? snapshot.navStack : [];
+			if (snapshot.selected) {
+				await loadItems({ keepSelection: true });
+				await selectItem(snapshot.selected, snapshot.sectionKey || '');
+			} else {
+				await loadItems();
+			}
+		} finally {
+			restoringHistory = false;
+		}
+	}
+
 	async function navigateToItem(item, preferredKey = '') {
 		const previous = currentNavEntry();
 		if (previous && (previous.item.type !== item.type || previous.item.id !== item.id)) {
 			navStack = [...navStack, previous].slice(-20);
 		}
 		await selectItem(item, preferredKey);
+		writeHistory('push');
 	}
 
-	async function goBack() {
+	async function goBack({ fromHistory = false } = {}) {
+		if (!fromHistory && historyReady && typeof window !== 'undefined') {
+			window.history.back();
+			return;
+		}
 		const previous = navStack.at(-1);
 		if (!previous) return;
 		navStack = navStack.slice(0, -1);
@@ -446,7 +495,7 @@
 	function changeSection(next) {
 		section = next;
 		navStack = [];
-		loadItems();
+		loadItems().then(() => writeHistory('push'));
 	}
 
 	function queueSearch() {
@@ -464,7 +513,7 @@
 		query = '';
 		navStack = [];
 		expandedLinkGroups = {};
-		loadItems();
+		loadItems().then(() => writeHistory('push'));
 	}
 
 	async function login() {
@@ -1050,8 +1099,20 @@
 			sessionStorage.removeItem('geminiAiDraft');
 		}
 		loadSummary().catch((err) => (error = err.message));
-		loadItems();
+		loadItems().then(() => {
+			historyReady = true;
+			writeHistory('replace');
+		});
 		loadGuidelines().catch((err) => (loginError = err.message));
+		const handlePopState = (event) => {
+			if (event.state?.hoshimiStation) {
+				restoreHistory(event.state);
+				return;
+			}
+			goBack({ fromHistory: true });
+		};
+		window.addEventListener('popstate', handlePopState);
+		return () => window.removeEventListener('popstate', handlePopState);
 	});
 </script>
 
