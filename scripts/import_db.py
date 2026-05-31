@@ -214,6 +214,49 @@ def restore_existing_translations(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        UPDATE translation_units
+        SET translation_text = (
+                SELECT saved.translation_text
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, '.txt:', '_short.txt:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            ),
+            status = (
+                SELECT saved.status
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, '.txt:', '_short.txt:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            ),
+            translator_name = (
+                SELECT saved.translator_name
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, '.txt:', '_short.txt:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            ),
+            updated_at = (
+                SELECT saved.updated_at
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, '.txt:', '_short.txt:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            )
+        WHERE source_type = 'adv'
+          AND source_file LIKE 'adv_card_%.txt'
+          AND source_file NOT LIKE 'adv_card_%_short.txt'
+          AND translation_text = ''
+          AND EXISTS (
+            SELECT 1
+            FROM saved_translations saved
+            WHERE saved.unit_id = replace(translation_units.unit_id, '.txt:', '_short.txt:')
+              AND saved.original_text = translation_units.original_text
+          )
+        """
+    )
 
 
 def upsert_entity(conn: sqlite3.Connection, typ: str, entity_id: str, label: str, subtitle: str = "", meta: dict[str, Any] | None = None) -> None:
@@ -784,6 +827,8 @@ def import_adv(conn: sqlite3.Connection) -> None:
         category = f"adv/{adv_category(path.name)}"
         scope_type, scope_id = adv_scope(path.name)
         upsert_entity(conn, "adv_file", path.name, path.name, category)
+        if path.name.startswith("adv_card_") and path.name.endswith("_short.txt"):
+            continue
         if scope_type != "adv_file":
             add_link(conn, scope_type, scope_id, "adv_file", path.name, "has_adv")
 

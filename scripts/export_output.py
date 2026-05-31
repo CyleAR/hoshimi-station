@@ -19,6 +19,7 @@ ADV_DIR = ROOT / "res" / "adv" / "resource"
 DEFAULT_OUTPUT_DIR = ROOT / "output"
 
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
+TAG_RE = re.compile(r"^\[(?P<tag>[a-zA-Z0-9_]+)\s*(?P<body>.*)\]$")
 
 
 def load_ipr_rules() -> dict[str, Any]:
@@ -158,6 +159,78 @@ def parse_attrs(line: str) -> dict[str, str]:
     return {match.group("key"): match.group("value").strip() for match in ATTR_RE.finditer(line)}
 
 
+def write_adv_file(
+    adv_dir: Path,
+    source_file: str,
+    units: list[sqlite3.Row],
+    output_file: str | None = None,
+    match_by_text: bool = False,
+) -> int:
+    source_path = ADV_DIR / source_file
+    if not source_path.exists():
+        return 0
+    lines = source_path.read_text(encoding="utf-8").splitlines()
+    name_map = {row["original_text"]: row["translation_text"] for row in units if row["field_path"] == "name"}
+    text_map = {
+        (row["field_path"], row["original_text"]): row["translation_text"]
+        for row in units
+        if row["field_path"] != "name"
+    }
+    line_units: dict[int, list[sqlite3.Row]] = defaultdict(list)
+    for row in units:
+        if row["field_path"] != "name" and row["line_no"]:
+            line_units[int(row["line_no"])].append(row)
+
+    applied = 0
+    for idx, line in enumerate(lines, start=1):
+        for original, translated in name_map.items():
+            attrs = parse_attrs(line)
+            if attrs.get("name") == original:
+                line = replace_attr(line, "name", translated)
+                applied += 1
+        if match_by_text:
+            match = TAG_RE.match(line)
+            if match:
+                tag = match.group("tag")
+                attrs = parse_attrs(line)
+                if tag in {"message", "narration"} and attrs.get("text"):
+                    translated = text_map.get(("text", attrs["text"]))
+                    if translated:
+                        line = replace_attr(line, "text", translated)
+                        applied += 1
+                elif tag == "title" and attrs.get("title"):
+                    translated = text_map.get(("title", attrs["title"]))
+                    if translated:
+                        line = replace_attr(line, "title", translated)
+                        applied += 1
+                elif tag == "choicegroup":
+                    for occurrence, text_match in enumerate(re.finditer(r"(?<![A-Za-z])text=(.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\])", match.group("body"))):
+                        field = f"choice[{occurrence}].text"
+                        translated = text_map.get((field, text_match.group(1)))
+                        if translated:
+                            line = replace_attr(line, "text", translated, occurrence)
+                            applied += 1
+            lines[idx - 1] = line
+            continue
+        for row in line_units.get(idx, []):
+            field = row["field_path"]
+            if field == "text":
+                line = replace_attr(line, "text", row["translation_text"])
+                applied += 1
+            elif field == "title":
+                line = replace_attr(line, "title", row["translation_text"])
+                applied += 1
+            elif field.startswith("choice[") and field.endswith("].text"):
+                occurrence = int(field.removeprefix("choice[").split("]", 1)[0])
+                line = replace_attr(line, "text", row["translation_text"], occurrence)
+                applied += 1
+        lines[idx - 1] = line
+    if not applied:
+        return 0
+    (adv_dir / (output_file or source_file)).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return applied
+
+
 def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
     adv_dir = out_dir / "local-files" / "resource" / "adv"
     adv_dir.mkdir(parents=True, exist_ok=True)
@@ -167,6 +240,7 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
         FROM translation_units
         WHERE source_type = 'adv'
           AND translation_text <> ''
+          AND source_file NOT LIKE 'adv_card_%_short.txt'
         ORDER BY source_file, line_no, field_path
         """
     ).fetchall()
@@ -176,33 +250,14 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
 
     exported = 0
     for source_file, units in sorted(by_file.items()):
-        source_path = ADV_DIR / source_file
-        if not source_path.exists():
+        applied = write_adv_file(adv_dir, source_file, units)
+        if not applied:
             continue
-        lines = source_path.read_text(encoding="utf-8").splitlines()
-        name_map = {row["original_text"]: row["translation_text"] for row in units if row["field_path"] == "name"}
-        line_units: dict[int, list[sqlite3.Row]] = defaultdict(list)
-        for row in units:
-            if row["field_path"] != "name" and row["line_no"]:
-                line_units[int(row["line_no"])].append(row)
-
-        for idx, line in enumerate(lines, start=1):
-            for original, translated in name_map.items():
-                attrs = parse_attrs(line)
-                if attrs.get("name") == original:
-                    line = replace_attr(line, "name", translated)
-            for row in line_units.get(idx, []):
-                field = row["field_path"]
-                if field == "text":
-                    line = replace_attr(line, "text", row["translation_text"])
-                elif field == "title":
-                    line = replace_attr(line, "title", row["translation_text"])
-                elif field.startswith("choice[") and field.endswith("].text"):
-                    occurrence = int(field.removeprefix("choice[").split("]", 1)[0])
-                    line = replace_attr(line, "text", row["translation_text"], occurrence)
-            lines[idx - 1] = line
-        (adv_dir / source_file).write_text("\n".join(lines) + "\n", encoding="utf-8")
         exported += len(units)
+        if source_file.startswith("adv_card_") and source_file.endswith(".txt"):
+            short_file = source_file.replace(".txt", "_short.txt")
+            if (ADV_DIR / short_file).exists():
+                exported += write_adv_file(adv_dir, short_file, units, short_file, match_by_text=True)
     return exported
 
 
