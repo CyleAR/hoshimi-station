@@ -1,6 +1,7 @@
 import argparse
 import sqlite3
 import re
+from collections import defaultdict
 from pathlib import Path
 
 
@@ -8,6 +9,10 @@ def translate_line(kr):
     # --- 1. 가변 조건 및 구조적 정규식 (원문 훼손 전 최우선 처리) ---
     kr = re.sub(r'(.+)状態の段階数が多い程効果上昇', r'\1 상태의 단계 수가 많을수록 효과 상승', kr)
     kr = re.sub(r'楽曲が(.+)の時', r'곡이 \1일 때', kr)
+    kr = kr.replace('隣接アイドルのダンスがアイドルパラメータに対して割合で上昇します', '인접한 아이돌의 댄스가 파라미터에 비례해서 퍼센트로 상승합니다')
+    kr = kr.replace('隣接アイドルのビジュアルがアイドルパラメータに対して割合で上昇します', '인접한 아이돌의 비주얼이 파라미터에 비례해서 퍼센트로 상승합니다')
+    kr = kr.replace('隣接アイドルのボーカルがアイドルパラメータに対して割合で上昇します', '인접한 아이돌의 보컬이 파라미터에 비례해서 퍼센트로 상승합니다')
+    kr = kr.replace('アイドルパラメータに対して割合で上昇します', '파라미터에 비례해서 퍼센트로 상승합니다')
     kr = kr.replace('コンボ数が多い程効果上昇', '콤보 수가 많을수록 효과 상승')
     kr = kr.replace('コンボ数が少ない程効果上昇', '콤보 수가 적을수록 효과 상승')
     kr = kr.replace('スキル成功率が高い程効果上昇', '스킬 성공률이 높을수록 효과 상승')
@@ -147,7 +152,7 @@ def translate_line(kr):
         'ぱじゃパ!メンバー': '파자파! 멤버',
         'リーダーメンバー': '리더 멤버',
         'フォト品質': '포토 품질',
-        '隣接アイドル': '인접 아이돌',
+        '隣接アイドル': '인접한 아이돌',
         'アクセサリパラメータ': '액세서리 파라미터',
         'アイドルパラメータ': '아이돌 파라미터',
         'クリティカル発生': '크리티컬 발생',
@@ -206,6 +211,7 @@ def translate_line(kr):
         
         'アピールスキルスコア': '어필 스킬 스코어',
         'パッシブスキルスコア': '패시브 스킬 스코어',
+        'Aスキルチャンス譲渡状態': 'A스킬 찬스 양도 상태',
         'SPスキルスコア追加効果': 'SP스킬 스코어 추가 효과',
         'Aスキルスコア追加効果': 'A스킬 스코어 추가 효과',
         'Pスキルスコア追加効果': 'P스킬 스코어 추가 효과',
@@ -413,21 +419,44 @@ def translate_line(kr):
     kr = re.sub(r'\s+/', ' /', kr)
     kr = re.sub(r'/\s+', '/ ', kr)
     kr = re.sub(r'([가-힣])([0-9]+(?:\.[0-9]+)?%)', r'\1 \2', kr)
+    kr = re.sub(r'([가-힣])([0-9]+(?:\.[0-9]+)?)\b', r'\1 \2', kr)
     kr = re.sub(r'([가-힣A-Za-z])([0-9]+)명', r'\1 \2명', kr)
+    kr = re.sub(r'(스킬)([0-9]+)', r'\1 \2', kr)
+    kr = re.sub(r'(\{[0-9]+\})([가-힣])', r'\1 \2', kr)
     kr = re.sub(r'([가-힣])([A-Z]+):', r'\1 \2:', kr)
     kr = re.sub(r'([가-힣])([A-Z]+)', r'\1 \2', kr)
     kr = re.sub(r'([0-9]+)소비', r'\1 소비', kr)
     kr = kr.replace('상승상한', '상승 상한')
+    kr = kr.replace('효과단계', '효과 단계')
+    kr = kr.replace('효과반사', '효과 반사')
     kr = kr.replace('상승상태', '상승 상태')
     kr = kr.replace('저하상태', '저하 상태')
     kr = kr.replace('UP상태', 'UP 상태')
     kr = kr.replace('DOWN상태', 'DOWN 상태')
+    kr = kr.replace('자신를', '자신을')
+    kr = kr.replace('A스킬를', 'A스킬을')
+    kr = kr.replace('P스킬를', 'P스킬을')
+    kr = kr.replace('SP스킬를', 'SP스킬을')
+    kr = kr.replace('댄스이 높은', '댄스가 높은')
+    kr = kr.replace('보컬이 높은', '보컬이 높은')
+    kr = kr.replace('비주얼이 높은', '비주얼이 높은')
+    kr = kr.replace('스태미나이 높은', '스태미나가 높은')
+    kr = kr.replace('스코어이 높은', '스코어가 높은')
     kr = kr.replace('UP시', 'UP 시')
     kr = kr.replace('DOWN시', 'DOWN 시')
     kr = kr.replace('효과시', '효과 시')
     kr = kr.replace('발생시', '발생 시')
     kr = kr.replace('확률로스태미나', '확률로 스태미나')
     kr = kr.replace('에 대해비율로', '에 대해 비율로')
+    kr = kr.replace('감소 합니다', '감소합니다')
+    kr = kr.replace('부여 합니다', '부여합니다')
+    kr = kr.replace('효과[', '효과 [')
+    kr = kr.replace('방지[', '방지 [')
+    kr = kr.replace('봉인[', '봉인 [')
+    kr = kr.replace('제한[', '제한 [')
+    kr = kr.replace('반사[', '반사 [')
+    kr = kr.replace('상태[', '상태 [')
+    kr = re.sub(r'\]([가-힣])', r'] \1', kr)
     kr = kr.replace('상승 효과[', '상승 효과 [')
     kr = kr.replace('UP 효과[', 'UP 효과 [')
     kr = kr.replace('초화 효과[', '초화 효과 [')
@@ -465,7 +494,7 @@ def write_report(path, mode, updates, blocked, limit):
         "",
     ]
     if updates:
-        for new_kr, unit_id, jp, old_kr in updates[: max(limit, 0)]:
+        for new_kr, unit_id, jp, old_kr in preview_rows(updates, limit):
             lines.extend(
                 [
                     f"### {unit_id}",
@@ -484,7 +513,7 @@ def write_report(path, mode, updates, blocked, limit):
 
     lines.extend(["## Blocked Preview", ""])
     if blocked:
-        for unit_id, jp, old_kr, new_kr in blocked[: max(limit, 0)]:
+        for unit_id, jp, old_kr, new_kr in preview_rows(blocked, limit, blocked=True):
             lines.extend(
                 [
                     f"### {unit_id}",
@@ -504,6 +533,54 @@ def write_report(path, mode, updates, blocked, limit):
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def preview_key(row, blocked=False):
+    unit_id = row[0] if blocked else row[1]
+    jp = row[1] if blocked else row[2]
+    source = "unknown"
+    if unit_id.startswith("masterdb:"):
+        parts = unit_id.split(":")
+        if len(parts) > 1:
+            source = parts[1]
+    normalized = re.sub(r"\d+(?:\.\d+)?", "N", str(jp or ""))
+    normalized = re.sub(r"\[[^\]]+\]", "[...]", normalized)
+    normalized = normalized.split(" / ", 1)[0]
+    return source, normalized[:80]
+
+
+def preview_rows(rows, limit, blocked=False):
+	if limit <= 0:
+		return []
+	buckets = defaultdict(list)
+	for row in rows:
+		buckets[preview_key(row, blocked)].append(row)
+	result = []
+	keys_by_source = defaultdict(list)
+	for key in sorted(buckets, key=lambda item: item[1]):
+		keys_by_source[key[0]].append(key)
+	sources = sorted(keys_by_source)
+	index_by_source = {source: 0 for source in sources}
+	while len(result) < limit and sources:
+		next_sources = []
+		for source in sources:
+			keys = keys_by_source[source]
+			start = index_by_source[source]
+			picked = False
+			for offset in range(len(keys)):
+				key_index = (start + offset) % len(keys)
+				key = keys[key_index]
+				if buckets[key]:
+					result.append(buckets[key].pop(0))
+					index_by_source[source] = (key_index + 1) % len(keys)
+					picked = True
+					break
+			if len(result) >= limit:
+				break
+			if picked and any(buckets[key] for key in keys):
+				next_sources.append(source)
+		sources = next_sources
+	return result
+
+
 def main():
     import argparse
     import sqlite3
@@ -513,7 +590,7 @@ def main():
     parser.add_argument("--db", type=str, required=True, help="Path to sqlite3 database")
     parser.add_argument("--mode", type=str, choices=["missing", "all"], default="missing", help="Translate missing/mismatched rows only, or re-translate all rows")
     parser.add_argument("--apply", action="store_true", help="Actually update the database. Without this, only prints a preview.")
-    parser.add_argument("--limit", type=int, default=20, help="Maximum number of preview rows to print.")
+    parser.add_argument("--limit", type=int, default=80, help="Maximum number of preview rows to print.")
     parser.add_argument("--report", type=str, default="", help="Write a markdown preview report to this path.")
     args = parser.parse_args()
 
@@ -559,7 +636,7 @@ def main():
     if updates:
         print()
         print("Preview:")
-        for new_kr, unit_id, jp, old_kr in updates[: max(args.limit, 0)]:
+        for new_kr, unit_id, jp, old_kr in preview_rows(updates, args.limit):
             print(f"- {unit_id}")
             print(f"  JP : {one_line(jp)}")
             print(f"  OLD: {one_line(old_kr)}")
@@ -570,7 +647,7 @@ def main():
     if blocked and not updates:
         print()
         print("Blocked sample:")
-        for unit_id, jp, old_kr, new_kr in blocked[: max(args.limit, 0)]:
+        for unit_id, jp, old_kr, new_kr in preview_rows(blocked, args.limit, blocked=True):
             print(f"- {unit_id}")
             print(f"  JP : {one_line(jp)}")
             print(f"  OLD: {one_line(old_kr)}")
