@@ -288,6 +288,39 @@ def add_link(conn: sqlite3.Connection, from_type: str, from_id: str, to_type: st
     )
 
 
+def condition_wear_costume_ids(conditions: dict[str, dict[str, Any]], condition_id: str, seen: set[str] | None = None) -> set[str]:
+    if not condition_id:
+        return set()
+    if seen is None:
+        seen = set()
+    if condition_id in seen:
+        return set()
+    seen.add(condition_id)
+
+    row = conditions.get(condition_id)
+    if not isinstance(row, dict):
+        return set()
+
+    costume_ids: set[str] = set()
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            wear = value.get("wearCostume")
+            if isinstance(wear, dict) and wear.get("costumeId"):
+                costume_ids.add(str(wear["costumeId"]))
+            nested_condition_id = value.get("conditionId")
+            if nested_condition_id:
+                costume_ids.update(condition_wear_costume_ids(conditions, str(nested_condition_id), seen))
+            for child in value.values():
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(row)
+    return costume_ids
+
+
 def adv_filename(asset_id: Any) -> str:
     return f"adv_{asset_id}.txt"
 
@@ -695,6 +728,8 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
             upsert_entity(conn, entity_type, entity_id, row.get("text", entity_id), row.get("voiceAssetId", ""), row)
             add_link(conn, "character", row.get("characterId", ""), entity_type, entity_id, relation)
             add_link(conn, "costume", row.get("costumeId", ""), entity_type, entity_id, "costume_home_action")
+            for costume_id in sorted(condition_wear_costume_ids(cache.get("Condition", {}), str(row.get("conditionId", "")))):
+                add_link(conn, "costume", costume_id, entity_type, entity_id, "condition_costume_home_action", row)
 
     for row in cache.get("CardEvolutionMessage", {}).values():
         entity_id = f"{row.get('cardId', '')}_{row.get('evolutionLevel', '')}_{row.get('number', '')}"
