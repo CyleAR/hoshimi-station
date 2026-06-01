@@ -167,6 +167,44 @@ function linkedUnitSection(key, type, id, toTypes) {
 	);
 }
 
+function cardCostumeHomeActionSection(id) {
+	return section(
+		'home_actions',
+		`EXISTS (
+			SELECT 1
+			FROM links costume
+			JOIN links action
+			  ON action.from_type = 'costume'
+			 AND action.from_id = costume.to_id
+			 AND action.to_type IN ('home_action', 'love_home_action', 'company_enjoy_home_action')
+			WHERE costume.from_type = 'card'
+			  AND costume.from_id = $id
+			  AND costume.to_type = 'costume'
+			  AND action.to_type = translation_units.scope_type
+			  AND action.to_id = translation_units.scope_id
+		)`,
+		{ $id: id }
+	);
+}
+
+function homeActionCardSection(type, id) {
+	return section(
+		'cards',
+		`source_type = 'masterdb' AND category = 'Card' AND scope_type = 'card' AND scope_id IN (
+			SELECT card.from_id
+			FROM links action
+			JOIN links card
+			  ON card.to_type = 'costume'
+			 AND card.to_id = action.from_id
+			 AND card.from_type = 'card'
+			WHERE action.from_type = 'costume'
+			  AND action.to_type = $type
+			  AND action.to_id = $id
+		)`,
+		{ $type: type, $id: id }
+	);
+}
+
 function characterCommonSection(key, id, toTypes) {
 	const params = { $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
@@ -451,6 +489,39 @@ function inferredHomeTalkCardLink(type, id) {
 	);
 }
 
+function homeActionCardLinks(type, id) {
+	if (!['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type)) return [];
+	return all(
+		`
+		SELECT 'costume_card' relation, e.entity_type type, e.entity_id id,
+		       COALESCE(e.label, e.entity_id) label, COALESCE(e.subtitle, '') subtitle,
+		       (
+		       	SELECT tu.translation_text
+		       	FROM translation_units tu
+		       	WHERE tu.source_type = 'masterdb'
+		       	  AND tu.scope_type = e.entity_type
+		       	  AND tu.scope_id = e.entity_id
+		       	  AND tu.translation_text <> ''
+		       	  AND tu.field_path IN ('name', 'title')
+		       	ORDER BY CASE tu.field_path WHEN 'name' THEN 0 WHEN 'title' THEN 1 ELSE 9 END
+		       	LIMIT 1
+		       ) translated_label
+		FROM links action
+		JOIN links card
+		  ON card.to_type = 'costume'
+		 AND card.to_id = action.from_id
+		 AND card.from_type = 'card'
+		JOIN entities e ON e.entity_type = card.from_type AND e.entity_id = card.from_id
+		WHERE action.from_type = 'costume'
+		  AND action.to_type = $type
+		  AND action.to_id = $id
+		ORDER BY label
+		LIMIT 300
+		`,
+		{ $type: type, $id: id }
+	);
+}
+
 export function GET({ url }) {
 	const type = url.searchParams.get('type') || 'character';
 	const id = url.searchParams.get('id') || '';
@@ -542,6 +613,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('card_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('card_home_talks', type, id, ['home_talk']));
 		sections.push(linkedUnitSection('card_telephones', type, id, ['telephone']));
+		sections.push(cardCostumeHomeActionSection(id));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
 	}
@@ -569,6 +641,7 @@ export function GET({ url }) {
 	}
 
 	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type)) {
+		sections.push(homeActionCardSection(type, id));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
@@ -608,6 +681,6 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
-	const links = dedupeLinks([inferredHomeTalkCardLink(type, id), ...linksFor(type, id)].filter(Boolean));
+	const links = dedupeLinks([inferredHomeTalkCardLink(type, id), ...linksFor(type, id), ...homeActionCardLinks(type, id)].filter(Boolean));
 	return json({ entity, sections: sections.filter((item) => item.total > 0), links });
 }

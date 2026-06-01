@@ -79,6 +79,42 @@ function linkedWhere(type, id, toTypes) {
 	];
 }
 
+function cardCostumeHomeActionWhere(id) {
+	return [
+		`EXISTS (
+			SELECT 1
+			FROM links costume
+			JOIN links action
+			  ON action.from_type = 'costume'
+			 AND action.from_id = costume.to_id
+			 AND action.to_type IN ('home_action', 'love_home_action', 'company_enjoy_home_action')
+			WHERE costume.from_type = 'card'
+			  AND costume.from_id = $id
+			  AND costume.to_type = 'costume'
+			  AND action.to_type = translation_units.scope_type
+			  AND action.to_id = translation_units.scope_id
+		)`,
+		{ $id: id }
+	];
+}
+
+function homeActionCardWhere(type, id) {
+	return [
+		`source_type = 'masterdb' AND category = 'Card' AND scope_type = 'card' AND scope_id IN (
+			SELECT card.from_id
+			FROM links action
+			JOIN links card
+			  ON card.to_type = 'costume'
+			 AND card.to_id = action.from_id
+			 AND card.from_type = 'card'
+			WHERE action.from_type = 'costume'
+			  AND action.to_type = $type
+			  AND action.to_id = $id
+		)`,
+		{ $type: type, $id: id }
+	];
+}
+
 function directWhere(type, id) {
 	const categoryByType = {
 		character: ['Character'],
@@ -258,6 +294,7 @@ function whereFor(type, id, key, category) {
 		if (key === 'card_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'card_home_talks') return linkedWhere(type, id, ['home_talk']);
 		if (key === 'card_telephones') return linkedWhere(type, id, ['telephone']);
+		if (key === 'home_actions') return cardCostumeHomeActionWhere(id);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
@@ -284,8 +321,9 @@ function whereFor(type, id, key, category) {
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
-	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type) && key === 'conditions') {
-		return linkedWhere(type, id, ['condition_description']);
+	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type)) {
+		if (key === 'cards') return homeActionCardWhere(type, id);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
 
 	if (type === 'showcase_toy_category' && key === 'goods') {
