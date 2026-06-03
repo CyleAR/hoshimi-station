@@ -685,7 +685,9 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
             if typ == "home_talk":
                 call_pattern_id = row.get("callPatternId", "")
                 if call_pattern_id:
-                    add_link(conn, "home_talk", entity_id, "call_pattern", f"{row.get('characterId', '')}_{call_pattern_id}", "call_pattern", row)
+                    call_pattern_entity_id = f"{row.get('characterId', '')}_{call_pattern_id}"
+                    add_link(conn, "home_talk", entity_id, "call_pattern", call_pattern_entity_id, "call_pattern", row)
+                    add_link(conn, "card", card_id, "call_pattern", call_pattern_entity_id, "card_call_pattern", row)
 
     for row in cache.get("Skill", {}).values():
         upsert_entity(conn, "skill", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)

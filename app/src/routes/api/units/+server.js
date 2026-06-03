@@ -79,6 +79,20 @@ function linkedWhere(type, id, toTypes) {
 	];
 }
 
+function incomingLinkedWhere(type, id, fromTypes) {
+	const params = { $type: type, $id: id };
+	const fromSql = placeholders(fromTypes, params, 'from');
+	return [
+		`EXISTS (
+			SELECT 1
+			FROM links l
+			WHERE l.to_type = $type AND l.to_id = $id AND l.from_type IN (${fromSql})
+			  AND l.from_type = translation_units.scope_type AND l.from_id = translation_units.scope_id
+		)`,
+		params
+	];
+}
+
 function cardCostumeHomeActionWhere(id) {
 	return [
 		`EXISTS (
@@ -294,6 +308,7 @@ function whereFor(type, id, key, category) {
 		if (key === 'card_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'card_home_talks') return linkedWhere(type, id, ['home_talk']);
 		if (key === 'card_telephones') return linkedWhere(type, id, ['telephone']);
+		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
 		if (key === 'home_actions') return cardCostumeHomeActionWhere(id);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
@@ -319,6 +334,11 @@ function whereFor(type, id, key, category) {
 	if (type === 'home_talk') {
 		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+	}
+
+	if (type === 'call_pattern') {
+		if (key === 'cards') return incomingLinkedWhere(type, id, ['card']);
+		if (key === 'card_home_talks') return incomingLinkedWhere(type, id, ['home_talk']);
 	}
 
 	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type)) {

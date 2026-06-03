@@ -167,6 +167,21 @@ function linkedUnitSection(key, type, id, toTypes) {
 	);
 }
 
+function incomingLinkedUnitSection(key, type, id, fromTypes) {
+	const params = { $type: type, $id: id };
+	const fromSql = placeholders(fromTypes, params, 'from');
+	return section(
+		key,
+		`EXISTS (
+			SELECT 1
+			FROM links l
+			WHERE l.to_type = $type AND l.to_id = $id AND l.from_type IN (${fromSql})
+			  AND l.from_type = translation_units.scope_type AND l.from_id = translation_units.scope_id
+		)`,
+		params
+	);
+}
+
 function cardCostumeHomeActionSection(id) {
 	return section(
 		'home_actions',
@@ -613,6 +628,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('card_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('card_home_talks', type, id, ['home_talk']));
 		sections.push(linkedUnitSection('card_telephones', type, id, ['telephone']));
+		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
 		sections.push(cardCostumeHomeActionSection(id));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
@@ -638,6 +654,11 @@ export function GET({ url }) {
 	if (type === 'home_talk') {
 		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+	}
+
+	if (type === 'call_pattern') {
+		sections.push(incomingLinkedUnitSection('cards', type, id, ['card']));
+		sections.push(incomingLinkedUnitSection('card_home_talks', type, id, ['home_talk']));
 	}
 
 	if (['home_action', 'love_home_action', 'company_enjoy_home_action'].includes(type)) {
