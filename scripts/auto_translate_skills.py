@@ -617,30 +617,60 @@ def translate_direct_rule_text(text: str) -> str | None:
     )
 
     def convert_effect_line(line: str) -> str | None:
+        def render_target(effect_match: re.Match[str]) -> str:
+            if effect_match.group("type"):
+                return f"{translate_rule_text(effect_match.group('type')) or effect_match.group('type')} 타입 {effect_match.group('count')}명에게"
+            if effect_match.group("target_count"):
+                return f"대상 {effect_match.group('target_count')}명에게"
+            return target_map[effect_match.group("target")]
+
+        def render_effect(effect: str) -> str | None:
+            direct_effects = {
+                "ビートスコア上昇超化効果": "비트 스코어 상승 초화 효과",
+                "Aスキルスコア上昇超化効果": "A스킬 스코어 상승 초화 효과",
+                "SPスキルスコア上昇超化効果": "SP스킬 스코어 상승 초화 효과",
+                "Pスキルスコア上昇超化効果": "P스킬 스코어 상승 초화 효과",
+            }
+            effect = direct_effects.get(effect, effect)
+            for jp, ko in PHRASES:
+                effect = effect.replace(jp, ko)
+            effect = effect.replace("効果", "효과")
+            effect = normalize_korean_spacing(effect)
+            return None if has_japanese(effect) else effect
+
+        compound_match = re.fullmatch(
+            r"(?:(?P<lane_owner>自身)が(?P<lane>.+?)レーンの時\s*)?"
+            r"(?P<target>全員|自身|センター|隣接するアイドル|(?P<type>.+?)タイプ(?P<count>\d+)人|対象(?P<target_count>\d+)人)"
+            r"に(?:(?P<stage>\d+)段階)?(?P<effect>.+?効果)\[(?P<beat>\d+)ビート\]"
+            r"と(?:(?P<stage2>\d+)段階)?(?P<effect2>.+?効果)\[(?P<beat2>\d+)ビート\]",
+            line.strip(),
+        )
+        if compound_match:
+            target = render_target(compound_match)
+            effect = render_effect(compound_match.group("effect"))
+            effect2 = render_effect(compound_match.group("effect2"))
+            if not effect or not effect2:
+                return None
+            stage = f"{compound_match.group('stage')}단계 " if compound_match.group("stage") else ""
+            stage2 = f"{compound_match.group('stage2')}단계 " if compound_match.group("stage2") else ""
+            prefix = ""
+            if compound_match.group("lane_owner"):
+                lane = translate_direct_fragment(compound_match.group("lane"))
+                if not lane:
+                    return None
+                prefix = f"자신이 {lane} 레인일 때 "
+            return (
+                f"{prefix}{target} {stage}{effect} [{compound_match.group('beat')}비트] "
+                f"및 {stage2}{effect2} [{compound_match.group('beat2')}비트]"
+            )
+
         effect_match = effect_line_re.fullmatch(line.strip())
         if not effect_match:
             return None
 
-        if effect_match.group("type"):
-            target = f"{translate_rule_text(effect_match.group('type')) or effect_match.group('type')} 타입 {effect_match.group('count')}명에게"
-        elif effect_match.group("target_count"):
-            target = f"대상 {effect_match.group('target_count')}명에게"
-        else:
-            target = target_map[effect_match.group("target")]
-
-        effect = effect_match.group("effect")
-        direct_effects = {
-            "ビートスコア上昇超化効果": "비트 스코어 상승 초화 효과",
-            "Aスキルスコア上昇超化効果": "A스킬 스코어 상승 초화 효과",
-            "SPスキルスコア上昇超化効果": "SP스킬 스코어 상승 초화 효과",
-            "Pスキルスコア上昇超化効果": "P스킬 스코어 상승 초화 효과",
-        }
-        effect = direct_effects.get(effect, effect)
-        for jp, ko in PHRASES:
-            effect = effect.replace(jp, ko)
-        effect = effect.replace("効果", "효과")
-        effect = normalize_korean_spacing(effect)
-        if has_japanese(effect):
+        target = render_target(effect_match)
+        effect = render_effect(effect_match.group("effect"))
+        if not effect:
             return None
 
         stage = f"{effect_match.group('stage')}단계 " if effect_match.group("stage") else ""
