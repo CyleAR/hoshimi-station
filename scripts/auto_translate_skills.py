@@ -522,6 +522,9 @@ def normalize_korean_spacing(text: str) -> str:
     out = re.sub(r"(스태미나|크리티컬|스킬)\s*(\d+)$", r"\1 \2", out)
     out = re.sub(r"일 때\s*에게\s*,\s*", "일 때, ", out)
     out = re.sub(r"때\s*에게\s*,\s*", "때, ", out)
+    out = re.sub(r"(시|때),\s*확률로", r"\1, 일정 확률로", out)
+    out = re.sub(r"CT를\s*저하", "CT 감소", out)
+    out = re.sub(r"CT\s*저하", "CT 감소", out)
     out = re.sub(r"(라이브 중 \d+회만)\s*CT", r"\1 CT", out)
     out = re.sub(r" {2,}", " ", out)
     out = re.sub(r" ?\n ?", "\n", out)
@@ -543,11 +546,11 @@ def translate_direct_rule_text(text: str) -> str | None:
 
     match = re.fullmatch(r"ビート時、確率でスコアラータイプ(\d+)人にビジュアル上昇効果", stripped)
     if match:
-        return f"비트 시, 확률로 스코어러 타입 {match.group(1)}명에게 비주얼 상승 효과"
+        return f"비트 시, 일정 확률로 스코어러 타입 {match.group(1)}명에게 비주얼 상승 효과"
 
     match = re.fullmatch(r"ビート時、確率で自身にクリティカル率上昇効果\((\d+)回\)", stripped)
     if match:
-        return f"비트 시, 확률로 자신에게 크리티컬 확률 상승 효과 ({match.group(1)}회)"
+        return f"비트 시, 일정 확률로 자신에게 크리티컬 확률 상승 효과 ({match.group(1)}회)"
 
     out = stripped.replace("誰かがクリティカル率アップ状態の時", "누군가가 크리티컬 확률 상승 상태일 때")
     match = re.fullmatch(
