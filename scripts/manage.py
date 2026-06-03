@@ -358,45 +358,66 @@ def replace_aoi_tone() -> None:
     run([python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--apply", option])
 
 
-def auto_translate_skills() -> None:
+def run_skill_translation(mode: str, apply: bool, audit: bool = True) -> None:
+    report_dir = ROOT / "tmp" / "reports"
+    report = report_dir / (
+        "auto_translate_skills_overwrite_report.md" if mode == "overwrite" else "auto_translate_skills_report.md"
+    )
+    command = [
+        python(),
+        "scripts/auto_translate_skills.py",
+        "--db",
+        str(DB_PATH),
+        "--mode",
+        mode,
+        "--preview-limit",
+        "300",
+        "--report",
+        str(report),
+    ]
+    if audit:
+        command.extend(["--audit-report", str(report_dir / "auto_translate_skills_audit_report.md")])
+    if apply:
+        command.append("--apply-review")
+
+    run(command)
+
+
+def skill_translation_menu() -> None:
     print()
-    print("== 스킬 텍스트 자동 번역 및 교정 ==")
-    print("1. 누락/신규 스킬 미리보기")
-    print("2. 누락/신규 스킬 적용")
-    print("3. 전체 스킬 미리보기")
-    print("4. 전체 스킬 강제 적용 (덮어쓰기)")
+    print("== Skill auto translation ==")
+    print()
+    print("1. 신규 번역 dry-run")
+    print("   - 빈 번역만 채울 후보를 리포트로 확인합니다.")
+    print("2. 신규 번역 적용")
+    print("   - 빈 번역만 자동 생성해서 DB에 씁니다.")
+    print("3. 전체 번역 dry-run")
+    print("   - 기존 번역까지 전부 정규화 후보를 리포트로 확인합니다.")
+    print("4. 전체 번역 적용")
+    print("   - 기존 번역까지 덮어써서 DB에 씁니다.")
+    print("5. 감사 리포트만 생성")
+    print("   - 현재 DB 번역의 일본어 잔존/숫자 불일치/공백 이상을 검사합니다.")
     print("q. 취소")
     choice = input("번호 입력 > ").strip().lower()
 
     if choice == "1":
-        mode = "missing"
-        apply = False
+        run_skill_translation("missing", apply=False)
     elif choice == "2":
-        mode = "missing"
-        apply = True
+        run_skill_translation("missing", apply=True)
     elif choice == "3":
-        mode = "all"
-        apply = False
+        run_skill_translation("overwrite", apply=False)
     elif choice == "4":
-        confirm = input("전체 스킬 번역을 덮어씁니다. 계속할까요? [y/N] > ").strip().lower()
-        if confirm not in {"y", "yes"}:
-            print("작업을 취소했습니다.")
+        answer = input("기존 번역까지 덮어씁니다. 계속할까요? [y/N] > ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("취소했습니다.")
             return
-        mode = "all"
-        apply = True
+        run_skill_translation("overwrite", apply=True)
+    elif choice == "5":
+        run_skill_translation("overwrite", apply=False, audit=True)
     elif choice in {"q", "quit", "exit"}:
-        print("작업을 취소했습니다.")
         return
     else:
-        raise SystemExit("1, 2, 3, 4, q 중 하나를 입력하세요.")
-
-    print()
-    print(f"== 스킬 자동 번역 실행 (모드: {mode}) ==")
-    report_path = ROOT / "reports" / "auto_translate_skills_report.md"
-    command = [python(), "scripts/auto_translate_skills.py", "--db", str(DB_PATH), "--mode", mode, "--report", str(report_path)]
-    if apply:
-        command.append("--apply")
-    run(command)
+        raise SystemExit("1, 2, 3, 4, 5, q 중 하나를 입력하세요.")
 
 
 def export_output() -> None:
@@ -465,9 +486,9 @@ def menu() -> str:
     print("   - Aoi rows only: 당신 -> 너 patterns.")
     print("   - Optional risky pass: 오빠 -> 형님 patterns.")
     print()
-    print("7. 스킬 텍스트 자동 번역 및 교정")
-    print("   - 새 스킬이나 누락된 번역(줄 수 불일치)을 찾아 자동으로 번역을 생성해 채웁니다.")
-    print("   - 전체 스킬을 강제로 덮어씌워 일관된 번역 규칙을 일괄 적용할 수도 있습니다.")
+    print("7. Skill auto translation")
+    print("   - 신규 번역/전체 번역/감사 리포트를 실행합니다.")
+    print()
     print()
     print("q. 종료")
     print()
@@ -477,7 +498,25 @@ def menu() -> str:
 def main() -> None:
     configure_stdio()
     parser = argparse.ArgumentParser(description="HoshimiStation maintenance helper.")
-    parser.add_argument("action", nargs="?", choices=["1", "2", "3", "4", "5", "6", "7"], help="Action to run without interactive menu.")
+    parser.add_argument(
+        "action",
+        nargs="?",
+        choices=[
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "skill-missing-dry",
+            "skill-missing",
+            "skill-overwrite-dry",
+            "skill-overwrite",
+            "skill-audit",
+        ],
+        help="Action to run without interactive menu.",
+    )
     args = parser.parse_args()
 
     choice = args.action or menu()
@@ -499,7 +538,17 @@ def main() -> None:
     elif choice == "6":
         replace_aoi_tone()
     elif choice == "7":
-        auto_translate_skills()
+        skill_translation_menu()
+    elif choice == "skill-missing-dry":
+        run_skill_translation("missing", apply=False)
+    elif choice == "skill-missing":
+        run_skill_translation("missing", apply=True)
+    elif choice == "skill-overwrite-dry":
+        run_skill_translation("overwrite", apply=False)
+    elif choice == "skill-overwrite":
+        run_skill_translation("overwrite", apply=True)
+    elif choice == "skill-audit":
+        run_skill_translation("overwrite", apply=False, audit=True)
     elif choice in {"q", "quit", "exit"}:
         return
     else:
