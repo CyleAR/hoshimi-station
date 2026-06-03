@@ -655,9 +655,16 @@ def translate_direct_rule_text(text: str) -> str | None:
         stamina_match = re.fullmatch(r"スタミナ(\d+)消費 CT:(\d+)", line)
         if stamina_match:
             return f"스태미나 {stamina_match.group(1)} 소비 CT:{stamina_match.group(2)}"
+        move_line_match = re.fullmatch(r"(.+?)の(.+?)を((?:SP|A|P)?スキル)前に移動", line)
+        if move_line_match:
+            owner = translate_direct_fragment(move_line_match.group(1))
+            target = translate_direct_fragment(move_line_match.group(2))
+            timing = translate_direct_fragment(move_line_match.group(3))
+            if owner and target and timing:
+                return f"{owner}의 {target}를 {timing} 이전으로 이동"
         return convert_effect_line(line)
 
-    if "上昇超化効果" in stripped:
+    if "上昇超化効果" in stripped or "移動" in stripped:
         converted_lines = []
         for line in stripped.splitlines():
             converted = convert_direct_line(line)
