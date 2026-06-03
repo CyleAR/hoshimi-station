@@ -588,6 +588,22 @@ def translate_direct_rule_text(text: str) -> str | None:
             ]
         )
 
+    def translate_direct_fragment(fragment: str) -> str | None:
+        out = fragment
+        for jp, ko in PHRASES:
+            out = out.replace(jp, ko)
+        out = out.replace("効果", "효과")
+        out = normalize_korean_spacing(out)
+        return None if has_japanese(out) else out
+
+    move_match = re.fullmatch(r"(.+?)の(.+?)を((?:SP|A|P)?スキル)前に移動", stripped)
+    if move_match:
+        owner = translate_direct_fragment(move_match.group(1))
+        target = translate_direct_fragment(move_match.group(2))
+        timing = translate_direct_fragment(move_match.group(3))
+        if owner and target and timing:
+            return f"{owner}의 {target}를 {timing} 이전으로 이동"
+
     target_map = {
         "全員": "전원에게",
         "自身": "자신에게",
