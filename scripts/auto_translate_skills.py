@@ -520,6 +520,7 @@ def normalize_korean_spacing(text: str) -> str:
     out = re.sub(r"(스태미나)\s*(지속)\s*(회복)", r"\1 \2 \3", out)
     out = re.sub(r"(상승|저하)(초화|상한 해제)", r"\1 \2", out)
     out = re.sub(r"(스태미나|크리티컬|스킬)\s*(\d+)$", r"\1 \2", out)
+    out = re.sub(r"\b(A|P|SP)스킬\s*UP", r"\1스킬 UP", out)
     out = re.sub(r"일 때\s*에게\s*,\s*", "일 때, ", out)
     out = re.sub(r"때\s*에게\s*,\s*", "때, ", out)
     out = re.sub(r"(시|때),\s*확률로", r"\1, 일정 확률로", out)
