@@ -588,6 +588,70 @@ def translate_direct_rule_text(text: str) -> str | None:
             ]
         )
 
+    target_map = {
+        "全員": "전원에게",
+        "自身": "자신에게",
+        "センター": "센터에게",
+        "隣接するアイドル": "인접한 아이돌에게",
+    }
+    effect_line_re = re.compile(
+        r"(?:(?P<combo>\d+)コンボ以上時\s*)?"
+        r"(?P<target>全員|自身|センター|隣接するアイドル|(?P<type>.+?)タイプ(?P<count>\d+)人|対象(?P<target_count>\d+)人)"
+        r"に(?:(?P<stage>\d+)段階)?(?P<effect>.+?効果)\[(?P<beat>\d+)ビート\]"
+    )
+
+    def convert_effect_line(line: str) -> str | None:
+        effect_match = effect_line_re.fullmatch(line.strip())
+        if not effect_match:
+            return None
+
+        if effect_match.group("type"):
+            target = f"{translate_rule_text(effect_match.group('type')) or effect_match.group('type')} 타입 {effect_match.group('count')}명에게"
+        elif effect_match.group("target_count"):
+            target = f"대상 {effect_match.group('target_count')}명에게"
+        else:
+            target = target_map[effect_match.group("target")]
+
+        effect = effect_match.group("effect")
+        direct_effects = {
+            "ビートスコア上昇超化効果": "비트 스코어 상승 초화 효과",
+            "Aスキルスコア上昇超化効果": "A스킬 스코어 상승 초화 효과",
+            "SPスキルスコア上昇超化効果": "SP스킬 스코어 상승 초화 효과",
+            "Pスキルスコア上昇超化効果": "P스킬 스코어 상승 초화 효과",
+        }
+        effect = direct_effects.get(effect, effect)
+        for jp, ko in PHRASES:
+            effect = effect.replace(jp, ko)
+        effect = effect.replace("効果", "효과")
+        effect = normalize_korean_spacing(effect)
+        if has_japanese(effect):
+            return None
+
+        stage = f"{effect_match.group('stage')}단계 " if effect_match.group("stage") else ""
+        prefix = f"{effect_match.group('combo')}콤보 이상일 때 " if effect_match.group("combo") else ""
+        return f"{prefix}{target} {stage}{effect} [{effect_match.group('beat')}비트]"
+
+    def convert_direct_line(line: str) -> str | None:
+        line = line.strip()
+        score_match = re.fullmatch(r"(\d+)%のスコア獲得", line)
+        if score_match:
+            return f"{score_match.group(1)}% 스코어 획득"
+        stamina_match = re.fullmatch(r"スタミナ(\d+)消費 CT:(\d+)", line)
+        if stamina_match:
+            return f"스태미나 {stamina_match.group(1)} 소비 CT:{stamina_match.group(2)}"
+        return convert_effect_line(line)
+
+    if "上昇超化効果" in stripped:
+        converted_lines = []
+        for line in stripped.splitlines():
+            converted = convert_direct_line(line)
+            if converted is None:
+                converted_lines = []
+                break
+            converted_lines.append(converted)
+        if converted_lines:
+            return "\n".join(converted_lines)
+
     if out != stripped and not has_japanese(out):
         return out
 
