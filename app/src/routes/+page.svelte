@@ -251,7 +251,10 @@
 		summary = await fetchJson("/api/summary");
 	}
 
-	async function loadItems({ keepSelection = false } = {}) {
+	async function loadItems({
+		keepSelection = false,
+		preserveSelection = false,
+	} = {}) {
 		loadingItems = true;
 		error = "";
 		try {
@@ -260,6 +263,7 @@
 			const data = await fetchJson(`/api/items?${params}`);
 			items = data.items ?? [];
 			groups = data.groups ?? [];
+			if (preserveSelection && selected) return;
 			if (
 				!keepSelection ||
 				!selected ||
@@ -402,6 +406,24 @@
 		};
 	}
 
+	function navigationUrl(item = selected, preferredKey = activeSection?.key ?? "") {
+		if (typeof window === "undefined") return "";
+		const url = new URL(window.location.href);
+		url.searchParams.set("tab", section);
+		if (query.trim()) url.searchParams.set("q", query.trim());
+		else url.searchParams.delete("q");
+		if (item?.type && item?.id) {
+			url.searchParams.set("type", item.type);
+			url.searchParams.set("id", item.id);
+		} else {
+			url.searchParams.delete("type");
+			url.searchParams.delete("id");
+		}
+		if (preferredKey) url.searchParams.set("part", preferredKey);
+		else url.searchParams.delete("part");
+		return url.toString();
+	}
+
 	function writeHistory(mode = "push") {
 		if (!historyReady || restoringHistory || typeof window === "undefined")
 			return;
@@ -409,7 +431,7 @@
 			window.history[mode === "replace" ? "replaceState" : "pushState"](
 				historySnapshot(),
 				"",
-				window.location.href,
+				navigationUrl(),
 			);
 		} catch (err) {
 			console.warn("Failed to update navigation history", err);
@@ -448,6 +470,45 @@
 		writeHistory("push");
 	}
 
+	function shouldOpenInNewTab(event) {
+		return event?.button === 1 || event?.ctrlKey || event?.metaKey;
+	}
+
+	function openItemInNewTab(item, preferredKey = "") {
+		if (typeof window === "undefined" || !item?.type || !item?.id) return;
+		window.open(navigationUrl(item, preferredKey), "_blank", "noopener");
+	}
+
+	function activateRootItem(event, item) {
+		if (shouldOpenInNewTab(event)) {
+			event.preventDefault();
+			event.stopPropagation();
+			openItemInNewTab(item);
+			return;
+		}
+		selectRootItem(item);
+	}
+
+	function activateLinkedItem(event, item, preferredKey = "") {
+		if (shouldOpenInNewTab(event)) {
+			event.preventDefault();
+			event.stopPropagation();
+			openItemInNewTab(item, preferredKey);
+			return;
+		}
+		navigateToItem(item, preferredKey);
+	}
+
+	function activateSection(event, part) {
+		if (shouldOpenInNewTab(event) && selected) {
+			event.preventDefault();
+			event.stopPropagation();
+			openItemInNewTab(selected, part.key);
+			return;
+		}
+		loadUnits(part);
+	}
+
 	async function goBack({ syncHistory = true } = {}) {
 		const previous = navStack.at(-1);
 		if (!previous) return;
@@ -472,6 +533,28 @@
 			},
 			preferredKey,
 		);
+	}
+
+	function activateUnitEntity(event, group, preferredKey = "") {
+		if (
+			!group.scope_type ||
+			!group.scope_id ||
+			group.scope_type === "category"
+		)
+			return;
+		const item = {
+			type: group.scope_type,
+			id: group.scope_id,
+			label: group.title,
+			subtitle: group.subtitle,
+		};
+		if (shouldOpenInNewTab(event)) {
+			event.preventDefault();
+			event.stopPropagation();
+			openItemInNewTab(item, preferredKey);
+			return;
+		}
+		openUnitEntity(group, preferredKey);
 	}
 
 	async function loadUnits(part) {
@@ -611,7 +694,7 @@
 				pin,
 				is_admin: Boolean(data.user.is_admin),
 			};
-			sessionStorage.setItem(
+			localStorage.setItem(
 				"translatorUser",
 				JSON.stringify(currentUser),
 			);
@@ -662,6 +745,7 @@
 	function logout() {
 		currentUser = null;
 		loginPin = "";
+		localStorage.removeItem("translatorUser");
 		sessionStorage.removeItem("translatorUser");
 	}
 
@@ -1248,7 +1332,9 @@
 	onMount(() => {
 		try {
 			const saved = JSON.parse(
-				sessionStorage.getItem("translatorUser") || "null",
+				localStorage.getItem("translatorUser") ||
+					sessionStorage.getItem("translatorUser") ||
+					"null",
 			);
 			if (saved?.nickname && saved?.pin) {
 				currentUser = {
@@ -1257,6 +1343,11 @@
 						Boolean(saved.is_admin) || saved.nickname === "사일",
 				};
 				loginNickname = saved.nickname;
+				localStorage.setItem(
+					"translatorUser",
+					JSON.stringify(currentUser),
+				);
+				sessionStorage.removeItem("translatorUser");
 			} else {
 				loginNickname =
 					localStorage.getItem("translatorNickname") || "";
@@ -1273,8 +1364,27 @@
 		} catch {
 			sessionStorage.removeItem("geminiAiDraft");
 		}
+		const params = new URLSearchParams(window.location.search);
+		const initialSelected =
+			params.get("type") && params.get("id")
+				? {
+						type: params.get("type"),
+						id: params.get("id"),
+						label: params.get("id"),
+						subtitle: "",
+					}
+				: null;
+		const initialPart = params.get("part") || "";
+		section = params.get("tab") || section;
+		query = params.get("q") || "";
+		if (initialSelected) selected = initialSelected;
+
 		loadSummary().catch((err) => (error = err.message));
-		loadItems().then(() => {
+		loadItems({
+			keepSelection: Boolean(initialSelected),
+			preserveSelection: Boolean(initialSelected),
+		}).then(async () => {
+			if (initialSelected) await selectItem(initialSelected, initialPart);
 			historyReady = true;
 			writeHistory("replace");
 		});
@@ -1432,7 +1542,10 @@
 			{#if section === "characters" || section === "cards"}
 				<div class="chips">
 					{#each groups as group}
-						<button onclick={() => selectRootItem(group)}
+						<button
+							onclick={(event) => activateRootItem(event, group)}
+							onauxclick={(event) =>
+								activateRootItem(event, group)}
 							>{group.label}</button
 						>
 					{/each}
@@ -1450,7 +1563,10 @@
 							class="item-card"
 							class:selected={selected?.id === item.id &&
 								selected?.type === item.type}
-							onclick={() => selectRootItem(item)}
+							onclick={(event) =>
+								activateRootItem(event, item)}
+							onauxclick={(event) =>
+								activateRootItem(event, item)}
 						>
 							<span class="type-badge"
 								>{typeNames[item.type] ?? item.type}</span
@@ -1488,7 +1604,9 @@
 						<button
 							class="section-row"
 							class:active={activeSection?.key === part.key}
-							onclick={() => loadUnits(part)}
+							onclick={(event) => activateSection(event, part)}
+							onauxclick={(event) =>
+								activateSection(event, part)}
 						>
 							<span>{part.icon}</span>
 							<strong>{part.label}</strong>
@@ -1518,7 +1636,10 @@
 							{#each visibleLinks(group) as link}
 								<button
 									class="mini-link"
-									onclick={() => navigateToItem(link)}
+									onmousedown={(event) =>
+										activateLinkedItem(event, link)}
+									onclick={(event) =>
+										activateLinkedItem(event, link)}
 								>
 									<span
 										>{typeNames[link.type] ??
@@ -1646,16 +1767,31 @@
 								<div class="group-actions">
 									{#if canOpenEntity(group)}
 										<button
-											onclick={() =>
-												openUnitEntity(group)}
+											onclick={(event) =>
+												activateUnitEntity(
+													event,
+													group,
+												)}
+											onauxclick={(event) =>
+												activateUnitEntity(
+													event,
+													group,
+												)}
 											>{entityButtonLabel(group)}</button
 										>
 									{/if}
 									{#if canOpenAdv(group)}
 										<button
 											class="accent"
-											onclick={() =>
-												openUnitEntity(
+											onclick={(event) =>
+												activateUnitEntity(
+													event,
+													group,
+													advSectionKey(group),
+												)}
+											onauxclick={(event) =>
+												activateUnitEntity(
+													event,
 													group,
 													advSectionKey(group),
 												)}>ADV 본문</button
