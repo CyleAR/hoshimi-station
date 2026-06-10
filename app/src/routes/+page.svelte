@@ -557,6 +557,11 @@
 		openUnitEntity(group, preferredKey);
 	}
 
+	function activateUnitEntityMiddleClick(event, group, preferredKey = "") {
+		if (event?.button !== 1) return;
+		activateUnitEntity(event, group, preferredKey);
+	}
+
 	async function loadUnits(part) {
 		activeSection = part;
 		loadingUnits = true;
@@ -1772,8 +1777,8 @@
 													event,
 													group,
 												)}
-											onauxclick={(event) =>
-												activateUnitEntity(
+											onmousedown={(event) =>
+												activateUnitEntityMiddleClick(
 													event,
 													group,
 												)}
@@ -1789,8 +1794,8 @@
 													group,
 													advSectionKey(group),
 												)}
-											onauxclick={(event) =>
-												activateUnitEntity(
+											onmousedown={(event) =>
+												activateUnitEntityMiddleClick(
 													event,
 													group,
 													advSectionKey(group),
