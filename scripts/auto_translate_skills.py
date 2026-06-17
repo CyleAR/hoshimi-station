@@ -300,6 +300,8 @@ PHRASES = [
     ("強化効果譲渡", "강화 효과 양도"),
     ("強化効果", "강화 효과"),
     ("状態変化", "상태 변화"),
+    ("不調効果", "컨디션 난조 효과"),
+    ("不調", "컨디션 난조"),
     ("状態の段階数が多い程効果上昇", "상태의 단계 수가 많을수록 효과 상승"),
     ("コンボ数が多い程効果上昇", "콤보 수가 많을수록 효과 상승"),
     ("コンボ数が少ない程効果上昇", "콤보 수가 적을수록 효과 상승"),
@@ -514,6 +516,7 @@ def normalize_korean_spacing(text: str) -> str:
     out = out.replace("UP효과", "UP 효과")
     out = out.replace("효과[", "효과 [")
     out = out.replace("상태[", "상태 [")
+    out = out.replace(" [을/를]", "[을/를]")
     out = re.sub(r"(스코어러|버퍼|서포터|댄스|보컬|비주얼)\s*타입\s*(\d+명)", r"\1 타입 \2", out)
     out = re.sub(r"(댄스|보컬|비주얼|스코어|스태미나|크리티컬 계수|크리티컬 확률)\s*(상승|저하)\s*(초화|상한 해제)", r"\1 \2 \3", out)
     out = re.sub(r"(소비)\s*(스태미나)\s*(상승|저하|증가|감소)", r"\1 \2 \3", out)
@@ -602,7 +605,7 @@ def translate_direct_rule_text(text: str) -> str | None:
         target = translate_direct_fragment(move_match.group(2))
         timing = translate_direct_fragment(move_match.group(3))
         if owner and target and timing:
-            return f"{owner}의 {target}를 {timing} 이전으로 이동"
+            return f"{owner}의 {target}[을/를] {timing} 이전으로 이동"
 
     target_map = {
         "全員": "전원에게",
@@ -751,11 +754,18 @@ def translate_rule_text(text: str) -> str | None:
     out = re.sub(r"スタミナが高い ?(\d+)人にスタミナ回復-固定値", r"스태미나가 높은 \1명에게 스태미나 회복-고정치", out)
     out = re.sub(r"自身のスタミナが(\d+)%以下の時", r"자신의 스태미나가 \1% 이하일 때 ", out)
     out = re.sub(r"誰かの(.+?)状態が(\d+)段階以上の時", r"누군가의 \1 상태가 \2단계 이상일 때", out)
+    out = re.sub(r"誰かのスタミナが(\d+)%以下の時", r"누군가의 스태미나가 \1% 이하일 때", out)
+    out = re.sub(r"誰かのスタミナが(\d+)%以上の時", r"누군가의 스태미나가 \1% 이상일 때", out)
     out = re.sub(r"誰かが(.+?)状態の時", r"누군가가 \1 상태일 때", out)
     out = re.sub(r"誰かが(.+?)状態時", r"누군가가 \1 상태일 때", out)
     out = re.sub(r"誰かが(.+?)の時", r"누군가가 \1일 때", out)
     out = re.sub(r"スタミナ(\d+)消費", r"스태미나 \1 소비", out)
     out = re.sub(r"スタミナを(\d+)回復", r"스태미나를 \1 회복", out)
+    out = re.sub(r"対象(\d+)人のスタミナを(\d+)回復", r"대상 \1명의 스태미나를 \2 회복", out)
+    out = re.sub(r"同じレーンの相手のスタミナを(\d+)消費", r"같은 레인의 상대의 스태미나 \1 소비", out)
+    out = re.sub(r"同じレーンの相手のスタミナを消費", r"같은 레인의 상대의 스태미나 소비", out)
+    out = re.sub(r"相手のセンターのスタミナを(\d+)消費", r"상대 센터의 스태미나 \1 소비", out)
+    out = re.sub(r"相手の(.+?)タイプ ?(\d+)人のスタミナを(\d+)消費", r"상대 \1 타입 \2명의 스태미나 \3 소비", out)
     out = re.sub(r"ライブボーナスのCTを(\d+)減少", r"라이브 보너스 CT \1 감소", out)
     out = re.sub(r"ライブボーナスのCTを(\d+)増加", r"라이브 보너스 CT \1 증가", out)
     out = re.sub(r"全員のCTを(\d+)減少", r"전원의 CT \1 감소", out)
@@ -782,15 +792,27 @@ def translate_rule_text(text: str) -> str | None:
         out,
     )
     out = re.sub(
+        r"自身が(.+?)レーンの時 (.+?)タイプ ?(\d+)人の強化効果を((?:SP|A|P)スキル)前に移動",
+        lambda match: f"자신이 {translate_rule_text(match.group(1)) or match.group(1)} 레인일 때 {translate_rule_text(match.group(2)) or match.group(2)} 타입 {match.group(3)}명의 강화 효과[을/를] {match.group(4).replace('スキル', '스킬')} 이전으로 이동",
+        out,
+    )
+    out = re.sub(
         r"相手の(.+?)タイプ ?(\d+)人の強化効果消去",
         r"상대의 \1 타입 \2명의 강화 효과 제거",
         out,
     )
+    out = re.sub(
+        r"相手の(.+?)タイプ ?(\d+)人の((?:SP|A|P)スキル)を封印\[(\d+)ビート\]",
+        lambda match: f"상대 {match.group(1)} 타입 {match.group(2)}명의 {match.group(3).replace('スキル', '스킬')}을 봉인 [{match.group(4)}비트]",
+        out,
+    )
     out = re.sub(r"自身を(.+?状態)\[(\d+)ビート\]", r"자신을 \1 [\2비트]", out)
     out = re.sub(r"同じレーンの相手の強化効果消去", r"같은 레인의 상대 강화 효과 제거", out)
+    out = re.sub(r"同じレーンの相手の(.+?上昇効果)消去", r"같은 레인의 상대의 \1 제거", out)
+    out = re.sub(r"同じレーンの相手の(.+?)を(.+?)に状態変化", r"같은 레인의 상대의 \1[을/를] \2로 상태 변화", out)
     out = re.sub(
         r"(.+?)タイプ ?(\d+)人の(.+?)を(.+?)に状態変化",
-        r"\1 타입 \2명의 \3을 \4로 상태 변화",
+        r"\1 타입 \2명의 \3[을/를] \4로 상태 변화",
         out,
     )
     out = re.sub(
@@ -852,7 +874,13 @@ def translate_rule_text(text: str) -> str | None:
     out = out.replace("효과를", "효과를")
     out = out.replace("전원의 의", "전원의")
     out = out.replace("상대의 의", "상대의")
+    out = re.sub(r"상대의\s+", "상대 ", out)
+    out = re.sub(r"같은 레인의 상대 (?=(?:스태미나|CT|강화|댄스|보컬|비주얼))", "같은 레인의 상대의 ", out)
     out = out.replace("자신의 의", "자신의")
+    out = re.sub(r"(자신|센터|대상|전원)의 획득스코어의", r"\1 획득 스코어의", out)
+    out = re.sub(r"(자신|센터|대상|전원)의 획득 스코어의", r"\1 획득 스코어의", out)
+    out = out.replace("자신의 획득스코어의", "자신 획득 스코어의")
+    out = out.replace("자신의 획득 스코어의", "자신 획득 스코어의")
     out = out.replace("대상의 의", "대상의")
     out = out.replace("에게  효과", "에게 효과")
     out = out.replace("에게  ", "에게 ")
@@ -867,6 +895,15 @@ def translate_rule_text(text: str) -> str | None:
     out = out.replace("상승상한", "상승 상한")
     out = out.replace("효과[", "효과 [")
     out = out.replace("상태[", "상태 [")
+    out = out.replace("방지[", "방지 [")
+    out = out.replace("제한[", "제한 [")
+    out = out.replace("봉인[", "봉인 [")
+    out = out.replace("회복효과", "회복 효과")
+    out = out.replace("부스트상한", "부스트 상한")
+    out = re.sub(r"(\d+(?:\.\d+)?%)제한", r"\1 제한", out)
+    out = out.replace("P스킬를", "P스킬을")
+    out = out.replace("A스킬를", "A스킬을")
+    out = out.replace("SP스킬를", "SP스킬을")
     out = out.replace("UP스킬", "UP 스킬")
     out = out.replace("UP시", "UP 시")
     out = out.replace("상승시", "상승 시")
@@ -878,6 +915,7 @@ def translate_rule_text(text: str) -> str | None:
     out = re.sub(r"([가-힣])([0-9]+(?:\.[0-9]+)?%)", r"\1 \2", out)
     out = re.sub(r"([가-힣])([0-9]+(?:\.[0-9]+)?)\b", r"\1 \2", out)
     out = re.sub(r"\]([가-힣])", r"] \1", out)
+    out = out.replace(" [을/를]", "[을/를]")
     out = re.sub(r" +", " ", out)
     out = re.sub(r" ?\n ?", "\n", out).strip()
     out = normalize_korean_spacing(out)
