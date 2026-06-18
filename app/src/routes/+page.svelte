@@ -717,9 +717,35 @@
 	}
 
 	function closeRecent() {
-		if (recentLoading) return;
 		recentOpen = false;
 		recentError = "";
+	}
+
+	function recentItemTarget(item) {
+		if (!item?.scope_type || !item?.scope_id) return null;
+		return {
+			type: item.scope_type,
+			id: item.scope_id,
+			label: item.record_id || item.scope_id,
+			subtitle: [item.category, item.field_path].filter(Boolean).join(" · "),
+		};
+	}
+
+	async function openRecentItem(event, item) {
+		const target = recentItemTarget(item);
+		if (!target) return;
+		if (shouldOpenInNewTab(event)) {
+			event.preventDefault();
+			event.stopPropagation();
+			openItemInNewTab(target, "direct");
+			return;
+		}
+		closeRecent();
+		await navigateToItem(target, "direct");
+	}
+
+	function closeRecentFromBackdrop(event) {
+		if (event.target === event.currentTarget) closeRecent();
 	}
 
 	async function loadRecent() {
@@ -2034,7 +2060,11 @@
 {/if}
 
 {#if recentOpen}
-	<div class="modal-backdrop">
+	<div
+		class="modal-backdrop"
+		role="presentation"
+		onclick={closeRecentFromBackdrop}
+	>
 		<section class="recent-modal">
 			<header>
 				<div>
@@ -2077,13 +2107,28 @@
 					{#each recentItems as item}
 						<article class="recent-row">
 							<header>
-								<strong>{item.translator_name}</strong>
+								<div>
+									<strong>{item.translator_name}</strong>
+									{#if item.scope_type && item.scope_id}
+										<small>{item.scope_type} · {item.scope_id}</small>
+									{/if}
+								</div>
 								<time>{displayKstTime(item.updated_at)}</time>
 							</header>
+							<div class="recent-meta-row">
 							<code
 								>{item.category} · {item.source_file ||
 									item.record_id} · {item.field_path}</code
 							>
+								{#if recentItemTarget(item)}
+									<button
+										class="soft compact-button"
+										onclick={(event) => openRecentItem(event, item)}
+										onauxclick={(event) => openRecentItem(event, item)}
+										>항목 열기</button
+									>
+								{/if}
+							</div>
 							<p class="recent-original">
 								{displayText(item.original_text)}
 							</p>

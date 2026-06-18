@@ -39,6 +39,7 @@ export async function POST({ request }) {
 	const items = all(
 		`
 		SELECT unit_id, source_type, category, source_file, record_id, field_path,
+		       scope_type, scope_id,
 		       line_no, speaker, original_text, translation_text, translator_name, updated_at
 		FROM translation_units
 		WHERE translation_text <> ''

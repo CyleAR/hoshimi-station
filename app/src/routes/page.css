@@ -1151,13 +1151,33 @@
 		justify-content: space-between;
 		gap: 12px;
 	}
+	.recent-row header > div {
+		display: grid;
+		gap: 3px;
+		min-width: 0;
+	}
 	.recent-row strong {
 		color: var(--text);
+	}
+	.recent-row small {
+		color: var(--muted);
+		font-size: 11px;
+		overflow-wrap: anywhere;
 	}
 	.recent-row time,
 	.recent-row code {
 		color: var(--muted);
 		font-size: 11px;
+	}
+	.recent-meta-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.recent-meta-row code {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 	.recent-original,
 	.recent-translation {
