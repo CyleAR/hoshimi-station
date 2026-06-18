@@ -480,7 +480,7 @@ def normalize_korean_spacing(text: str) -> str:
     out = re.sub(r"(스태미나)(지속)(회복|소비)", r"\1 \2 \3", out)
     out = re.sub(r"(초화|지속|상한 해제)(효과)", r"\1 \2", out)
     out = re.sub(r"(상승|저하|UP|DOWN)(상태)", r"\1 \2", out)
-    out = re.sub(r"(UP|DOWN)(초화|효과)", r"\1 \2", out)
+    out = re.sub(r"(UP|DOWN)(초화|효과|연장|증강|상승|저하|증가|감소|회복|추가|방지|반전)", r"\1 \2", out)
     out = re.sub(r"(성공률|스코어|댄스|보컬|비주얼)(UP)", r"\1 \2", out)
     out = re.sub(r"(많을수록|적을수록|높을수록|낮을수록)(효과)", r"\1 \2", out)
     out = re.sub(r"(성공률|계수|확률|스코어|스태미나|주목|감소|상승|부스트)(효과|상승|회복|소비|감소|증가|연장|증강|추가)", r"\1 \2", out)
@@ -488,6 +488,8 @@ def normalize_korean_spacing(text: str) -> str:
     out = re.sub(r"(댄스|보컬|비주얼|스태미나|크리티컬|텐션|멘탈|포토 품질)(\d+(?:\.\d+)?%?)", r"\1 \2", out)
     out = re.sub(r"(\d+(?:\.\d+)?%)(상승|저하|증가|감소)", r"\1 \2", out)
     out = re.sub(r"(\d+)(소비|획득|상승|저하|회복|연장|증강|증가|감소)", r"\1 \2", out)
+    out = out.replace("획득스킬", "획득 스킬")
+    out = out.replace("스킬발동", "스킬 발동")
     out = re.sub(r"(\d+%)(스코어|확률|스태미나)", r"\1 \2", out)
     out = re.sub(r"(\d+단계) 의 ", r"\1 ", out)
     out = re.sub(r"(\d+단계)([가-힣A-Z])", r"\1 \2", out)
@@ -729,6 +731,16 @@ def translate_rule_text(text: str) -> str | None:
     out = re.sub(
         r"誰かが((?:SP|A|P)スキル)発動前に、",
         lambda match: f"누군가가 {match.group(1).replace('スキル', '스킬')} 발동 전에, ",
+        out,
+    )
+    out = re.sub(
+        r"相手の誰かが((?:SP|A|P)スキル)発動後",
+        lambda match: f"상대의 누군가가 {match.group(1).replace('スキル', '스킬')} 발동 후",
+        out,
+    )
+    out = re.sub(
+        r"相手の誰かが((?:SP|A|P)スキル)発動前",
+        lambda match: f"상대의 누군가가 {match.group(1).replace('スキル', '스킬')} 발동 전",
         out,
     )
     out = re.sub(r"(.+?)メンバーを(\d+)人以上編成時", r"\1 멤버를 \2명 이상 편성 시", out)
