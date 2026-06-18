@@ -519,8 +519,7 @@ def normalize_korean_spacing(text: str) -> str:
     out = out.replace("시 ,", "시,")
     out = out.replace("만>누군가", "만> 누군가")
     out = out.replace("UP효과", "UP 효과")
-    out = out.replace("효과[", "효과 [")
-    out = out.replace("상태[", "상태 [")
+    out = re.sub(r"(효과|상태|반사|양도|제거|초화|봉인|방지|제한|해제)\s*\[", r"\1 [", out)
     out = re.sub(r"(스코어러|버퍼|서포터|댄스|보컬|비주얼)・(?=(스코어러|버퍼|서포터|댄스|보컬|비주얼)\s*타입)", r"\1, ", out)
     out = re.sub(r"(스코어러|버퍼|서포터|댄스|보컬|비주얼)\s*타입\s*(\d+명)", r"\1 타입 \2", out)
     out = re.sub(r"(스코어러|버퍼|서포터|댄스|보컬|비주얼)\s*타입\s*전원", r"\1 타입 전원", out)
@@ -914,11 +913,7 @@ def translate_rule_text(text: str) -> str | None:
     out = out.replace("스태미나가 높은", "스태미나가 높은")
     out = out.replace("스코어가 높은", "스코어가 높은")
     out = out.replace("상승상한", "상승 상한")
-    out = out.replace("효과[", "효과 [")
-    out = out.replace("상태[", "상태 [")
-    out = out.replace("방지[", "방지 [")
-    out = out.replace("제한[", "제한 [")
-    out = out.replace("봉인[", "봉인 [")
+    out = re.sub(r"(효과|상태|반사|양도|제거|초화|봉인|방지|제한|해제)\s*\[", r"\1 [", out)
     out = out.replace("회복효과", "회복 효과")
     out = out.replace("부스트상한", "부스트 상한")
     out = out.replace("상한해제", "상한 해제")
@@ -1236,7 +1231,7 @@ AUDIT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("glued compound", re.compile(r"(상승상한|저하상한|스태미나저하|스태미나상승|스태미나회복|소비스태미나|크리티컬계수|크리티컬확률|스킬성공률|상한해제|지속회복|소비 스태미나저하|상승초화|저하초화)")),
     ("bad particle or punctuation", re.compile(r"(에게\s*,|전에게|시에\s*,|시에게|에게\s+효과|에게\s+\n|,\s*\n|^\s*,|,\s*$)")),
     ("missing space before numeric token", re.compile(r"[\uac00-\ud7a3](?:\d+(?:\.\d+)?%?)(?:명|단계|비트|회|콤보|%|점)?")),
-    ("missing space after effect word", re.compile(r"(효과|상태|초화|해제)\[")),
+    ("missing space after bracketed effect word", re.compile(r"(효과|상태|반사|양도|제거|초화|봉인|방지|제한|해제)\[")),
     ("awkward Korean fragment", re.compile(r"(수마다|발동 전에게|발동 전에에게|대상\d+명|낮은\d+명|높은\d+명|많은\d+명|적은\d+명)")),
 ]
 
