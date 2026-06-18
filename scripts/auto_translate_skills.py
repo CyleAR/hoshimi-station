@@ -516,7 +516,6 @@ def normalize_korean_spacing(text: str) -> str:
     out = out.replace("UP효과", "UP 효과")
     out = out.replace("효과[", "효과 [")
     out = out.replace("상태[", "상태 [")
-    out = out.replace(" [을/를]", "[을/를]")
     out = re.sub(r"(스코어러|버퍼|서포터|댄스|보컬|비주얼)\s*타입\s*(\d+명)", r"\1 타입 \2", out)
     out = re.sub(r"(댄스|보컬|비주얼|스코어|스태미나|크리티컬 계수|크리티컬 확률)\s*(상승|저하)\s*(초화|상한 해제)", r"\1 \2 \3", out)
     out = re.sub(r"(소비)\s*(스태미나)\s*(상승|저하|증가|감소)", r"\1 \2 \3", out)
@@ -605,7 +604,7 @@ def translate_direct_rule_text(text: str) -> str | None:
         target = translate_direct_fragment(move_match.group(2))
         timing = translate_direct_fragment(move_match.group(3))
         if owner and target and timing:
-            return f"{owner}의 {target}[을/를] {timing} 이전으로 이동"
+            return f"{owner}의 {target}를 {timing} 이전으로 이동"
 
     target_map = {
         "全員": "전원에게",
@@ -793,7 +792,7 @@ def translate_rule_text(text: str) -> str | None:
     )
     out = re.sub(
         r"自身が(.+?)レーンの時 (.+?)タイプ ?(\d+)人の強化効果を((?:SP|A|P)スキル)前に移動",
-        lambda match: f"자신이 {translate_rule_text(match.group(1)) or match.group(1)} 레인일 때 {translate_rule_text(match.group(2)) or match.group(2)} 타입 {match.group(3)}명의 강화 효과[을/를] {match.group(4).replace('スキル', '스킬')} 이전으로 이동",
+        lambda match: f"자신이 {translate_rule_text(match.group(1)) or match.group(1)} 레인일 때 {translate_rule_text(match.group(2)) or match.group(2)} 타입 {match.group(3)}명의 강화 효과를 {match.group(4).replace('スキル', '스킬')} 이전으로 이동",
         out,
     )
     out = re.sub(
@@ -809,10 +808,10 @@ def translate_rule_text(text: str) -> str | None:
     out = re.sub(r"自身を(.+?状態)\[(\d+)ビート\]", r"자신을 \1 [\2비트]", out)
     out = re.sub(r"同じレーンの相手の強化効果消去", r"같은 레인의 상대 강화 효과 제거", out)
     out = re.sub(r"同じレーンの相手の(.+?上昇効果)消去", r"같은 레인의 상대의 \1 제거", out)
-    out = re.sub(r"同じレーンの相手の(.+?)を(.+?)に状態変化", r"같은 레인의 상대의 \1[을/를] \2로 상태 변화", out)
+    out = re.sub(r"同じレーンの相手の(.+?)を(.+?)に状態変化", r"같은 레인의 상대의 \1을 \2로 상태 변화", out)
     out = re.sub(
         r"(.+?)タイプ ?(\d+)人の(.+?)を(.+?)に状態変化",
-        r"\1 타입 \2명의 \3[을/를] \4로 상태 변화",
+        r"\1 타입 \2명의 \3을 \4로 상태 변화",
         out,
     )
     out = re.sub(
@@ -915,7 +914,6 @@ def translate_rule_text(text: str) -> str | None:
     out = re.sub(r"([가-힣])([0-9]+(?:\.[0-9]+)?%)", r"\1 \2", out)
     out = re.sub(r"([가-힣])([0-9]+(?:\.[0-9]+)?)\b", r"\1 \2", out)
     out = re.sub(r"\]([가-힣])", r"] \1", out)
-    out = out.replace(" [을/를]", "[을/를]")
     out = re.sub(r" +", " ", out)
     out = re.sub(r" ?\n ?", "\n", out).strip()
     out = normalize_korean_spacing(out)
