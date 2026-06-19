@@ -18,7 +18,7 @@ DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 
 
 def load_ipr_rules() -> tuple[dict[str, Any], list[re.Pattern[str]]]:
-    path = ROOT / "note-scripts" / "ipr_rules.py"
+    path = ROOT / "scripts" / "ipr_rules.py"
     spec = importlib.util.spec_from_file_location("ipr_rules", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load {path}")

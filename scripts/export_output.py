@@ -23,7 +23,7 @@ TAG_RE = re.compile(r"^\[(?P<tag>[a-zA-Z0-9_]+)\s*(?P<body>.*)\]$")
 
 
 def load_ipr_rules() -> dict[str, Any]:
-    path = ROOT / "note-scripts" / "ipr_rules.py"
+    path = ROOT / "scripts" / "ipr_rules.py"
     spec = importlib.util.spec_from_file_location("ipr_rules", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load {path}")
