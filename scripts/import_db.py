@@ -532,6 +532,11 @@ def duplicate_limited_story_ids() -> set[str]:
     return duplicates
 
 
+def canonical_story_id(story_id: Any, duplicate_story_ids: set[str]) -> str:
+    story_id = str(story_id or "")
+    return story_id.removesuffix("-limited") if story_id in duplicate_story_ids else story_id
+
+
 DETAIL_ID_RE = re.compile(r"details\[([^;\]]+);messageDetailId\]\.(.+)$")
 
 
@@ -635,7 +640,7 @@ def unit_upsert(
     )
 
 
-def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> dict[str, dict[str, Any]]:
     cache: dict[str, dict[str, Any]] = {}
     for filename in MASTERDB_DIR.glob("*.json"):
         cache[filename.stem] = {cache_key(filename.stem, row): row for row in read_json(filename)}
@@ -681,7 +686,7 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
         for hair_id in [row.get("rewardHairId", ""), *(row.get("rewardHairIds", []) or [])]:
             add_link(conn, "card", row["id"], "hair", hair_id, "reward_hair")
         for story in row.get("stories", []) or []:
-            add_link(conn, "card", row["id"], "story", story.get("storyId", ""), "card_story", story)
+            add_link(conn, "card", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_ids), "card_story", story)
         for message in row.get("messages", []) or []:
             add_link(conn, "card", row["id"], "message", message.get("messageId", ""), "card_message", message)
             add_link(conn, "card", row["id"], "telephone", message.get("telephoneId", ""), "card_telephone", message)
@@ -819,10 +824,11 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
         add_link(conn, "card", row.get("cardId", ""), "character", row.get("characterId", ""), "evolution_voice")
 
     for row in cache.get("Story", {}).values():
+        story_id = canonical_story_id(row["id"], duplicate_story_ids)
         for asset in row.get("advAssetIds", []) or []:
-            add_adv_link(conn, "story", row["id"], asset, "uses_adv")
+            add_adv_link(conn, "story", story_id, asset, "uses_adv")
         for choice in row.get("branchChoices", []) or []:
-            add_adv_link(conn, "story", row["id"], choice.get("advAssetId"), "choice_adv", choice)
+            add_adv_link(conn, "story", story_id, choice.get("advAssetId"), "choice_adv", choice)
 
     for row in cache.get("ExtraStoryPart", {}).values():
         upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
@@ -834,24 +840,25 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
             upsert_entity(conn, "story_collection", row["id"], row.get("name", row["id"]), row.get("description", ""), row)
             add_link(conn, "story_part", row.get("extraStoryPartId", ""), "story_collection", row["id"], "contains")
             for episode in row.get("episodes", []) or []:
-                add_link(conn, "story_collection", row["id"], "story", episode.get("storyId", ""), "episode", episode)
+                add_link(conn, "story_collection", row["id"], "story", canonical_story_id(episode.get("storyId", ""), duplicate_story_ids), "episode", episode)
 
     for row in cache.get("StoryPart", {}).values():
         upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
         for chapter in row.get("chapters", []) or []:
             for episode in chapter.get("episodes", []) or []:
-                add_link(conn, "story_part", row["id"], "story", episode.get("storyId", ""), "chapter_episode", episode)
+                story_id = canonical_story_id(episode.get("storyId", ""), duplicate_story_ids)
+                add_link(conn, "story_part", row["id"], "story", story_id, "chapter_episode", episode)
                 if episode.get("assetId") in (cache.get("Story", {}).get(episode.get("storyId", ""), {}).get("advAssetIds", []) or []):
                     add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", episode)
 
     for row in cache.get("Character", {}).values():
         for story in row.get("companyEnjoyStories", []) or []:
-            add_link(conn, "character", row["id"], "story", story.get("storyId", ""), "company_enjoy_story", story)
+            add_link(conn, "character", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_ids), "company_enjoy_story", story)
             add_adv_link(conn, "character", row["id"], story.get("assetId"), "company_enjoy_adv", story)
 
     for row in cache.get("LoveStoryEpisode", {}).values():
         upsert_entity(conn, "love", row.get("loveId", ""), row.get("loveId", ""), "", row)
-        add_link(conn, "love", row.get("loveId", ""), "story", row.get("storyId", ""), "episode", row)
+        add_link(conn, "love", row.get("loveId", ""), "story", canonical_story_id(row.get("storyId", ""), duplicate_story_ids), "episode", row)
         add_adv_link(conn, "love", row.get("loveId", ""), row.get("assetId"), "episode_adv", row)
 
     for row in cache.get("Setting", {}).values():
@@ -1021,7 +1028,7 @@ def rebuild(db_path: Path) -> None:
             """
         )
         ensure_schema(conn)
-        seed_entities_and_links(conn)
+        seed_entities_and_links(conn, duplicate_story_ids)
         import_masterdb(conn, duplicate_story_ids)
         import_adv(conn)
         restore_existing_translations(conn, duplicate_story_ids)

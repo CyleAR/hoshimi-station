@@ -79,6 +79,35 @@ function linkedWhere(type, id, toTypes) {
 	];
 }
 
+function storyWhere(type, id) {
+	return [
+		`(
+			EXISTS (
+				SELECT 1
+				FROM links l
+				WHERE l.from_type = $type AND l.from_id = $id
+				  AND l.to_type IN ('story', 'story_collection')
+				  AND l.to_type = translation_units.scope_type
+				  AND l.to_id = translation_units.scope_id
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM links collection
+				JOIN links story
+				  ON story.from_type = collection.to_type
+				 AND story.from_id = collection.to_id
+				 AND story.to_type = 'story'
+				WHERE collection.from_type = $type
+				  AND collection.from_id = $id
+				  AND collection.to_type = 'story_collection'
+				  AND story.to_type = translation_units.scope_type
+				  AND story.to_id = translation_units.scope_id
+			)
+		)`,
+		{ $type: type, $id: id }
+	];
+}
+
 function incomingLinkedWhere(type, id, fromTypes) {
 	const params = { $type: type, $id: id };
 	const fromSql = placeholders(fromTypes, params, 'from');
@@ -206,6 +235,18 @@ function advWhere(type, id, category = '') {
 			)
 			OR source_file IN (
 				SELECT adv.to_id
+				FROM links collection
+				JOIN links story
+				  ON story.from_type = collection.to_type
+				 AND story.from_id = collection.to_id
+				 AND story.to_type = 'story'
+				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
+				WHERE collection.from_type = $type
+				  AND collection.from_id = $id
+				  AND collection.to_type = 'story_collection'
+			)
+			OR source_file IN (
+				SELECT adv.to_id
 				FROM links card
 				JOIN links story ON story.from_type = 'card' AND story.from_id = card.to_id AND story.to_type = 'story'
 				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
@@ -314,7 +355,7 @@ function whereFor(type, id, key, category) {
 	}
 
 	if (['story_part', 'story_collection', 'story', 'love'].includes(type) && key === 'stories') {
-		return linkedWhere(type, id, ['story', 'story_collection']);
+		return storyWhere(type, id);
 	}
 	if (['story_part', 'story_collection', 'story', 'love'].includes(type) && key === 'conditions') {
 		return linkedWhere(type, id, ['condition_description']);

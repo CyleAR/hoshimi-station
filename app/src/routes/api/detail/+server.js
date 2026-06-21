@@ -167,6 +167,36 @@ function linkedUnitSection(key, type, id, toTypes) {
 	);
 }
 
+function storyUnitSection(type, id) {
+	return section(
+		'stories',
+		`(
+			EXISTS (
+				SELECT 1
+				FROM links l
+				WHERE l.from_type = $type AND l.from_id = $id
+				  AND l.to_type IN ('story', 'story_collection')
+				  AND l.to_type = translation_units.scope_type
+				  AND l.to_id = translation_units.scope_id
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM links collection
+				JOIN links story
+				  ON story.from_type = collection.to_type
+				 AND story.from_id = collection.to_id
+				 AND story.to_type = 'story'
+				WHERE collection.from_type = $type
+				  AND collection.from_id = $id
+				  AND collection.to_type = 'story_collection'
+				  AND story.to_type = translation_units.scope_type
+				  AND story.to_id = translation_units.scope_id
+			)
+		)`,
+		{ $type: type, $id: id }
+	);
+}
+
 function incomingLinkedUnitSection(key, type, id, fromTypes) {
 	const params = { $type: type, $id: id };
 	const fromSql = placeholders(fromTypes, params, 'from');
@@ -282,6 +312,18 @@ function advSection(type, id, category = '', key = 'adv') {
 				FROM links story
 				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
 				WHERE story.from_type = $type AND story.from_id = $id AND story.to_type = 'story'
+			)
+			OR source_file IN (
+				SELECT adv.to_id
+				FROM links collection
+				JOIN links story
+				  ON story.from_type = collection.to_type
+				 AND story.from_id = collection.to_id
+				 AND story.to_type = 'story'
+				JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
+				WHERE collection.from_type = $type
+				  AND collection.from_id = $id
+				  AND collection.to_type = 'story_collection'
 			)
 			OR source_file IN (
 				SELECT adv.to_id
@@ -442,6 +484,67 @@ function linksFor(type, id) {
 		LIMIT 900
 		`,
 		{ $type: type, $id: id }
+	);
+}
+
+function nestedStoryPartLinks(type, id) {
+	if (type !== 'story_part') return [];
+	return all(
+		`
+		SELECT 'collection_episode' relation, story.to_type type, story.to_id id,
+		       COALESCE(e.label, story.to_id) label, COALESCE(e.subtitle, '') subtitle,
+		       (
+		       	SELECT tu.translation_text
+		       	FROM translation_units tu
+		       	WHERE tu.source_type = 'masterdb'
+		       	  AND tu.scope_type = story.to_type
+		       	  AND tu.scope_id = story.to_id
+		       	  AND tu.translation_text <> ''
+		       	  AND tu.field_path IN ('name', 'title', 'description', 'text')
+		       	ORDER BY CASE tu.field_path
+		       		WHEN 'name' THEN 0
+		       		WHEN 'title' THEN 1
+		       		WHEN 'description' THEN 2
+		       		WHEN 'text' THEN 3
+		       		ELSE 9
+		       	END
+		       	LIMIT 1
+		       ) translated_label
+		FROM links collection
+		JOIN links story
+		  ON story.from_type = collection.to_type
+		 AND story.from_id = collection.to_id
+		 AND story.to_type = 'story'
+		LEFT JOIN entities e ON e.entity_type = story.to_type AND e.entity_id = story.to_id
+		WHERE collection.from_type = 'story_part'
+		  AND collection.from_id = $id
+		  AND collection.to_type = 'story_collection'
+		UNION ALL
+		SELECT 'collection_adv' relation, adv.to_type type, adv.to_id id,
+		       COALESCE(e.label, adv.to_id) label, COALESCE(e.subtitle, '') subtitle,
+		       (
+		       	SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
+		       	FROM translation_units tu
+		       	WHERE tu.source_type = 'adv'
+		       	  AND tu.source_file = adv.to_id
+		       	  AND tu.field_path = 'title'
+		       	ORDER BY tu.line_no, tu.unit_id
+		       	LIMIT 1
+		       ) translated_label
+		FROM links collection
+		JOIN links story
+		  ON story.from_type = collection.to_type
+		 AND story.from_id = collection.to_id
+		 AND story.to_type = 'story'
+		JOIN links adv ON adv.from_type = 'story' AND adv.from_id = story.to_id AND adv.to_type = 'adv_file'
+		LEFT JOIN entities e ON e.entity_type = adv.to_type AND e.entity_id = adv.to_id
+		WHERE collection.from_type = 'story_part'
+		  AND collection.from_id = $id
+		  AND collection.to_type = 'story_collection'
+		ORDER BY relation, label
+		LIMIT 900
+		`,
+		{ $id: id }
 	);
 }
 
@@ -635,7 +738,7 @@ export function GET({ url }) {
 	}
 
 	if (['story_part', 'story_collection', 'story', 'love'].includes(type)) {
-		sections.push(linkedUnitSection('stories', type, id, ['story', 'story_collection']));
+		sections.push(storyUnitSection(type, id));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id));
 	}
@@ -702,6 +805,6 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}
 
-	const links = dedupeLinks([inferredHomeTalkCardLink(type, id), ...linksFor(type, id), ...homeActionCardLinks(type, id)].filter(Boolean));
+	const links = dedupeLinks([inferredHomeTalkCardLink(type, id), ...linksFor(type, id), ...nestedStoryPartLinks(type, id), ...homeActionCardLinks(type, id)].filter(Boolean));
 	return json({ entity, sections: sections.filter((item) => item.total > 0), links });
 }
