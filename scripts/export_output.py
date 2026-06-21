@@ -109,10 +109,72 @@ def build_export_maps(category: str) -> tuple[dict[tuple[str, str], str], dict[s
     return path_map, key_map
 
 
+def iter_rule_paths(rule: dict[str, Any]) -> list[tuple[list[str], str]]:
+    paths: list[tuple[list[str], str]] = []
+    for field in rule.get("fields", {}):
+        paths.append(([field], field))
+    for nested_name, nested_rule in rule.get("nested", {}).items():
+        index_key = nested_rule.get("index_key", "index")
+        for field in nested_rule.get("fields", {}):
+            paths.append(([nested_name, field], f"{nested_name}[{index_key}].{field}"))
+    return paths
+
+
+def serializable_leaf(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and all(isinstance(x, (str, int, float)) for x in value):
+        return "[LA_F]" + "[LA_N_F]".join(str(x) for x in value)
+    return None
+
+
+def extract_rule_path(item: Any, path: list[str], label_path: str) -> dict[str, str]:
+    if not path:
+        text = serializable_leaf(item)
+        return {label_path: text} if text is not None else {}
+    key, rest = path[0], path[1:]
+    if isinstance(item, dict) and key in item:
+        return extract_rule_path(item[key], rest, label_path)
+    if isinstance(item, list):
+        values: dict[str, str] = {}
+        for index, child in enumerate(item):
+            if isinstance(child, dict) and key in child:
+                ident = nested_identifier(child, index)
+                child_path = label_path.replace("[", f"[{ident};", 1) if "[" in label_path else label_path
+                values.update(extract_rule_path(child[key], rest, child_path))
+        return values
+    return {}
+
+
+def translation_values(item: dict[str, Any], rule: dict[str, Any]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for parts, field_path in iter_rule_paths(rule):
+        values.update(extract_rule_path(item, parts, field_path))
+    return values
+
+
+def duplicate_limited_story_map() -> dict[str, list[str]]:
+    path = MASTERDB_DIR / "Story.json"
+    if not path.exists() or "Story" not in IPR_RULES:
+        return {}
+    stories = {str(row.get("id", "")): row for row in read_json(path) if isinstance(row, dict)}
+    rule = IPR_RULES["Story"]
+    duplicates: dict[str, list[str]] = defaultdict(list)
+    for story_id, story in stories.items():
+        if not story_id.endswith("-limited"):
+            continue
+        base_id = story_id.removesuffix("-limited")
+        base = stories.get(base_id)
+        if base is not None and translation_values(story, rule) == translation_values(base, rule):
+            duplicates[base_id].append(story_id)
+    return duplicates
+
+
 def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
     master_dir = out_dir / "local-files" / "masterTrans"
     master_dir.mkdir(parents=True, exist_ok=True)
     total = 0
+    limited_story_map = duplicate_limited_story_map()
     for category in sorted(IPR_RULES):
         rows = conn.execute(
             """
@@ -133,6 +195,11 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
             export_path = path_map.get((record_id, field_path), field_path)
             export_key = key_map.get(record_id, record_id)
             data[f"{export_key}|{export_path}"] = translation
+            if category == "Story":
+                for limited_id in limited_story_map.get(record_id, []):
+                    limited_export_path = path_map.get((limited_id, field_path), export_path)
+                    limited_export_key = key_map.get(limited_id, limited_id)
+                    data.setdefault(f"{limited_export_key}|{limited_export_path}", translation)
         payload = {"rule": output_rule_paths(IPR_RULES[category]), "data": data}
         (master_dir / f"{category}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         total += len(data)

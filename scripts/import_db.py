@@ -173,12 +173,18 @@ def preserve_existing_translations(conn: sqlite3.Connection) -> None:
     )
 
 
-def restore_existing_translations(conn: sqlite3.Connection) -> None:
+def restore_existing_translations(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> None:
     row = conn.execute(
         "SELECT 1 FROM sqlite_temp_master WHERE type = 'table' AND name = 'saved_translations'",
     ).fetchone()
     if row is None:
         return
+    conn.execute("DROP TABLE IF EXISTS temp.duplicate_limited_stories")
+    conn.execute("CREATE TEMP TABLE duplicate_limited_stories(limited_id TEXT PRIMARY KEY)")
+    conn.executemany(
+        "INSERT INTO duplicate_limited_stories(limited_id) VALUES(?)",
+        [(story_id,) for story_id in sorted(duplicate_story_ids)],
+    )
     conn.execute(
         """
         UPDATE translation_units
@@ -212,6 +218,54 @@ def restore_existing_translations(conn: sqlite3.Connection) -> None:
             WHERE saved.unit_id = translation_units.unit_id
               AND saved.original_text = translation_units.original_text
         )
+        """
+    )
+    conn.execute(
+        """
+        UPDATE translation_units
+        SET translation_text = (
+                SELECT saved.translation_text
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, ':' || translation_units.record_id || ':', ':' || translation_units.record_id || '-limited:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            ),
+            status = (
+                SELECT saved.status
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, ':' || translation_units.record_id || ':', ':' || translation_units.record_id || '-limited:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            ),
+            translator_name = (
+                SELECT saved.translator_name
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, ':' || translation_units.record_id || ':', ':' || translation_units.record_id || '-limited:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            ),
+            updated_at = (
+                SELECT saved.updated_at
+                FROM saved_translations saved
+                WHERE saved.unit_id = replace(translation_units.unit_id, ':' || translation_units.record_id || ':', ':' || translation_units.record_id || '-limited:')
+                  AND saved.original_text = translation_units.original_text
+                LIMIT 1
+            )
+        WHERE source_type = 'masterdb'
+          AND category = 'Story'
+          AND record_id NOT LIKE '%-limited'
+          AND translation_text = ''
+          AND EXISTS (
+            SELECT 1
+            FROM duplicate_limited_stories dup
+            WHERE dup.limited_id = translation_units.record_id || '-limited'
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM saved_translations saved
+            WHERE saved.unit_id = replace(translation_units.unit_id, ':' || translation_units.record_id || ':', ':' || translation_units.record_id || '-limited:')
+              AND saved.original_text = translation_units.original_text
+          )
         """
     )
     conn.execute(
@@ -451,6 +505,31 @@ def extract_path(item: Any, path: list[str], label_path: str) -> Iterable[tuple[
                 ident = child.get("id") or child.get("messageDetailId") or child.get("voiceAssetId") or child.get("level") or child.get("index") or idx
                 child_path = label_path.replace("[", f"[{ident};", 1) if "[" in label_path else label_path
                 yield from extract_path(child[key], rest, child_path)
+
+
+def translation_values(item: dict[str, Any], rule: dict[str, Any]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for parts, field_path in iter_rule_paths(rule):
+        for actual_path, original in extract_path(item, parts, field_path):
+            values[actual_path] = original
+    return values
+
+
+def duplicate_limited_story_ids() -> set[str]:
+    path = MASTERDB_DIR / "Story.json"
+    if not path.exists() or "Story" not in IPR_RULES:
+        return set()
+    stories = {str(row.get("id", "")): row for row in read_json(path) if isinstance(row, dict)}
+    rule = IPR_RULES["Story"]
+    duplicates: set[str] = set()
+    for story_id, story in stories.items():
+        if not story_id.endswith("-limited"):
+            continue
+        base_id = story_id.removesuffix("-limited")
+        base = stories.get(base_id)
+        if base is not None and translation_values(story, rule) == translation_values(base, rule):
+            duplicates.add(story_id)
+    return duplicates
 
 
 DETAIL_ID_RE = re.compile(r"details\[([^;\]]+);messageDetailId\]\.(.+)$")
@@ -794,7 +873,7 @@ def seed_entities_and_links(conn: sqlite3.Connection) -> dict[str, dict[str, Any
     return cache
 
 
-def import_masterdb(conn: sqlite3.Connection) -> None:
+def import_masterdb(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> None:
     character_names = {str(row.get("id", "")): str(row.get("name") or row.get("id") or "") for row in read_json(MASTERDB_DIR / "Character.json")}
     for category, rule in IPR_RULES.items():
         path = MASTERDB_DIR / f"{category}.json"
@@ -805,6 +884,8 @@ def import_masterdb(conn: sqlite3.Connection) -> None:
             if not isinstance(item, dict):
                 continue
             record = pk_value(item, pk_fields)
+            if category == "Story" and record in duplicate_story_ids:
+                continue
             scope_type, scope_id = infer_scope(category, item)
             for parts, field_path in iter_rule_paths(rule):
                 for actual_path, original in extract_path(item, parts, field_path):
@@ -929,6 +1010,7 @@ def rebuild(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
+        duplicate_story_ids = duplicate_limited_story_ids()
         preserve_existing_translations(conn)
         conn.executescript(
             """
@@ -940,9 +1022,9 @@ def rebuild(db_path: Path) -> None:
         )
         ensure_schema(conn)
         seed_entities_and_links(conn)
-        import_masterdb(conn)
+        import_masterdb(conn, duplicate_story_ids)
         import_adv(conn)
-        restore_existing_translations(conn)
+        restore_existing_translations(conn, duplicate_story_ids)
         conn.commit()
     finally:
         conn.close()
