@@ -100,6 +100,16 @@ def same_numbers(original: str, translated: str) -> bool:
     return numbers(original) == numbers(translated)
 
 
+def object_particle(text: str) -> str:
+    for ch in reversed(text.strip()):
+        code = ord(ch)
+        if 0xAC00 <= code <= 0xD7A3:
+            return "을" if (code - 0xAC00) % 28 else "를"
+        if ch.isalnum():
+            return "을"
+    return "을"
+
+
 def load_source_inventory(masterdb_dir: Path) -> dict[str, int]:
     inventory: dict[str, int] = {}
     for category, names in SOURCE_FILES.items():
@@ -508,6 +518,8 @@ def normalize_korean_spacing(text: str) -> str:
     out = out.replace("크리티컬이", "크리티컬이")
     out = out.replace("상승로", "상승으로")
     out = out.replace("저하로", "저하로")
+    out = out.replace("UP로", "UP으로")
+    out = out.replace("DOWN로", "DOWN으로")
     out = out.replace("소비스태미나", "소비 스태미나")
     out = re.sub(r"(낮은|높은)(\d+명)", r"\1 \2", out)
     out = re.sub(r"([A-Za-z0-9\"'])플레이", r"\1 플레이", out)
@@ -826,10 +838,34 @@ def translate_rule_text(text: str) -> str | None:
     out = re.sub(r"自身を(.+?状態)\[(\d+)ビート\]", r"자신을 \1 [\2비트]", out)
     out = re.sub(r"同じレーンの相手の強化効果消去", r"같은 레인의 상대 강화 효과 제거", out)
     out = re.sub(r"同じレーンの相手の(.+?上昇効果)消去", r"같은 레인의 상대의 \1 제거", out)
-    out = re.sub(r"同じレーンの相手の(.+?)を(.+?)に状態変化", r"같은 레인의 상대의 \1을 \2로 상태 변화", out)
+
+    def render_status_change(owner: str, source: str, target: str) -> str:
+        source_ko = translate_rule_text(source) or source
+        target_ko = translate_rule_text(target) or target
+        return f"{owner}{source_ko}{object_particle(source_ko)} {target_ko}로 상태 변화"
+
+    out = re.sub(
+        r"同じレーンの相手の(.+?)を(.+?)に状態変化",
+        lambda match: render_status_change("같은 레인의 상대의 ", match.group(1), match.group(2)),
+        out,
+    )
+    out = re.sub(
+        r"自身の(.+?)を(.+?)に状態変化",
+        lambda match: render_status_change("자신의 ", match.group(1), match.group(2)),
+        out,
+    )
+    out = re.sub(
+        r"隣接するアイドルの(.+?)を(.+?)に状態変化",
+        lambda match: render_status_change("인접한 아이돌의 ", match.group(1), match.group(2)),
+        out,
+    )
     out = re.sub(
         r"(.+?)タイプ ?(\d+)人の(.+?)を(.+?)に状態変化",
-        r"\1 타입 \2명의 \3을 \4로 상태 변화",
+        lambda match: render_status_change(
+            f"{translate_rule_text(match.group(1)) or match.group(1)} 타입 {match.group(2)}명의 ",
+            match.group(3),
+            match.group(4),
+        ),
         out,
     )
     out = re.sub(
