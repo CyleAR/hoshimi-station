@@ -360,10 +360,25 @@ function advSection(type, id, category = '', key = 'adv') {
 	);
 }
 
+function linkSortExpr(alias = 'l') {
+	return `COALESCE(
+		json_extract(${alias}.meta_json, '$.order'),
+		json_extract(${alias}.meta_json, '$.sortOrder'),
+		json_extract(${alias}.meta_json, '$.number'),
+		json_extract(${alias}.meta_json, '$.episodeNumber'),
+		json_extract(${alias}.meta_json, '$.episodeNo'),
+		json_extract(${alias}.meta_json, '$.assetId'),
+		json_extract(${alias}.meta_json, '$.storyId'),
+		${alias}.to_id,
+		${alias}.from_id
+	)`;
+}
+
 function linksFor(type, id) {
 	return all(
 		`
 		SELECT l.relation, l.to_type type, l.to_id id, COALESCE(e.label, l.to_id) label, COALESCE(e.subtitle, '') subtitle,
+		       ${linkSortExpr('l')} sort_order,
 		       CASE
 		       	WHEN l.to_type = 'adv_file' THEN (
 		       		SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
@@ -423,6 +438,7 @@ function linksFor(type, id) {
 		WHERE l.from_type = $type AND l.from_id = $id
 		UNION ALL
 		SELECT l.relation, l.from_type type, l.from_id id, COALESCE(e.label, l.from_id) label, COALESCE(e.subtitle, '') subtitle,
+		       ${linkSortExpr('l')} sort_order,
 		       CASE
 		       	WHEN l.from_type = 'adv_file' THEN (
 		       		SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
@@ -480,7 +496,7 @@ function linksFor(type, id) {
 		FROM links l
 		LEFT JOIN entities e ON e.entity_type = l.from_type AND e.entity_id = l.from_id
 		WHERE l.to_type = $type AND l.to_id = $id
-		ORDER BY relation, label
+		ORDER BY relation, sort_order, label
 		LIMIT 900
 		`,
 		{ $type: type, $id: id }
@@ -493,6 +509,7 @@ function nestedStoryPartLinks(type, id) {
 		`
 		SELECT 'collection_episode' relation, story.to_type type, story.to_id id,
 		       COALESCE(e.label, story.to_id) label, COALESCE(e.subtitle, '') subtitle,
+		       ${linkSortExpr('story')} sort_order,
 		       (
 		       	SELECT tu.translation_text
 		       	FROM translation_units tu
@@ -522,6 +539,7 @@ function nestedStoryPartLinks(type, id) {
 		UNION ALL
 		SELECT 'collection_adv' relation, adv.to_type type, adv.to_id id,
 		       COALESCE(e.label, adv.to_id) label, COALESCE(e.subtitle, '') subtitle,
+		       ${linkSortExpr('story')} sort_order,
 		       (
 		       	SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
 		       	FROM translation_units tu
@@ -541,7 +559,7 @@ function nestedStoryPartLinks(type, id) {
 		WHERE collection.from_type = 'story_part'
 		  AND collection.from_id = $id
 		  AND collection.to_type = 'story_collection'
-		ORDER BY relation, label
+		ORDER BY relation, sort_order, label
 		LIMIT 900
 		`,
 		{ $id: id }
@@ -560,6 +578,26 @@ function linkRank(link) {
 	return 4;
 }
 
+function naturalParts(value) {
+	return String(value ?? '')
+		.split(/(\d+)/)
+		.map((part) => (/^\d+$/.test(part) ? Number(part) : part.toLowerCase()));
+}
+
+function naturalCompare(a, b) {
+	const left = naturalParts(a);
+	const right = naturalParts(b);
+	const length = Math.max(left.length, right.length);
+	for (let index = 0; index < length; index += 1) {
+		if (left[index] === undefined) return -1;
+		if (right[index] === undefined) return 1;
+		if (left[index] === right[index]) continue;
+		if (typeof left[index] === 'number' && typeof right[index] === 'number') return left[index] - right[index];
+		return String(left[index]).localeCompare(String(right[index]), 'ko');
+	}
+	return 0;
+}
+
 function dedupeLinks(links) {
 	const byTarget = new Map();
 	for (const link of links) {
@@ -570,6 +608,8 @@ function dedupeLinks(links) {
 	return [...byTarget.values()].sort((a, b) => {
 		const relation = String(a.relation ?? '').localeCompare(String(b.relation ?? ''), 'ko');
 		if (relation) return relation;
+		const sort = naturalCompare(a.sort_order ?? '', b.sort_order ?? '');
+		if (sort) return sort;
 		const type = String(a.type ?? '').localeCompare(String(b.type ?? ''), 'ko');
 		if (type) return type;
 		return String(a.label ?? '').localeCompare(String(b.label ?? ''), 'ko');

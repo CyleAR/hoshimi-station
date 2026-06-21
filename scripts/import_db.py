@@ -342,6 +342,10 @@ def add_link(conn: sqlite3.Connection, from_type: str, from_id: str, to_type: st
     )
 
 
+def with_order(meta: dict[str, Any], order: int) -> dict[str, Any]:
+    return {**meta, "order": order} if isinstance(meta, dict) else {"order": order}
+
+
 def condition_wear_costume_ids(conditions: dict[str, dict[str, Any]], condition_id: str, seen: set[str] | None = None) -> set[str]:
     if not condition_id:
         return set()
@@ -685,13 +689,13 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
         add_link(conn, "card", row["id"], "costume", row.get("rewardCostumeId", ""), "reward_costume")
         for hair_id in [row.get("rewardHairId", ""), *(row.get("rewardHairIds", []) or [])]:
             add_link(conn, "card", row["id"], "hair", hair_id, "reward_hair")
-        for story in row.get("stories", []) or []:
-            add_link(conn, "card", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_ids), "card_story", story)
-        for message in row.get("messages", []) or []:
-            add_link(conn, "card", row["id"], "message", message.get("messageId", ""), "card_message", message)
-            add_link(conn, "card", row["id"], "telephone", message.get("telephoneId", ""), "card_telephone", message)
-        for home_talk in row.get("homeTalks", []) or []:
-            add_link(conn, "card", row["id"], "home_talk", home_talk.get("homeTalkId", ""), "card_home_talk", home_talk)
+        for index, story in enumerate(row.get("stories", []) or []):
+            add_link(conn, "card", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_ids), "card_story", with_order(story, index))
+        for index, message in enumerate(row.get("messages", []) or []):
+            add_link(conn, "card", row["id"], "message", message.get("messageId", ""), "card_message", with_order(message, index))
+            add_link(conn, "card", row["id"], "telephone", message.get("telephoneId", ""), "card_telephone", with_order(message, index))
+        for index, home_talk in enumerate(row.get("homeTalks", []) or []):
+            add_link(conn, "card", row["id"], "home_talk", home_talk.get("homeTalkId", ""), "card_home_talk", with_order(home_talk, index))
 
     message_threads: dict[str, list[dict[str, Any]]] = {}
     for row in cache.get("Message", {}).values():
@@ -832,24 +836,26 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
 
     for row in cache.get("ExtraStoryPart", {}).values():
         upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
-        for story_id in row.get("extraStoryIds", []) or []:
-            add_link(conn, "story_part", row["id"], "story_collection", story_id, "contains")
+        for index, story_id in enumerate(row.get("extraStoryIds", []) or []):
+            add_link(conn, "story_part", row["id"], "story_collection", story_id, "contains", {"order": index})
 
     for cat in ("EventStory", "ExtraStory"):
         for row in cache.get(cat, {}).values():
             upsert_entity(conn, "story_collection", row["id"], row.get("name", row["id"]), row.get("description", ""), row)
             add_link(conn, "story_part", row.get("extraStoryPartId", ""), "story_collection", row["id"], "contains")
-            for episode in row.get("episodes", []) or []:
-                add_link(conn, "story_collection", row["id"], "story", canonical_story_id(episode.get("storyId", ""), duplicate_story_ids), "episode", episode)
+            for index, episode in enumerate(row.get("episodes", []) or []):
+                add_link(conn, "story_collection", row["id"], "story", canonical_story_id(episode.get("storyId", ""), duplicate_story_ids), "episode", with_order(episode, index))
 
     for row in cache.get("StoryPart", {}).values():
         upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
+        episode_order = 0
         for chapter in row.get("chapters", []) or []:
             for episode in chapter.get("episodes", []) or []:
                 story_id = canonical_story_id(episode.get("storyId", ""), duplicate_story_ids)
-                add_link(conn, "story_part", row["id"], "story", story_id, "chapter_episode", episode)
+                add_link(conn, "story_part", row["id"], "story", story_id, "chapter_episode", with_order(episode, episode_order))
                 if episode.get("assetId") in (cache.get("Story", {}).get(episode.get("storyId", ""), {}).get("advAssetIds", []) or []):
-                    add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", episode)
+                    add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", with_order(episode, episode_order))
+                episode_order += 1
 
     for row in cache.get("Character", {}).values():
         for story in row.get("companyEnjoyStories", []) or []:
