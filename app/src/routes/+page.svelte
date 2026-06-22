@@ -1092,6 +1092,26 @@
 		return `${unit.source_file} · ${unit.record_id}`;
 	}
 
+	function shouldGroupCharacterAdvByFile(unit) {
+		return (
+			["adv_bond", "adv_hbd", "adv_userhbd"].includes(
+				activeSection?.key,
+			) &&
+			unit.source_type === "adv" &&
+			unit.scope_type === "character"
+		);
+	}
+
+	function advFileGroupTitle(unit) {
+		if (
+			unit.field_path === "title" &&
+			(unit.translation_text || unit.original_text)
+		) {
+			return unit.translation_text || unit.original_text;
+		}
+		return unit.source_file;
+	}
+
 	function unitTitle(unit) {
 		const speaker = displaySpeaker(unit);
 		if (unit.source_type === "adv") {
@@ -1225,6 +1245,9 @@
 				? `${unit.source_type}:${unit.source_file}`
 				: `${unit.category}:${unit.record_id}`;
 		}
+		if (shouldGroupCharacterAdvByFile(unit)) {
+			return `adv-file:${unit.source_file}`;
+		}
 		if (unit.source_type === "adv" && unit.scope_type === "character") {
 			return `adv-common:${unit.scope_id}`;
 		}
@@ -1240,6 +1263,9 @@
 	}
 
 	function ownerGroupTitle(unit) {
+		if (shouldGroupByOwner() && shouldGroupCharacterAdvByFile(unit)) {
+			return advFileGroupTitle(unit);
+		}
 		if (
 			shouldGroupByOwner() &&
 			unit.source_type === "adv" &&
@@ -1252,6 +1278,9 @@
 	}
 
 	function ownerGroupSubtitle(unit) {
+		if (shouldGroupByOwner() && shouldGroupCharacterAdvByFile(unit)) {
+			return `${unit.category} 쨌 ${unit.source_file}`;
+		}
 		if (
 			shouldGroupByOwner() &&
 			unit.source_type === "adv" &&
@@ -1277,8 +1306,12 @@
 					subtitle: ownerGroupSubtitle(unit),
 					source_type: unit.source_type,
 					category: unit.category,
-					scope_type: unit.owner_type ?? unit.scope_type,
-					scope_id: unit.owner_id ?? unit.scope_id,
+					scope_type: shouldGroupCharacterAdvByFile(unit)
+						? "adv_file"
+						: (unit.owner_type ?? unit.scope_type),
+					scope_id: shouldGroupCharacterAdvByFile(unit)
+						? unit.source_file
+						: (unit.owner_id ?? unit.scope_id),
 					units: [],
 				});
 			}
@@ -1291,7 +1324,7 @@
 		return (
 			group.scope_type &&
 			group.scope_id &&
-			!["category", "adv_file"].includes(group.scope_type)
+			!["category"].includes(group.scope_type)
 		);
 	}
 
