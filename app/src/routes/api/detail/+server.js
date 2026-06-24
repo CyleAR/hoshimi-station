@@ -749,6 +749,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
 		sections.push(linkedUnitSection('stories', type, id, ['story']));
 		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
+		sections.push(section('excursion_reactions', "source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }));
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
 		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));
 		sections.push(characterCommonSection('common_telephones', id, ['telephone']));

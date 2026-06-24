@@ -142,6 +142,7 @@ IPR_RULES = {
             "birthday": _h("birthday"),
             "catchphrase": _h("catchphrase"),
             "cv": _h("cv"),
+            "excursionFirstText": _h("excursionFirstText"),
             "favorite": _h("favorite"),
             "firstName": _h("firstName"),
             "groupName": _h("groupName"),
@@ -209,6 +210,18 @@ IPR_RULES = {
         "pk": ['id'],
         "fields": {
             "description": _h("description"),
+        },
+    },
+    "ExcursionGazeReaction": {
+        "pk": ['characterId', 'excursionPlaceId', 'number'],
+        "fields": {
+            "text": _h("text"),
+        },
+    },
+    "ExcursionPlace": {
+        "pk": ['id'],
+        "fields": {
+            "name": _h("name"),
         },
     },
     "Costume": {

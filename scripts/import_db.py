@@ -468,6 +468,7 @@ def infer_scope(category: str, item: dict[str, Any]) -> tuple[str, str]:
         "LoveHomeAction": "love_home_action",
         "CompanyEnjoyHomeAction": "company_enjoy_home_action",
         "ConditionDescription": "condition_description",
+        "ExcursionPlace": "excursion_place",
         "ExtraStoryPart": "story_part",
     }
     if category in direct:
