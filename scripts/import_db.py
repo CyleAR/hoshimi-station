@@ -79,6 +79,10 @@ def pk_value(item: dict[str, Any], pk_fields: list[str]) -> str:
 def cache_key(category: str, row: dict[str, Any]) -> str:
     if category == "CardEvolutionMessage":
         return pk_value(row, ["cardId", "evolutionLevel", "number"])
+    if category == "ExcursionGazeReaction":
+        return pk_value(row, ["characterId", "excursionPlaceId", "number"])
+    if category == "ExcursionPlaceSetting":
+        return pk_value(row, ["characterId", "excursionPlaceId"])
     if category == "HomeTalkCallPattern":
         return pk_value(row, ["characterId", "patternId"])
     if category == "HomeAction":
@@ -667,6 +671,13 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
     for row in cache.get("ConditionDescription", {}).values():
         condition_id = row.get("id", "")
         upsert_entity(conn, "condition_description", condition_id, row.get("description") or condition_id, "", row)
+
+    for row in cache.get("ExcursionPlace", {}).values():
+        place_id = row.get("id", "")
+        upsert_entity(conn, "excursion_place", place_id, row.get("name", place_id), row.get("advAssetId", ""), row)
+
+    for row in cache.get("ExcursionPlaceSetting", {}).values():
+        add_link(conn, "character", row.get("characterId", ""), "excursion_place", row.get("excursionPlaceId", ""), "excursion_place", row)
 
     for row in cache.get("HomeTalkCallPattern", {}).values():
         entity_id = f"{row.get('characterId', '')}_{row.get('patternId', '')}"

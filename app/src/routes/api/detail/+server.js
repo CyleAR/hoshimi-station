@@ -1,6 +1,8 @@
 import { all, get, json } from '$lib/server/db.js';
 
 const sectionMeta = {
+	excursion_places: ['EX', '외출 장소'],
+	excursion_reactions: ['EX', '외출 반응'],
 	direct: ['◈', '기본 프로필/정보'],
 	members: ['👤', '소속 멤버'],
 	cards: ['★', '소속 카드'],
@@ -30,6 +32,8 @@ const sectionMeta = {
 };
 
 const sectionOverrides = {
+	excursion_places: ['EX', '외출 장소'],
+	excursion_reactions: ['EX', '외출 반응'],
 	direct: ['▣', '기본 정보'],
 	members: ['👥', '소속 멤버'],
 	cards: ['★', '소속 카드'],
@@ -749,6 +753,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
 		sections.push(linkedUnitSection('stories', type, id, ['story']));
 		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
+		sections.push(linkedUnitSection('excursion_places', type, id, ['excursion_place']));
 		sections.push(section('excursion_reactions', "source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }));
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
 		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));

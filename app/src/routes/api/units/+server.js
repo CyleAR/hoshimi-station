@@ -336,6 +336,7 @@ function whereFor(type, id, key, category) {
 		if (key === 'goods') return linkedWhere(type, id, ['showcase_toy']);
 		if (key === 'stories') return linkedWhere(type, id, ['story']);
 		if (key === 'home_actions') return linkedWhere(type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']);
+		if (key === 'excursion_places') return linkedWhere(type, id, ['excursion_place']);
 		if (key === 'excursion_reactions') return ["source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }];
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
 	}
