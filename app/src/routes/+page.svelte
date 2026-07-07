@@ -411,11 +411,15 @@
 		};
 	}
 
-	function navigationUrl(item = selected, preferredKey = activeSection?.key ?? "") {
+	function navigationUrl(
+		item = selected,
+		preferredKey = activeSection?.key ?? "",
+		{ includeQuery = true } = {},
+	) {
 		if (typeof window === "undefined") return "";
 		const url = new URL(window.location.href);
 		url.searchParams.set("tab", section);
-		if (query.trim()) url.searchParams.set("q", query.trim());
+		if (includeQuery && query.trim()) url.searchParams.set("q", query.trim());
 		else url.searchParams.delete("q");
 		if (item?.type && item?.id) {
 			url.searchParams.set("type", item.type);
@@ -463,13 +467,17 @@
 		}
 	}
 
-	async function navigateToItem(item, preferredKey = "") {
+	async function navigateToItem(item, preferredKey = "", { clearQuery = false } = {}) {
 		const previous = currentNavEntry();
 		if (
 			previous &&
 			(previous.item.type !== item.type || previous.item.id !== item.id)
 		) {
 			navStack = [...navStack, previous].slice(-20);
+		}
+		if (clearQuery && query) {
+			query = "";
+			await loadItems({ keepSelection: true });
 		}
 		await selectItem(item, preferredKey);
 		writeHistory("push");
@@ -479,9 +487,13 @@
 		return event?.button === 1 || event?.ctrlKey || event?.metaKey;
 	}
 
-	function openItemInNewTab(item, preferredKey = "") {
+	function openItemInNewTab(item, preferredKey = "", { clearQuery = false } = {}) {
 		if (typeof window === "undefined" || !item?.type || !item?.id) return;
-		window.open(navigationUrl(item, preferredKey), "_blank", "noopener");
+		window.open(
+			navigationUrl(item, preferredKey, { includeQuery: !clearQuery }),
+			"_blank",
+			"noopener",
+		);
 	}
 
 	function activateRootItem(event, item) {
@@ -498,10 +510,10 @@
 		if (shouldOpenInNewTab(event)) {
 			event.preventDefault();
 			event.stopPropagation();
-			openItemInNewTab(item, preferredKey);
+			openItemInNewTab(item, preferredKey, { clearQuery: true });
 			return;
 		}
-		navigateToItem(item, preferredKey);
+		navigateToItem(item, preferredKey, { clearQuery: true });
 	}
 
 	function activateSection(event, part) {
@@ -537,6 +549,7 @@
 				subtitle: group.subtitle,
 			},
 			preferredKey,
+			{ clearQuery: true },
 		);
 	}
 
@@ -556,7 +569,7 @@
 		if (shouldOpenInNewTab(event)) {
 			event.preventDefault();
 			event.stopPropagation();
-			openItemInNewTab(item, preferredKey);
+			openItemInNewTab(item, preferredKey, { clearQuery: true });
 			return;
 		}
 		openUnitEntity(group, preferredKey);

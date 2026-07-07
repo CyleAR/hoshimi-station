@@ -43,7 +43,13 @@ function placeholders(values, params, prefix) {
 const MAX_SEARCH_LENGTH = 80;
 
 function normalizeSearch(value) {
-	return String(value ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
+	return String(value ?? '')
+		.replace(/\\r\\n/g, '\n')
+		.replace(/\\n/g, '\n')
+		.replace(/\\r/g, '\r')
+		.replace(/\\t/g, '\t')
+		.trim()
+		.slice(0, MAX_SEARCH_LENGTH);
 }
 
 function escapeLike(value) {
