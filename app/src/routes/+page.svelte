@@ -966,8 +966,10 @@
 			bulkError = "변경할 항목이 없습니다.";
 			return;
 		}
+		const matchLabel =
+			bulkPreview.mode === "format" ? "포맷으로 일치하는 원문" : "정확히 일치하는 원문";
 		const ok = confirm(
-			`정확히 일치하는 원문 ${targets.toLocaleString()}개에 번역을 채울까요?`,
+			`${matchLabel} ${targets.toLocaleString()}개에 번역을 채울까요?`,
 		);
 		if (!ok) return;
 		bulkError = "";
@@ -2014,8 +2016,9 @@
 			{#if bulkPreview}
 				<div class="bulk-preview">
 					<strong>
-						대상 {bulkPreview.targets ?? 0}개 / 정확 일치 {bulkPreview.total ??
-							0}개 / 기존 번역 {bulkPreview.already_translated ??
+						대상 {bulkPreview.targets ?? 0}개 / {bulkPreview.mode === "format"
+							? "포맷 일치"
+							: "정확 일치"} {bulkPreview.total ?? 0}개 / 기존 번역 {bulkPreview.already_translated ??
 							0}개
 					</strong>
 					{#if bulkPreview.samples?.length}
@@ -2032,6 +2035,9 @@
 												sample.translation_text,
 											)}</small
 										>
+									{/if}
+									{#if sample.proposed_translation}
+										<small>→ {displayText(sample.proposed_translation)}</small>
 									{/if}
 								</div>
 							{/each}
