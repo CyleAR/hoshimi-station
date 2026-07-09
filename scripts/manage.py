@@ -289,13 +289,13 @@ def normalize_bot_translator_names() -> None:
         raise SystemExit(f"Database not found: {DB_PATH}")
 
     mapping = {
-        "prefill_translations": "[bot] auto-prefill",
-        "auto-skill": "[bot] auto-skill",
+        "prefill_translations": "[BOT] auto-prefill",
+        "auto-skill": "[BOT] auto-skill",
     }
     print()
     print("== 자동 번역자명 통일 ==")
-    print("prefill_translations -> [bot] auto-prefill")
-    print("auto-skill -> [bot] auto-skill")
+    print("prefill_translations -> [BOT] auto-prefill")
+    print("auto-skill -> [BOT] auto-skill")
 
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -310,8 +310,8 @@ def normalize_bot_translator_names() -> None:
                 (
                     "prefill_translations",
                     "auto-skill",
-                    "[bot] auto-prefill",
-                    "[bot] auto-skill",
+                    "[BOT] auto-prefill",
+                    "[BOT] auto-skill",
                 ),
             ).fetchall()
         )
@@ -342,8 +342,8 @@ def normalize_bot_translator_names() -> None:
                 (
                     "prefill_translations",
                     "auto-skill",
-                    "[bot] auto-prefill",
-                    "[bot] auto-skill",
+                    "[BOT] auto-prefill",
+                    "[BOT] auto-skill",
                 ),
             ).fetchall()
         )
@@ -546,7 +546,7 @@ def menu() -> str:
     print("   - 신규 번역/전체 번역/감사 리포트를 실행합니다.")
     print()
     print("8. 자동 번역자명 통일")
-    print("   - prefill_translations/auto-skill 이름을 [bot] 표기로 바꿉니다.")
+    print("   - prefill_translations/auto-skill 이름을 [BOT] 표기로 바꿉니다.")
     print()
     print()
     print("q. 종료")
