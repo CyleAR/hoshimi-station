@@ -127,13 +127,14 @@ function entityItems(entityTypes, q, limit = 900) {
 		       	  AND tu.scope_id = e.entity_id
 		       	  AND tu.translation_text <> ''
 		       	  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
-		       	ORDER BY CASE tu.field_path
-		       		WHEN 'name' THEN 0
-		       		WHEN 'title' THEN 1
-		       		WHEN 'description' THEN 2
-		       		WHEN 'text' THEN 3
-		       		WHEN 'managerCallText' THEN 4
-		       		WHEN 'characterArrivalText' THEN 5
+		       	ORDER BY CASE
+		       		WHEN tu.scope_type = 'story_collection' AND tu.category = 'EventStory' AND tu.field_path = 'description' THEN -1
+		       		WHEN tu.field_path = 'name' THEN 0
+		       		WHEN tu.field_path = 'title' THEN 1
+		       		WHEN tu.field_path = 'description' THEN 2
+		       		WHEN tu.field_path = 'text' THEN 3
+		       		WHEN tu.field_path = 'managerCallText' THEN 4
+		       		WHEN tu.field_path = 'characterArrivalText' THEN 5
 		       		ELSE 9
 		       	END
 		       	LIMIT 1

@@ -1129,7 +1129,10 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
 
     for cat in ("EventStory", "ExtraStory"):
         for row in cache.get(cat, {}).values():
-            upsert_entity(conn, "story_collection", row["id"], row.get("name", row["id"]), row.get("description", ""), row)
+            if cat == "EventStory":
+                upsert_entity(conn, "story_collection", row["id"], row.get("description") or row.get("name", row["id"]), row.get("name", ""), row)
+            else:
+                upsert_entity(conn, "story_collection", row["id"], row.get("name", row["id"]), row.get("description", ""), row)
             add_link(conn, "story_part", row.get("extraStoryPartId", ""), "story_collection", row["id"], "contains")
             for index, episode in enumerate(row.get("episodes", []) or []):
                 add_link(conn, "story_collection", row["id"], "story", canonical_story_id(episode.get("storyId", ""), duplicate_story_ids), "episode", with_order(episode, index))

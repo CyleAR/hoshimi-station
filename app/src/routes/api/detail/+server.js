@@ -408,13 +408,14 @@ function linksFor(type, id) {
 		       			  AND tu.scope_id = l.to_id
 		       			  AND tu.translation_text <> ''
 		       			  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
-		       			ORDER BY CASE tu.field_path
-		       				WHEN 'name' THEN 0
-		       				WHEN 'title' THEN 1
-		       				WHEN 'description' THEN 2
-		       				WHEN 'text' THEN 3
-		       				WHEN 'managerCallText' THEN 4
-		       				WHEN 'characterArrivalText' THEN 5
+		       			ORDER BY CASE
+		       				WHEN tu.scope_type = 'story_collection' AND tu.category = 'EventStory' AND tu.field_path = 'description' THEN -1
+		       				WHEN tu.field_path = 'name' THEN 0
+		       				WHEN tu.field_path = 'title' THEN 1
+		       				WHEN tu.field_path = 'description' THEN 2
+		       				WHEN tu.field_path = 'text' THEN 3
+		       				WHEN tu.field_path = 'managerCallText' THEN 4
+		       				WHEN tu.field_path = 'characterArrivalText' THEN 5
 		       				ELSE 9
 		       			END
 		       			LIMIT 1
@@ -432,11 +433,12 @@ function linksFor(type, id) {
 		       			  AND child.source_type = 'masterdb'
 		       			  AND child.translation_text <> ''
 		       			  AND child.field_path IN ('name', 'title', 'description', 'text')
-		       			ORDER BY CASE child.field_path
-		       				WHEN 'name' THEN 0
-		       				WHEN 'title' THEN 1
-		       				WHEN 'description' THEN 2
-		       				WHEN 'text' THEN 3
+		       			ORDER BY CASE
+		       				WHEN child.scope_type = 'story_collection' AND child.category = 'EventStory' AND child.field_path = 'description' THEN -1
+		       				WHEN child.field_path = 'name' THEN 0
+		       				WHEN child.field_path = 'title' THEN 1
+		       				WHEN child.field_path = 'description' THEN 2
+		       				WHEN child.field_path = 'text' THEN 3
 		       				ELSE 9
 		       			END
 		       			LIMIT 1
@@ -468,13 +470,14 @@ function linksFor(type, id) {
 		       			  AND tu.scope_id = l.from_id
 		       			  AND tu.translation_text <> ''
 		       			  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
-		       			ORDER BY CASE tu.field_path
-		       				WHEN 'name' THEN 0
-		       				WHEN 'title' THEN 1
-		       				WHEN 'description' THEN 2
-		       				WHEN 'text' THEN 3
-		       				WHEN 'managerCallText' THEN 4
-		       				WHEN 'characterArrivalText' THEN 5
+		       			ORDER BY CASE
+		       				WHEN tu.scope_type = 'story_collection' AND tu.category = 'EventStory' AND tu.field_path = 'description' THEN -1
+		       				WHEN tu.field_path = 'name' THEN 0
+		       				WHEN tu.field_path = 'title' THEN 1
+		       				WHEN tu.field_path = 'description' THEN 2
+		       				WHEN tu.field_path = 'text' THEN 3
+		       				WHEN tu.field_path = 'managerCallText' THEN 4
+		       				WHEN tu.field_path = 'characterArrivalText' THEN 5
 		       				ELSE 9
 		       			END
 		       			LIMIT 1
@@ -492,11 +495,12 @@ function linksFor(type, id) {
 		       			  AND child.source_type = 'masterdb'
 		       			  AND child.translation_text <> ''
 		       			  AND child.field_path IN ('name', 'title', 'description', 'text')
-		       			ORDER BY CASE child.field_path
-		       				WHEN 'name' THEN 0
-		       				WHEN 'title' THEN 1
-		       				WHEN 'description' THEN 2
-		       				WHEN 'text' THEN 3
+		       			ORDER BY CASE
+		       				WHEN child.scope_type = 'story_collection' AND child.category = 'EventStory' AND child.field_path = 'description' THEN -1
+		       				WHEN child.field_path = 'name' THEN 0
+		       				WHEN child.field_path = 'title' THEN 1
+		       				WHEN child.field_path = 'description' THEN 2
+		       				WHEN child.field_path = 'text' THEN 3
 		       				ELSE 9
 		       			END
 		       			LIMIT 1
@@ -528,11 +532,12 @@ function nestedStoryPartLinks(type, id) {
 		       	  AND tu.scope_id = story.to_id
 		       	  AND tu.translation_text <> ''
 		       	  AND tu.field_path IN ('name', 'title', 'description', 'text')
-		       	ORDER BY CASE tu.field_path
-		       		WHEN 'name' THEN 0
-		       		WHEN 'title' THEN 1
-		       		WHEN 'description' THEN 2
-		       		WHEN 'text' THEN 3
+		       	ORDER BY CASE
+		       		WHEN tu.scope_type = 'story_collection' AND tu.category = 'EventStory' AND tu.field_path = 'description' THEN -1
+		       		WHEN tu.field_path = 'name' THEN 0
+		       		WHEN tu.field_path = 'title' THEN 1
+		       		WHEN tu.field_path = 'description' THEN 2
+		       		WHEN tu.field_path = 'text' THEN 3
 		       		ELSE 9
 		       	END
 		       	LIMIT 1
