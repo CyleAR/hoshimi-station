@@ -1105,7 +1105,7 @@ def apply_candidates(conn: sqlite3.Connection, candidates: Iterable[Candidate], 
             """
             UPDATE translation_units
             SET translation_text = ?,
-                status = 'translated',
+                status = 'prefilled',
                 translator_name = ?,
                 updated_at = ?
             WHERE unit_id = ?
@@ -1435,7 +1435,7 @@ def main() -> int:
     parser.add_argument("--preview-limit", type=int, default=REPORT_CANDIDATE_PREVIEW_LIMIT, help="Number of varied candidate samples to show in the markdown report.")
     parser.add_argument("--apply", action="store_true", help="Write safe candidates to translation_units.")
     parser.add_argument("--apply-review", action="store_true", help="Also write review candidates. Use only after inspecting the report.")
-    parser.add_argument("--translator", default="auto-skill")
+    parser.add_argument("--translator", default="[BOT] auto-skill")
     args = parser.parse_args()
 
     inventory = load_source_inventory(args.masterdb_dir)

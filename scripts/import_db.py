@@ -17,7 +17,7 @@ MASTERDB_DIR = ROOT / "res" / "masterdb"
 ADV_DIR = ROOT / "res" / "adv" / "resource"
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 PREFILL_TRANSLATIONS_PATH = ROOT / "scripts" / "prefill_translations.json"
-PREFILL_TRANSLATOR = "prefill_translations"
+PREFILL_TRANSLATOR = "[BOT] auto-prefill"
 PREFILL_FORMAT_PLACEHOLDER_RE = re.compile(r"\{(\d+)\}")
 
 
