@@ -315,47 +315,33 @@ def bulk_replace_translation() -> None:
     run([python(), "scripts/replace_translation.py", old, new, "--db", str(DB_PATH), "--apply"])
 
 
-def replace_aoi_tone() -> None:
+def overwrite_prefill_translations(*, confirm: bool = True) -> None:
     print()
-    print("== Aoi tone replacement ==")
-    print("Targets Aoi rows in translation_units only.")
+    print("== prefill 전체 번역 덮어쓰기 ==")
+    print("scripts/prefill_translations.json에 매칭되는 기존 번역을 모두 덮어씁니다.")
+    print("사람이 직접 고친 번역도 매칭되면 바뀌므로 먼저 DB 백업을 권장합니다.")
     print()
-    print("1. 당신만 바꾸기")
-    print("   - 원문에 君/キミ/きみ가 있는 아오이 대사의 당신 -> 너 계열만 바꿉니다.")
-    print("2. 오빠만 바꾸기")
-    print("   - 아오이 대사의 오빠 -> 형님 계열만 바꿉니다.")
-    print("q. 취소")
-    choice = input("번호 입력 > ").strip().lower()
+    if confirm:
+        answer = input("계속할까요? [y/N] > ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("취소했습니다.")
+            return
 
-    if choice == "1":
-        label = "Aoi 당신 -> 너"
-        option = "--safe-only"
-    elif choice == "2":
-        label = "Aoi 오빠 -> 형님"
-        option = "--risky-only"
-    elif choice in {"q", "quit", "exit"}:
-        print("Skipped Aoi tone replacement.")
-        return
-    else:
-        raise SystemExit("1, 2, q 중 하나를 입력하세요.")
-
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = ROOT / "tmp" / "reports" / f"prefill_overwrite_{stamp}.tsv"
     print()
-    print(f"== {label} preview ==")
-    preview = run(
-        [python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), option, "--limit", "0"],
-        check=False,
+    print("== prefill overwrite import 시작 ==")
+    run(
+        [
+            python(),
+            "scripts/import_db.py",
+            "--db",
+            str(DB_PATH),
+            "--overwrite-prefill",
+            "--prefill-log",
+            str(log_path),
+        ]
     )
-    if preview.returncode != 0:
-        raise SystemExit(f"{label} preview failed.")
-
-    answer = input(f"Apply {label} replacements? [y/N] > ").strip().lower()
-    if answer not in {"y", "yes"}:
-        print("Skipped replacements.")
-        return
-
-    print()
-    print(f"== Apply {label} replacements ==")
-    run([python(), "scripts/aoi_tone_replace.py", "--db", str(DB_PATH), "--apply", option])
 
 
 def run_skill_translation(mode: str, apply: bool, audit: bool = True) -> None:
@@ -482,9 +468,9 @@ def menu() -> str:
     print("   - 검색할 문자열과 바꿀 문자열을 입력받아 translation_text에서 일괄 치환합니다.")
     print("   - 먼저 검색 결과 미리보기를 보여준 뒤 확인하면 실제 변경합니다.")
     print()
-    print("6. Aoi tone replacement")
-    print("   - Aoi rows only: 당신 -> 너 patterns.")
-    print("   - Optional risky pass: 오빠 -> 형님 patterns.")
+    print("6. prefill 전체 번역 덮어쓰기")
+    print("   - scripts/prefill_translations.json 기준으로 기존 번역까지 덮어씁니다.")
+    print("   - 변경 로그를 tmp/reports/prefill_overwrite_*.tsv에 남깁니다.")
     print()
     print("7. Skill auto translation")
     print("   - 신규 번역/전체 번역/감사 리포트를 실행합니다.")
@@ -514,6 +500,7 @@ def main() -> None:
             "skill-overwrite-dry",
             "skill-overwrite",
             "skill-audit",
+            "prefill-overwrite",
         ],
         help="Action to run without interactive menu.",
     )
@@ -536,7 +523,7 @@ def main() -> None:
     elif choice == "5":
         bulk_replace_translation()
     elif choice == "6":
-        replace_aoi_tone()
+        overwrite_prefill_translations()
     elif choice == "7":
         skill_translation_menu()
     elif choice == "skill-missing-dry":
@@ -549,6 +536,8 @@ def main() -> None:
         run_skill_translation("overwrite", apply=True)
     elif choice == "skill-audit":
         run_skill_translation("overwrite", apply=False, audit=True)
+    elif choice == "prefill-overwrite":
+        overwrite_prefill_translations(confirm=False)
     elif choice in {"q", "quit", "exit"}:
         return
     else:

@@ -6,15 +6,19 @@ import importlib.util
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, TextIO
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MASTERDB_DIR = ROOT / "res" / "masterdb"
 ADV_DIR = ROOT / "res" / "adv" / "resource"
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
+PREFILL_TRANSLATIONS_PATH = ROOT / "scripts" / "prefill_translations.json"
+PREFILL_TRANSLATOR = "prefill_translations"
+PREFILL_FORMAT_PLACEHOLDER_RE = re.compile(r"\{(\d+)\}")
 
 
 def load_ipr_rules() -> tuple[dict[str, Any], list[re.Pattern[str]]]:
@@ -29,6 +33,11 @@ def load_ipr_rules() -> tuple[dict[str, Any], list[re.Pattern[str]]]:
 
 IPR_RULES, IPR_IGNORE_PATTERNS = load_ipr_rules()
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -38,6 +47,84 @@ def read_json(path: Path) -> list[dict[str, Any]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     rows = data.get("data", data) if isinstance(data, dict) else data
     return rows if isinstance(rows, list) else []
+
+
+def normalize_prefill_text(value: Any) -> str:
+    return (
+        str(value)
+        .replace("\\r\\n", "\n")
+        .replace("\\n", "\n")
+        .replace("\\r", "\r")
+        .replace("\\t", "\t")
+    )
+
+
+def has_prefill_placeholder(value: str) -> bool:
+    return bool(PREFILL_FORMAT_PLACEHOLDER_RE.search(value))
+
+
+def compile_prefill_pattern(format_text: str) -> tuple[re.Pattern[str], list[str]]:
+    placeholders: list[str] = []
+    pattern = "^"
+    offset = 0
+    for match in PREFILL_FORMAT_PLACEHOLDER_RE.finditer(format_text):
+        pattern += re.escape(format_text[offset : match.start()])
+        pattern += r"([0-9０-９]+)"
+        placeholders.append(match.group(1))
+        offset = match.end()
+    pattern += re.escape(format_text[offset:])
+    pattern += "$"
+    return re.compile(pattern), placeholders
+
+
+def apply_prefill_format(template: str, placeholders: list[str], match: re.Match[str]) -> str | None:
+    captures: dict[str, str] = {}
+    for index, key in enumerate(placeholders, start=1):
+        value = match.group(index)
+        existing = captures.get(key)
+        if existing is not None and existing != value:
+            return None
+        captures[key] = value
+
+    unknown = [key for key in PREFILL_FORMAT_PLACEHOLDER_RE.findall(template) if key not in captures]
+    if unknown:
+        return None
+    return PREFILL_FORMAT_PLACEHOLDER_RE.sub(lambda item: captures[item.group(1)], template)
+
+
+def prefill_literal_weight(format_text: str) -> tuple[int, int]:
+    literals = PREFILL_FORMAT_PLACEHOLDER_RE.split(format_text)[::2]
+    return sum(len(part) for part in literals), len(format_text)
+
+
+def load_prefill_translations(path: Path = PREFILL_TRANSLATIONS_PATH) -> tuple[dict[str, str], list[tuple[str, str]], int]:
+    if not path.exists():
+        return {}, [], 0
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return {}, [], 0
+
+    translations: dict[str, str] = {}
+    formats: list[tuple[str, str]] = []
+    conflicts = 0
+    for items in data.values():
+        if not isinstance(items, dict):
+            continue
+        for original, translation in items.items():
+            original_text = normalize_prefill_text(original)
+            translation_text = normalize_prefill_text(translation)
+            if not original_text or not translation_text:
+                continue
+            if has_prefill_placeholder(original_text):
+                formats.append((original_text, translation_text))
+                continue
+            existing = translations.get(original_text)
+            if existing is not None and existing != translation_text:
+                conflicts += 1
+                continue
+            translations[original_text] = translation_text
+    formats.sort(key=lambda item: prefill_literal_weight(item[0]), reverse=True)
+    return translations, formats, conflicts
 
 
 def message_thread_id(message_id: str) -> str:
@@ -315,6 +402,195 @@ def restore_existing_translations(conn: sqlite3.Connection, duplicate_story_ids:
           )
         """
     )
+
+
+def write_prefill_log_row(handle: TextIO, mode: str, row: sqlite3.Row | tuple[Any, ...], new_text: str) -> None:
+    unit_id, source_type, category, source_file, record_id, field_path, original_text, old_text = row
+    values = [
+        mode,
+        str(unit_id),
+        str(source_type),
+        str(category),
+        str(source_file),
+        str(record_id),
+        str(field_path),
+        str(original_text).replace("\t", "\\t").replace("\n", "\\n"),
+        str(old_text).replace("\t", "\\t").replace("\n", "\\n"),
+        str(new_text).replace("\t", "\\t").replace("\n", "\\n"),
+    ]
+    handle.write("\t".join(values) + "\n")
+
+
+def prefill_translations(
+    conn: sqlite3.Connection,
+    *,
+    overwrite: bool = False,
+    log_limit: int = 50,
+    log_path: Path | None = None,
+) -> dict[str, Any]:
+    translations, formats, conflicts = load_prefill_translations()
+    log_rows: list[dict[str, str]] = []
+    log_count = 0
+    log_handle: TextIO | None = None
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_handle = log_path.open("w", encoding="utf-8", newline="")
+        log_handle.write(
+            "mode\tunit_id\tsource_type\tcategory\tsource_file\trecord_id\tfield_path\toriginal_text\told_translation\tnew_translation\n"
+        )
+
+    def remember_log(mode: str, row: sqlite3.Row | tuple[Any, ...], new_text: str) -> None:
+        nonlocal log_count
+        unit_id, source_type, category, source_file, record_id, field_path, original_text, old_text = row
+        log_count += 1
+        if log_handle is not None:
+            write_prefill_log_row(log_handle, mode, row, new_text)
+        if log_limit == 0 or len(log_rows) < log_limit:
+            log_rows.append(
+                {
+                    "mode": mode,
+                    "unit_id": str(unit_id),
+                    "source_type": str(source_type),
+                    "category": str(category),
+                    "source_file": str(source_file),
+                    "record_id": str(record_id),
+                    "field_path": str(field_path),
+                    "original_text": str(original_text),
+                    "old_translation": str(old_text),
+                    "new_translation": str(new_text),
+                }
+            )
+
+    if not translations and not formats:
+        if log_handle is not None:
+            log_handle.close()
+        return {
+            "entries": 0,
+            "formats": 0,
+            "updated": 0,
+            "exact_updated": 0,
+            "format_updated": 0,
+            "conflicts": conflicts,
+            "overwrite": int(overwrite),
+            "log_count": 0,
+            "log_rows": [],
+            "log_path": str(log_path) if log_path is not None else "",
+        }
+
+    try:
+        exact_updated = 0
+        if translations:
+            conn.execute("DROP TABLE IF EXISTS temp.prefill_translations")
+            conn.execute(
+                """
+                CREATE TEMP TABLE prefill_translations(
+                    original_text TEXT PRIMARY KEY,
+                    translation_text TEXT NOT NULL
+                )
+                """
+            )
+            conn.executemany(
+                "INSERT INTO prefill_translations(original_text, translation_text) VALUES(?, ?)",
+                sorted(translations.items()),
+            )
+            exact_where = "translation_units.translation_text != prefill.translation_text" if overwrite else "translation_units.translation_text = ''"
+            exact_rows = conn.execute(
+                """
+                SELECT
+                    translation_units.unit_id,
+                    translation_units.source_type,
+                    translation_units.category,
+                    translation_units.source_file,
+                    translation_units.record_id,
+                    translation_units.field_path,
+                    translation_units.original_text,
+                    translation_units.translation_text,
+                    prefill.translation_text
+                FROM translation_units
+                JOIN prefill_translations prefill
+                  ON prefill.original_text = translation_units.original_text
+                WHERE """ + exact_where + """
+                ORDER BY translation_units.source_type, translation_units.category, translation_units.source_file,
+                         translation_units.record_id, translation_units.line_no, translation_units.field_path
+                """,
+            ).fetchall()
+            for row in exact_rows:
+                remember_log("exact", row[:8], row[8])
+            if exact_rows:
+                conn.executemany(
+                    """
+                    UPDATE translation_units
+                    SET translation_text = ?,
+                        status = 'prefilled',
+                        translator_name = ?,
+                        updated_at = datetime('now')
+                    WHERE unit_id = ?
+                    """,
+                    [(row[8], PREFILL_TRANSLATOR, row[0]) for row in exact_rows],
+                )
+            exact_updated = len(exact_rows)
+
+        format_updated = 0
+        compiled_formats = [
+            (compile_prefill_pattern(original), translation)
+            for original, translation in formats
+        ]
+        if compiled_formats:
+            format_where = "1 = 1" if overwrite else "translation_text = ''"
+            rows = conn.execute(
+                """
+                SELECT unit_id, source_type, category, source_file, record_id, field_path, original_text, translation_text
+                FROM translation_units
+                WHERE """ + format_where + """
+                ORDER BY source_type, category, source_file, record_id, line_no, field_path
+                """
+            ).fetchall()
+            updates: list[tuple[str, str, tuple[Any, ...]]] = []
+            for row in rows:
+                original_text = row[6]
+                old_translation = row[7]
+                for (regex, placeholders), template in compiled_formats:
+                    match = regex.match(original_text)
+                    if not match:
+                        continue
+                    translation = apply_prefill_format(template, placeholders, match)
+                    if not translation or translation == original_text:
+                        continue
+                    if overwrite or old_translation == "":
+                        if old_translation != translation:
+                            updates.append((translation, row[0], row))
+                    break
+            for translation, _, row in updates:
+                remember_log("format", row, translation)
+            if updates:
+                conn.executemany(
+                    """
+                    UPDATE translation_units
+                    SET translation_text = ?,
+                        status = 'prefilled',
+                        translator_name = ?,
+                        updated_at = datetime('now')
+                    WHERE unit_id = ?
+                    """,
+                    [(translation, PREFILL_TRANSLATOR, unit_id) for translation, unit_id, _ in updates],
+                )
+                format_updated = len(updates)
+
+        return {
+            "entries": len(translations),
+            "formats": len(formats),
+            "updated": exact_updated + format_updated,
+            "exact_updated": exact_updated,
+            "format_updated": format_updated,
+            "conflicts": conflicts,
+            "overwrite": int(overwrite),
+            "log_count": log_count,
+            "log_rows": log_rows,
+            "log_path": str(log_path) if log_path is not None else "",
+        }
+    finally:
+        if log_handle is not None:
+            log_handle.close()
 
 
 def upsert_entity(conn: sqlite3.Connection, typ: str, entity_id: str, label: str, subtitle: str = "", meta: dict[str, Any] | None = None) -> None:
@@ -1031,7 +1307,13 @@ def import_adv(conn: sqlite3.Connection) -> None:
                 )
 
 
-def rebuild(db_path: Path) -> None:
+def rebuild(
+    db_path: Path,
+    *,
+    overwrite_prefill: bool = False,
+    prefill_log_limit: int = 50,
+    prefill_log_path: Path | None = None,
+) -> dict[str, Any]:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
@@ -1050,7 +1332,14 @@ def rebuild(db_path: Path) -> None:
         import_masterdb(conn, duplicate_story_ids)
         import_adv(conn)
         restore_existing_translations(conn, duplicate_story_ids)
+        prefill_stats = prefill_translations(
+            conn,
+            overwrite=overwrite_prefill,
+            log_limit=prefill_log_limit,
+            log_path=prefill_log_path,
+        )
         conn.commit()
+        return prefill_stats
     finally:
         conn.close()
 
@@ -1058,8 +1347,30 @@ def rebuild(db_path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the Hoshimi translation SQLite database.")
     parser.add_argument("--db", type=Path, default=DB_PATH)
+    parser.add_argument(
+        "--overwrite-prefill",
+        action="store_true",
+        help="Overwrite existing translations when they match scripts/prefill_translations.json.",
+    )
+    parser.add_argument(
+        "--prefill-log-limit",
+        type=int,
+        default=50,
+        help="Number of prefill changes to print. Use 0 to print all.",
+    )
+    parser.add_argument(
+        "--prefill-log",
+        type=Path,
+        default=None,
+        help="Write all prefill changes to a TSV file.",
+    )
     args = parser.parse_args()
-    rebuild(args.db)
+    prefill_stats = rebuild(
+        args.db,
+        overwrite_prefill=args.overwrite_prefill,
+        prefill_log_limit=max(0, args.prefill_log_limit),
+        prefill_log_path=args.prefill_log,
+    )
     conn = sqlite3.connect(args.db)
     try:
         units = conn.execute("SELECT COUNT(*) FROM translation_units").fetchone()[0]
@@ -1067,6 +1378,27 @@ def main() -> None:
         links = conn.execute("SELECT COUNT(*) FROM links").fetchone()[0]
         print(f"Built {args.db}")
         print(f"translation_units={units} entities={entities} links={links}")
+        print(
+            "prefill_translations="
+            f"{prefill_stats['updated']} entries={prefill_stats['entries']} formats={prefill_stats['formats']} "
+            f"exact={prefill_stats['exact_updated']} format={prefill_stats['format_updated']} "
+            f"conflicts={prefill_stats['conflicts']} overwrite={prefill_stats['overwrite']}"
+        )
+        if prefill_stats["log_path"]:
+            print(f"prefill_log={prefill_stats['log_path']}")
+        if prefill_stats["log_count"]:
+            shown = len(prefill_stats["log_rows"])
+            total = prefill_stats["log_count"]
+            print(f"prefill_changes showing={shown} total={total}")
+            for row in prefill_stats["log_rows"]:
+                old_text = row["old_translation"].replace("\n", "\\n") or "<empty>"
+                original_text = row["original_text"].replace("\n", "\\n")
+                new_text = row["new_translation"].replace("\n", "\\n")
+                print(
+                    "prefill_change "
+                    f"mode={row['mode']} unit_id={row['unit_id']} "
+                    f"old={old_text} original={original_text} new={new_text}"
+                )
     finally:
         conn.close()
 
