@@ -215,6 +215,7 @@
 	let recentLoading = $state(false);
 	let showOnlyUntranslated = $state(false);
 	let aiDrafting = $state(false);
+	let aiPromptCopying = $state(false);
 	let aiDraftError = $state("");
 	let searchTimer;
 
@@ -806,15 +807,7 @@
 		return Boolean(currentUser);
 	}
 
-	async function runAiDraft() {
-		if (!currentUser) {
-			aiDraftError = "먼저 로그인해 주세요.";
-			return;
-		}
-		if (!canUseAiDraft()) {
-			aiDraftError = "AI 초벌을 사용하려면 로그인해 주세요.";
-			return;
-		}
+	function aiDraftSelection() {
 		const targets = filteredUnits()
 			.filter(
 				(unit) =>
@@ -822,10 +815,7 @@
 					!String(unit.draft ?? "").trim(),
 			)
 			.slice(0, 100);
-		if (!targets.length) {
-			aiDraftError = "초벌을 채울 미번역 항목이 없습니다.";
-			return;
-		}
+		if (!targets.length) return { targets, referenceUnitIds: [] };
 		const targetIds = new Set(targets.map((unit) => String(unit.unit_id)));
 		const targetIndexes = units
 			.map((unit, index) => (targetIds.has(String(unit.unit_id)) ? index : -1))
@@ -841,6 +831,57 @@
 			)
 			.slice(0, 200)
 			.map((unit) => unit.unit_id);
+		return { targets, referenceUnitIds };
+	}
+
+	async function copyAiPrompt() {
+		if (!currentUser) {
+			aiDraftError = "먼저 로그인해 주세요.";
+			return;
+		}
+		const { targets, referenceUnitIds } = aiDraftSelection();
+		if (!targets.length) {
+			aiDraftError = "복사할 미번역 항목이 없습니다.";
+			return;
+		}
+		aiPromptCopying = true;
+		aiDraftError = "";
+		notice = "";
+		try {
+			const data = await fetchJson("/api/ai-translate", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					unit_ids: targets.map((unit) => unit.unit_id),
+					reference_unit_ids: referenceUnitIds,
+					nickname: currentUser.nickname,
+					pin: currentUser.pin,
+					prompt_only: true,
+				}),
+			});
+			await navigator.clipboard.writeText(data.prompt ?? "");
+			notice = `외부 AI용 지침과 미번역 ${data.target_count ?? targets.length}개 복사됨`;
+		} catch (err) {
+			aiDraftError = err.message;
+		} finally {
+			aiPromptCopying = false;
+		}
+	}
+
+	async function runAiDraft() {
+		if (!currentUser) {
+			aiDraftError = "먼저 로그인해 주세요.";
+			return;
+		}
+		if (!canUseAiDraft()) {
+			aiDraftError = "AI 초벌을 사용하려면 로그인해 주세요.";
+			return;
+		}
+		const { targets, referenceUnitIds } = aiDraftSelection();
+		if (!targets.length) {
+			aiDraftError = "초벌을 채울 미번역 항목이 없습니다.";
+			return;
+		}
 		const ok = confirm(
 			`현재 표시된 미번역 ${targets.length}개에 AI 초벌을 채울까요?\n초안만 입력되고 저장은 직접 해야 합니다.`,
 		);
@@ -1746,6 +1787,13 @@
 						>
 					{/if}
 					{#if canUseAiDraft()}
+						<button
+							class="soft"
+							onclick={copyAiPrompt}
+							disabled={aiPromptCopying || loadingUnits}
+						>
+							{aiPromptCopying ? "복사 중..." : "외부 AI용 복사"}
+						</button>
 						<button
 							class="soft ai-button"
 							onclick={runAiDraft}

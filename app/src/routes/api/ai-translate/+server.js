@@ -211,9 +211,10 @@ export async function POST({ request }) {
 		const referenceUnitIds = Array.isArray(body.reference_unit_ids)
 			? [...new Set(body.reference_unit_ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, MAX_REFERENCE_UNITS)
 			: [];
+		const promptOnly = body.prompt_only === true;
 		const openaiReasoningEffort = String(process.env.OPENAI_REASONING_EFFORT || '').trim();
 		console.info(
-			`[ai-translate] request nickname=${nickname} units=${unitIds.length} provider=openai base=${openaiBaseUrl()} model=${process.env.OPENAI_MODEL || 'gpt-5.2'} reasoning=${openaiReasoningEffort || 'default'}`
+			`[ai-translate] request nickname=${nickname} units=${unitIds.length} mode=${promptOnly ? 'prompt' : 'translate'} provider=openai base=${openaiBaseUrl()} model=${process.env.OPENAI_MODEL || 'gpt-5.2'} reasoning=${openaiReasoningEffort || 'default'}`
 		);
 
 		const isAdmin = verifyAdmin(nickname, pin);
@@ -221,7 +222,6 @@ export async function POST({ request }) {
 			const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
 			if (!user) return json({ error: '닉네임 또는 비밀번호가 맞지 않습니다.' }, { status: 401 });
 		}
-		if (!process.env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY is not set.' }, { status: 500 });
 		if (!unitIds.length) return json({ error: 'unit_ids is required' }, { status: 400 });
 		if (unitIds.length > MAX_UNITS) return json({ error: `You can request up to ${MAX_UNITS} units at a time.` }, { status: 400 });
 
@@ -270,6 +270,41 @@ export async function POST({ request }) {
 			'- translation_text must be a non-empty Korean first-draft translation string.',
 			'- Never return null, empty string, an object, or an untranslated Japanese copy as translation_text.'
 		].join('\n');
+
+		if (promptOnly) {
+			const targetRows = payload.filter((row) => row.needs_translation);
+			const referenceRows = payload.filter((row) => !row.needs_translation);
+			const externalPrompt = [
+				[
+					'다음 일본어 게임 문구를 한국어로 번역해 주세요.',
+					'아래 번역 지침을 따르고, placeholder, 제어 코드, 태그와 줄바꿈 표기를 원문 그대로 보존해 주세요.',
+					'기존 번역이 함께 제공된 경우 용어와 말투를 맞추는 참고 자료로만 사용해 주세요.'
+				].join('\n'),
+				`AI 번역 지침:\n${guidelines}`,
+				...(referenceRows.length
+					? [`기존 번역 참고:\n${referenceRows
+						.map(
+							(row, index) =>
+								`[참고 ${index + 1}] ${row.speaker ? `화자: ${row.speaker}\n` : ''}원문: ${row.original_text}\n번역: ${row.translation_text}`
+						)
+						.join('\n\n')}`]
+					: []),
+				`번역할 내용:\n${targetRows
+					.map(
+						(row, index) =>
+							`[${index + 1}]${row.speaker ? ` 화자: ${row.speaker}` : ''}\n${row.original_text}`
+					)
+					.join('\n\n')}`
+			].join('\n\n');
+			return json({
+				ok: true,
+				prompt: externalPrompt,
+				target_count: actualTargetIds.size,
+				reference_count: payload.length - actualTargetIds.size
+			});
+		}
+
+		if (!process.env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY is not set.' }, { status: 500 });
 
 		const usage = isAdmin ? null : consumeDailyRequest(nickname);
 		if (usage && !usage.allowed) {
