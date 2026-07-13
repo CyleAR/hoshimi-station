@@ -8,7 +8,6 @@ module.exports = {
 			exec_mode: 'cluster',
 			instances: 1,
 			autorestart: true,
-			cron_restart: '7 * * * *',
 			env: {
 				NODE_ENV: 'production',
 				PROJECT_ROOT: __dirname,

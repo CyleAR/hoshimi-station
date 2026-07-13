@@ -232,6 +232,11 @@
 			try {
 				data = text ? JSON.parse(text) : {};
 			} catch {
+				if ([502, 503, 504].includes(response.status)) {
+					throw new Error(
+						`서버 연결이 일시적으로 끊겼습니다. 잠시 후 다시 시도해 주세요. (HTTP ${response.status})`,
+					);
+				}
 				const snippet = text.replace(/\s+/g, " ").slice(0, 240);
 				throw new Error(
 					`JSON이 아닌 응답입니다: ${response.status} ${response.url} ${snippet}`,
@@ -807,6 +812,26 @@
 		return Boolean(currentUser);
 	}
 
+	function sleep(ms) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	async function waitForAiDraft(jobId) {
+		for (let attempt = 0; attempt < 400; attempt += 1) {
+			await sleep(1500);
+			try {
+				const data = await fetchJson(
+					`/api/ai-translate?job_id=${encodeURIComponent(jobId)}`,
+				);
+				if (data.status !== "processing") return data;
+			} catch (err) {
+				if (/HTTP (502|503|504)/.test(err.message)) continue;
+				throw err;
+			}
+		}
+		throw new Error("AI 번역이 10분 안에 끝나지 않았습니다.");
+	}
+
 	function aiDraftSelection() {
 		const targets = filteredUnits()
 			.filter(
@@ -891,7 +916,7 @@
 		aiDraftError = "";
 		notice = "";
 		try {
-			const data = await fetchJson(
+			let data = await fetchJson(
 				"/api/ai-translate",
 				{
 					method: "POST",
@@ -903,8 +928,9 @@
 						pin: currentUser.pin,
 					}),
 				},
-				120000,
+				30000,
 			);
+			if (data.job_id) data = await waitForAiDraft(data.job_id);
 			const translated = new Map(
 				(data.translations ?? []).map((item) => [
 					String(item.unit_id),

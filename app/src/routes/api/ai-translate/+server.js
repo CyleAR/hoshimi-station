@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { verifyAdmin } from '$lib/server/admin.js';
 import { all, get, json, run } from '$lib/server/db.js';
@@ -6,6 +7,8 @@ import { all, get, json, run } from '$lib/server/db.js';
 const MAX_UNITS = 100;
 const MAX_REFERENCE_UNITS = 200;
 const DAILY_REQUEST_LIMIT = 10;
+const JOB_TTL_MS = 30 * 60 * 1000;
+const aiJobs = new Map();
 
 function projectRoot() {
 	if (process.env.PROJECT_ROOT) return path.resolve(process.env.PROJECT_ROOT);
@@ -202,6 +205,85 @@ function consumeDailyRequest(nickname) {
 	};
 }
 
+function pruneAiJobs() {
+	const cutoff = Date.now() - JOB_TTL_MS;
+	for (const [jobId, job] of aiJobs) {
+		if (job.createdAt < cutoff) aiJobs.delete(jobId);
+	}
+}
+
+async function completeAiJob(jobId, { model, prompt, reasoningEffort, rows, usage }) {
+	try {
+		const upstreamUrl = `${openaiBaseUrl()}/responses`;
+		const aiResult = await requestAi(model, prompt, reasoningEffort);
+		if (aiResult.failures) {
+			console.info(`[ai-translate] all attempts failed=${JSON.stringify(aiResult.failures).slice(0, 1200)}`);
+			aiJobs.set(jobId, {
+				createdAt: Date.now(),
+				status: 'complete',
+				result: {
+					error: 'AI upstream rejected every supported payload format.',
+					upstream_url: upstreamUrl,
+					failures: aiResult.failures,
+					usage
+				}
+			});
+			return;
+		}
+
+		console.info(`[ai-translate] success attempt=${aiResult.attempt}`);
+		const parsed = parseJsonText(extractOutputText(aiResult.data));
+		if (!Array.isArray(parsed)) throw new Error('AI response is not a JSON array.');
+		const sourceEchoes = parsed.filter(isSourceEcho).length;
+		if (sourceEchoes >= Math.max(3, Math.ceil(parsed.length * 0.5))) {
+			throw new Error('AI가 번역 대신 원문 데이터를 반환했습니다. 다시 실행하거나 요청 개수를 줄여 주세요.');
+		}
+
+		const byId = new Map(rows.map((row) => [String(row.unit_id), row]));
+		const translations = [];
+		const warnings = [];
+		for (const item of parsed) {
+			const unitId = String(item?.unit_id ?? '').trim();
+			const row = byId.get(unitId);
+			if (!row) continue;
+			const translationText = readTranslationText(item).trim();
+			if (!translationText) {
+				warnings.push({ unit_id: unitId, message: `empty translation_text (keys: ${responseKeys(item)})` });
+				continue;
+			}
+			const missing = missingPlaceholders(row.original_text, translationText);
+			if (missing.length) {
+				warnings.push({ unit_id: unitId, message: `missing placeholder: ${missing.join(', ')}` });
+				continue;
+			}
+			translations.push({ unit_id: unitId, translation_text: translationText });
+		}
+
+		aiJobs.set(jobId, {
+			createdAt: Date.now(),
+			status: 'complete',
+			result: { ok: true, model, translations, warnings, usage }
+		});
+	} catch (err) {
+		console.error(`[ai-translate] job=${jobId} failed`, err);
+		aiJobs.set(jobId, {
+			createdAt: Date.now(),
+			status: 'complete',
+			result: { error: err.message || String(err), usage }
+		});
+	}
+}
+
+export function GET({ url }) {
+	pruneAiJobs();
+	const jobId = String(url.searchParams.get('job_id') ?? '');
+	const job = aiJobs.get(jobId);
+	if (!job) return json({ error: 'AI 작업을 찾을 수 없습니다. 다시 실행해 주세요.' }, { status: 404 });
+	if (job.status === 'processing') return json({ ok: true, status: 'processing' });
+	aiJobs.delete(jobId);
+	return json(job.result);
+}
+
 export async function POST({ request }) {
 	try {
 		const body = await request.json();
@@ -318,50 +400,17 @@ export async function POST({ request }) {
 		}
 
 		const model = process.env.OPENAI_MODEL || 'gpt-5.2';
-		const upstreamUrl = `${openaiBaseUrl()}/responses`;
-		const aiResult = await requestAi(model, prompt, openaiReasoningEffort);
-		if (aiResult.failures) {
-			console.info(`[ai-translate] all attempts failed=${JSON.stringify(aiResult.failures).slice(0, 1200)}`);
-			return json({
-				error: 'AI upstream rejected every supported payload format.',
-				upstream_url: upstreamUrl,
-				failures: aiResult.failures,
-				usage
-			});
-		}
-		console.info(`[ai-translate] success attempt=${aiResult.attempt}`);
-		const responseText = extractOutputText(aiResult.data);
-
-		const parsed = parseJsonText(responseText);
-		if (!Array.isArray(parsed)) return json({ error: 'AI response is not a JSON array.' });
-		const sourceEchoes = parsed.filter(isSourceEcho).length;
-		if (sourceEchoes >= Math.max(3, Math.ceil(parsed.length * 0.5))) {
-			return json({
-				error: 'AI가 번역 대신 원문 데이터를 반환했습니다. 다시 실행하거나 요청 개수를 줄여 주세요.'
-			});
-		}
-
-		const byId = new Map(rows.map((row) => [String(row.unit_id), row]));
-		const translations = [];
-		const warnings = [];
-		for (const item of parsed) {
-			const unitId = String(item?.unit_id ?? '').trim();
-			const row = byId.get(unitId);
-			if (!row) continue;
-			const translationText = readTranslationText(item).trim();
-			if (!translationText) {
-				warnings.push({ unit_id: unitId, message: `empty translation_text (keys: ${responseKeys(item)})` });
-				continue;
-			}
-			const missing = missingPlaceholders(row.original_text, translationText);
-			if (missing.length) {
-				warnings.push({ unit_id: unitId, message: `missing placeholder: ${missing.join(', ')}` });
-				continue;
-			}
-			translations.push({ unit_id: unitId, translation_text: translationText });
-		}
-
-		return json({ ok: true, model, translations, warnings, usage });
+		pruneAiJobs();
+		const jobId = randomUUID();
+		aiJobs.set(jobId, { createdAt: Date.now(), status: 'processing' });
+		void completeAiJob(jobId, {
+			model,
+			prompt,
+			reasoningEffort: openaiReasoningEffort,
+			rows,
+			usage
+		});
+		return json({ ok: true, status: 'processing', job_id: jobId, usage }, { status: 202 });
 	} catch (err) {
 		console.error('[ai-translate] failed', err);
 		return json({ error: err.message || String(err) }, { status: 500 });
