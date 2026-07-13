@@ -25,6 +25,13 @@ function migrate(database) {
 			pin TEXT NOT NULL,
 			created_at TEXT NOT NULL,
 			last_seen_at TEXT NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS ai_daily_usage (
+			nickname TEXT NOT NULL,
+			usage_date TEXT NOT NULL,
+			request_count INTEGER NOT NULL DEFAULT 0,
+			updated_at TEXT NOT NULL,
+			PRIMARY KEY(nickname, usage_date)
 		)
 	`);
 	if (!hasColumn(database, 'translation_units', 'translator_name')) {

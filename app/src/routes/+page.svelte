@@ -200,10 +200,6 @@
 	let loggingIn = $state(false);
 	let guidelines = $state("");
 	let guidelinesOpen = $state(false);
-	let geminiOpen = $state(false);
-	let geminiApiKey = $state("");
-	let geminiModel = $state("gemini-3.5-flash");
-	let geminiError = $state("");
 	let bulkOpen = $state(false);
 	let bulkOriginal = $state("");
 	let bulkTranslation = $state("");
@@ -800,35 +796,6 @@
 		sessionStorage.removeItem("translatorUser");
 	}
 
-	function hasGeminiKey() {
-		return Boolean(geminiApiKey.trim());
-	}
-
-	function saveGeminiSettings() {
-		geminiError = "";
-		const model = geminiModel.trim() || "gemini-3.5-flash";
-		geminiModel = model;
-		if (hasGeminiKey()) {
-			sessionStorage.setItem(
-				"geminiAiDraft",
-				JSON.stringify({
-					apiKey: geminiApiKey.trim(),
-					model,
-				}),
-			);
-		} else {
-			sessionStorage.removeItem("geminiAiDraft");
-		}
-		geminiOpen = false;
-	}
-
-	function clearGeminiSettings() {
-		geminiApiKey = "";
-		geminiModel = "gemini-3.5-flash";
-		geminiError = "";
-		sessionStorage.removeItem("geminiAiDraft");
-	}
-
 	function openBulkFill() {
 		bulkOpen = true;
 		bulkError = "";
@@ -836,11 +803,7 @@
 	}
 
 	function canUseAiDraft() {
-		return Boolean(
-			currentUser?.is_admin ||
-				currentUser?.nickname === "사일" ||
-				hasGeminiKey(),
-		);
+		return Boolean(currentUser);
 	}
 
 	async function runAiDraft() {
@@ -849,8 +812,7 @@
 			return;
 		}
 		if (!canUseAiDraft()) {
-			aiDraftError =
-				"AI 초벌 권한이 없습니다. 개인 Gemini API 키를 입력하면 사용할 수 있습니다.";
+			aiDraftError = "AI 초벌을 사용하려면 로그인해 주세요.";
 			return;
 		}
 		const targets = filteredUnits()
@@ -864,6 +826,21 @@
 			aiDraftError = "초벌을 채울 미번역 항목이 없습니다.";
 			return;
 		}
+		const targetIds = new Set(targets.map((unit) => String(unit.unit_id)));
+		const targetIndexes = units
+			.map((unit, index) => (targetIds.has(String(unit.unit_id)) ? index : -1))
+			.filter((index) => index >= 0);
+		const firstTargetIndex = Math.min(...targetIndexes);
+		const lastTargetIndex = Math.max(...targetIndexes);
+		const referenceUnitIds = units
+			.slice(firstTargetIndex, lastTargetIndex + 1)
+			.filter(
+				(unit) =>
+					!targetIds.has(String(unit.unit_id)) &&
+					Boolean(String(unit.translation_text ?? "").trim()),
+			)
+			.slice(0, 200)
+			.map((unit) => unit.unit_id);
 		const ok = confirm(
 			`현재 표시된 미번역 ${targets.length}개에 AI 초벌을 채울까요?\n초안만 입력되고 저장은 직접 해야 합니다.`,
 		);
@@ -880,14 +857,9 @@
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						unit_ids: targets.map((unit) => unit.unit_id),
+						reference_unit_ids: referenceUnitIds,
 						nickname: currentUser.nickname,
 						pin: currentUser.pin,
-						gemini_api_key: hasGeminiKey()
-							? geminiApiKey.trim()
-							: "",
-						gemini_model: hasGeminiKey()
-							? geminiModel.trim() || "gemini-3.5-flash"
-							: "",
 					}),
 				},
 				120000,
@@ -906,7 +878,9 @@
 				unit.error = "";
 				applied += 1;
 			}
-			notice = `AI 초벌 ${applied}개 입력됨`;
+			notice = data.usage
+				? `AI 초벌 ${applied}개 입력됨 · 오늘 ${data.usage.remaining}회 남음`
+				: `AI 초벌 ${applied}개 입력됨`;
 			if (data.warnings?.length) {
 				const shown = data.warnings
 					.slice(0, 20)
@@ -1441,15 +1415,6 @@
 		} catch {
 			loginNickname = localStorage.getItem("translatorNickname") || "";
 		}
-		try {
-			const savedGemini = JSON.parse(
-				sessionStorage.getItem("geminiAiDraft") || "null",
-			);
-			if (savedGemini?.apiKey) geminiApiKey = savedGemini.apiKey;
-			if (savedGemini?.model) geminiModel = savedGemini.model;
-		} catch {
-			sessionStorage.removeItem("geminiAiDraft");
-		}
 		const params = new URLSearchParams(window.location.search);
 		const initialSelected =
 			params.get("type") && params.get("id")
@@ -1589,13 +1554,6 @@
 			{/if}
 			{#if currentUser}
 				<span class="summary-pill">작업자: {currentUser.nickname}</span>
-				<button
-					class="soft compact-button"
-					class:active={hasGeminiKey()}
-					onclick={() => (geminiOpen = true)}
-				>
-					{hasGeminiKey() ? "Gemini 사용 중" : "Gemini 키"}
-				</button>
 				<button class="soft compact-button" onclick={openRecent}
 					>최근 작업</button
 				>
@@ -2061,57 +2019,6 @@
 					class="save-all"
 					onclick={applyBulkFill}
 					disabled={bulkWorking || !bulkPreview?.targets}>적용</button
-				>
-			</footer>
-		</section>
-	</div>
-{/if}
-
-{#if geminiOpen}
-	<div class="modal-backdrop">
-		<section class="gemini-modal">
-			<header>
-				<div>
-					<h2>개인 Gemini API</h2>
-					<p>
-						키는 서버 DB에 저장하지 않고 현재 브라우저 세션에만
-						보관합니다.
-					</p>
-				</div>
-				<button
-					class="soft compact-button"
-					onclick={() => (geminiOpen = false)}>닫기</button
-				>
-			</header>
-
-			<label>
-				<span>API 키</span>
-				<input
-					bind:value={geminiApiKey}
-					autocomplete="off"
-					spellcheck="false"
-					placeholder="AIza..."
-				/>
-			</label>
-			<label>
-				<span>모델</span>
-				<input
-					bind:value={geminiModel}
-					spellcheck="false"
-					placeholder="gemini-3.5-flash"
-				/>
-			</label>
-
-			{#if geminiError}
-				<div class="login-error">{geminiError}</div>
-			{/if}
-
-			<footer>
-				<button class="soft" onclick={clearGeminiSettings}
-					>키 지우기</button
-				>
-				<button class="save-all" onclick={saveGeminiSettings}
-					>적용</button
 				>
 			</footer>
 		</section>

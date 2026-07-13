@@ -1,24 +1,32 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { verifyAdmin } from '$lib/server/admin.js';
-import { all, get, json } from '$lib/server/db.js';
+import { all, get, json, run } from '$lib/server/db.js';
 
 const MAX_UNITS = 100;
+const MAX_REFERENCE_UNITS = 200;
+const DAILY_REQUEST_LIMIT = 10;
 
 function projectRoot() {
 	if (process.env.PROJECT_ROOT) return path.resolve(process.env.PROJECT_ROOT);
 	return path.resolve(process.cwd(), '..');
 }
 
-function loadGuidelines() {
-	try {
-		const guidelinesPath = process.env.GUIDELINES_PATH
-			? path.resolve(process.env.GUIDELINES_PATH)
-			: path.resolve(projectRoot(), 'docs', 'translation-guidelines.md');
-		return readFileSync(guidelinesPath, 'utf8').slice(0, 18000);
-	} catch {
-		return '';
+function loadAiGuidelines() {
+	const candidates = process.env.AI_GUIDELINES_PATH
+		? [path.resolve(process.env.AI_GUIDELINES_PATH)]
+		: [
+			path.resolve(projectRoot(), 'docs', 'ai-guidelines.txt'),
+			path.resolve(projectRoot(), 'docs', 'ai-guildlines.txt')
+		];
+	for (const guidelinesPath of candidates) {
+		try {
+			return readFileSync(guidelinesPath, 'utf8');
+		} catch {
+			// Try the legacy misspelled filename next.
+		}
 	}
+	return '';
 }
 
 function placeholders(text) {
@@ -66,16 +74,6 @@ function extractOutputText(response) {
 	return parts.join('\n');
 }
 
-function extractGeminiText(response) {
-	const parts = [];
-	for (const candidate of response.candidates ?? []) {
-		for (const part of candidate.content?.parts ?? []) {
-			if (typeof part.text === 'string') parts.push(part.text);
-		}
-	}
-	return parts.join('\n');
-}
-
 function parseJsonText(text) {
 	const clean = String(text ?? '').trim();
 	if (!clean) throw new Error('AI response is empty.');
@@ -111,54 +109,22 @@ async function callJson(url, body) {
 	return { response, raw, data };
 }
 
-async function callGeminiJson(apiKey, model, prompt) {
-	const cleanModel = String(model || 'gemini-3.5-flash').trim();
-	const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-	const response = await fetch(url, {
-		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({
-			contents: [{ role: 'user', parts: [{ text: prompt }] }],
-			generationConfig: {
-				responseMimeType: 'application/json',
-				temperature: 0.2,
-				responseSchema: {
-					type: 'ARRAY',
-					items: {
-						type: 'OBJECT',
-						properties: {
-							unit_id: { type: 'STRING' },
-							translation_text: { type: 'STRING' }
-						},
-						required: ['unit_id', 'translation_text']
-					}
-				}
-			}
-		})
-	});
-	const raw = await response.text();
-	let data = {};
-	try {
-		data = raw ? JSON.parse(raw) : {};
-	} catch {
-		data = { error: { message: raw.replace(/\s+/g, ' ').slice(0, 240), type: 'non_json_response' } };
-	}
-	return { response, raw, data };
-}
-
-async function requestAi(model, prompt) {
+async function requestAi(model, prompt, reasoningEffort) {
 	const baseUrl = openaiBaseUrl();
+	const reasoning = reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {};
+	const chatReasoning = reasoningEffort ? { reasoning_effort: reasoningEffort } : {};
 	const attempts = [
 		{
 			name: 'responses.input_string',
 			url: `${baseUrl}/responses`,
-			body: { model, input: prompt }
+			body: { model, input: prompt, ...reasoning }
 		},
 		{
 			name: 'responses.input_text_part',
 			url: `${baseUrl}/responses`,
 			body: {
 				model,
+				...reasoning,
 				input: [
 					{
 						role: 'user',
@@ -172,6 +138,7 @@ async function requestAi(model, prompt) {
 			url: `${baseUrl}/chat/completions`,
 			body: {
 				model,
+				...chatReasoning,
 				messages: [{ role: 'user', content: prompt }]
 			}
 		}
@@ -209,99 +176,133 @@ function unitRows(unitIds) {
 	);
 }
 
+function consumeDailyRequest(nickname) {
+	run("DELETE FROM ai_daily_usage WHERE usage_date < date('now', '+9 hours', '-30 days')");
+	const result = run(
+		`INSERT INTO ai_daily_usage(nickname, usage_date, request_count, updated_at)
+		 VALUES($nickname, date('now', '+9 hours'), 1, datetime('now'))
+		 ON CONFLICT(nickname, usage_date) DO UPDATE SET
+		   request_count = ai_daily_usage.request_count + 1,
+		   updated_at = datetime('now')
+		 WHERE ai_daily_usage.request_count < $limit`,
+		{ $nickname: nickname, $limit: DAILY_REQUEST_LIMIT }
+	);
+	const usage = get(
+		`SELECT request_count
+		 FROM ai_daily_usage
+		 WHERE nickname = $nickname AND usage_date = date('now', '+9 hours')`,
+		{ $nickname: nickname }
+	);
+	const count = Number(usage?.request_count ?? 0);
+	return {
+		allowed: result.changes > 0,
+		count,
+		limit: DAILY_REQUEST_LIMIT,
+		remaining: Math.max(0, DAILY_REQUEST_LIMIT - count)
+	};
+}
+
 export async function POST({ request }) {
 	try {
 		const body = await request.json();
 		const nickname = String(body.nickname ?? '').trim().slice(0, 24);
 		const pin = String(body.pin ?? '').trim();
 		const unitIds = Array.isArray(body.unit_ids) ? body.unit_ids.map((id) => String(id).trim()).filter(Boolean) : [];
-		const geminiApiKey = String(body.gemini_api_key ?? '').trim();
-		const geminiModel = String(body.gemini_model ?? 'gemini-3.5-flash').trim() || 'gemini-3.5-flash';
-		const useGemini = Boolean(geminiApiKey);
+		const referenceUnitIds = Array.isArray(body.reference_unit_ids)
+			? [...new Set(body.reference_unit_ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, MAX_REFERENCE_UNITS)
+			: [];
+		const openaiReasoningEffort = String(process.env.OPENAI_REASONING_EFFORT || '').trim();
 		console.info(
-			`[ai-translate] request nickname=${nickname} units=${unitIds.length} provider=${useGemini ? 'gemini' : 'openai'} base=${useGemini ? 'google-gemini' : openaiBaseUrl()} model=${useGemini ? geminiModel : process.env.OPENAI_MODEL || 'gpt-5.2'}`
+			`[ai-translate] request nickname=${nickname} units=${unitIds.length} provider=openai base=${openaiBaseUrl()} model=${process.env.OPENAI_MODEL || 'gpt-5.2'} reasoning=${openaiReasoningEffort || 'default'}`
 		);
 
 		const isAdmin = verifyAdmin(nickname, pin);
 		if (!isAdmin) {
-			if (!useGemini) return json({ error: 'AI draft permission denied. Gemini API 키를 입력하면 개인 키로 사용할 수 있습니다.' }, { status: 403 });
 			const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
 			if (!user) return json({ error: '닉네임 또는 비밀번호가 맞지 않습니다.' }, { status: 401 });
 		}
-		if (!useGemini && !process.env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY is not set.' }, { status: 500 });
+		if (!process.env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY is not set.' }, { status: 500 });
 		if (!unitIds.length) return json({ error: 'unit_ids is required' }, { status: 400 });
 		if (unitIds.length > MAX_UNITS) return json({ error: `You can request up to ${MAX_UNITS} units at a time.` }, { status: 400 });
 
-		const rows = unitRows(unitIds);
-		if (!rows.length) return json({ error: 'No translation units found.' }, { status: 404 });
+		const requestedIds = [...new Set(unitIds)];
+		const targetIdSet = new Set(requestedIds);
+		const contextIds = [...new Set([...requestedIds, ...referenceUnitIds.filter((id) => !targetIdSet.has(id))])];
+		const contextRows = unitRows(contextIds);
+		const rows = contextRows.filter(
+			(row) => targetIdSet.has(String(row.unit_id)) && !String(row.translation_text ?? '').trim()
+		);
+		if (!rows.length) return json({ error: 'No untranslated translation units found.' }, { status: 404 });
+		const actualTargetIds = new Set(rows.map((row) => String(row.unit_id)));
 
-		const guidelines = loadGuidelines();
-		const payload = rows.map((row) => ({
-			unit_id: row.unit_id,
-			category: row.category,
-			field_path: row.field_path,
-			speaker: row.speaker || '',
-			original_text: row.original_text
-		}));
+		const guidelines = loadAiGuidelines();
+		const payload = contextRows
+			.filter((row) => actualTargetIds.has(String(row.unit_id)) || String(row.translation_text ?? '').trim())
+			.map((row) => ({
+				unit_id: row.unit_id,
+				category: row.category,
+				field_path: row.field_path,
+				speaker: row.speaker || '',
+				original_text: row.original_text,
+				translation_text: actualTargetIds.has(String(row.unit_id)) ? '' : row.translation_text,
+				needs_translation: actualTargetIds.has(String(row.unit_id))
+			}));
 
 		const prompt = [
 			'You are preparing first-draft Korean translations for a Japanese game localization tool.',
 			'Return ONLY a JSON array. Each item must be {"unit_id":"...","translation_text":"..."} with no markdown.',
-			'Translate every input unit. Do not omit units and do not leave translation_text empty.',
-			'The input objects are SOURCE DATA ONLY. Do not copy them as the output.',
-			'Never include category, field_path, speaker, or original_text in the output.',
+			'Translate every row whose needs_translation is true. Do not omit target rows and do not leave translation_text empty.',
+			'Rows whose needs_translation is false contain approved Korean translations for context. Use them as style and terminology references, but do not return them.',
+			'The input objects are context data. Only rows marked needs_translation are output targets.',
+			'Never include category, field_path, speaker, original_text, needs_translation, or reference translation_text values in the output.',
 			'Preserve placeholders exactly, including {user}. Preserve literal \\n when it appears in source text.',
 			'Do not translate IDs, tags, markup, or variables. Use the provided translation guidelines.',
 			'',
-			`Translation guidelines:\n${guidelines}`,
+			`AI translation guidelines:\n${guidelines}`,
 			'',
 			`Translation units JSON:\n${JSON.stringify(payload, null, 2)}`,
 			'',
 			'Output contract:',
-			'- Return one array element for every input unit_id.',
+			'- Return one array element for every unit_id whose needs_translation is true.',
+			'- Do not return rows whose needs_translation is false.',
 			'- Use exactly these keys: unit_id, translation_text.',
 			'- unit_id must be copied exactly from the input.',
 			'- translation_text must be a non-empty Korean first-draft translation string.',
 			'- Never return null, empty string, an object, or an untranslated Japanese copy as translation_text.'
 		].join('\n');
 
-		let model;
-		let responseText;
-		if (useGemini) {
-			model = geminiModel;
-			const geminiResult = await callGeminiJson(geminiApiKey, model, prompt);
-			console.info(`[ai-translate] gemini status=${geminiResult.response.status} bytes=${geminiResult.raw.length}`);
-			if (!geminiResult.response.ok) {
-				return json({
-					error: geminiResult.data?.error?.message || 'Gemini upstream request failed.',
-					provider: 'gemini',
-					model
-				});
-			}
-			responseText = extractGeminiText(geminiResult.data);
-		} else {
-			model = process.env.OPENAI_MODEL || 'gpt-5.2';
-			const upstreamUrl = `${openaiBaseUrl()}/responses`;
-			const aiResult = await requestAi(model, prompt);
-			if (aiResult.failures) {
-				console.info(`[ai-translate] all attempts failed=${JSON.stringify(aiResult.failures).slice(0, 1200)}`);
-				return json({
-					error: 'AI upstream rejected every supported payload format.',
-					upstream_url: upstreamUrl,
-					failures: aiResult.failures
-				});
-			}
-			console.info(`[ai-translate] success attempt=${aiResult.attempt}`);
-			responseText = extractOutputText(aiResult.data);
+		const usage = isAdmin ? null : consumeDailyRequest(nickname);
+		if (usage && !usage.allowed) {
+			return json(
+				{
+					error: `오늘 AI 초벌 요청 ${DAILY_REQUEST_LIMIT}회를 모두 사용했습니다.`,
+					usage
+				},
+				{ status: 429 }
+			);
 		}
+
+		const model = process.env.OPENAI_MODEL || 'gpt-5.2';
+		const upstreamUrl = `${openaiBaseUrl()}/responses`;
+		const aiResult = await requestAi(model, prompt, openaiReasoningEffort);
+		if (aiResult.failures) {
+			console.info(`[ai-translate] all attempts failed=${JSON.stringify(aiResult.failures).slice(0, 1200)}`);
+			return json({
+				error: 'AI upstream rejected every supported payload format.',
+				upstream_url: upstreamUrl,
+				failures: aiResult.failures,
+				usage
+			});
+		}
+		console.info(`[ai-translate] success attempt=${aiResult.attempt}`);
+		const responseText = extractOutputText(aiResult.data);
 
 		const parsed = parseJsonText(responseText);
 		if (!Array.isArray(parsed)) return json({ error: 'AI response is not a JSON array.' });
 		const sourceEchoes = parsed.filter(isSourceEcho).length;
 		if (sourceEchoes >= Math.max(3, Math.ceil(parsed.length * 0.5))) {
 			return json({
-				error:
-					'Gemini returned the source JSON unchanged instead of translations. 다시 실행해 보거나 요청 개수를 줄여 주세요. 계속 반복되면 Gemini 모델명을 확인해 주세요.'
+				error: 'AI가 번역 대신 원문 데이터를 반환했습니다. 다시 실행하거나 요청 개수를 줄여 주세요.'
 			});
 		}
 
@@ -325,7 +326,7 @@ export async function POST({ request }) {
 			translations.push({ unit_id: unitId, translation_text: translationText });
 		}
 
-		return json({ ok: true, model, translations, warnings });
+		return json({ ok: true, model, translations, warnings, usage });
 	} catch (err) {
 		console.error('[ai-translate] failed', err);
 		return json({ error: err.message || String(err) }, { status: 500 });
