@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 MASTERDB_DIR = ROOT / "res" / "masterdb"
 ADV_DIR = ROOT / "res" / "adv" / "resource"
+LOCALIZATION_PATH = ROOT / "res" / "localization.json"
 DEFAULT_OUTPUT_DIR = ROOT / "output"
 
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
@@ -328,6 +329,36 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
     return exported
 
 
+def export_localization(conn: sqlite3.Connection, out_dir: Path) -> tuple[int, int]:
+    if not LOCALIZATION_PATH.exists():
+        return 0, 0
+    source = json.loads(LOCALIZATION_PATH.read_text(encoding="utf-8"))
+    if not isinstance(source, dict):
+        raise ValueError(f"{LOCALIZATION_PATH} must contain a JSON object")
+
+    translations = {
+        row["record_id"]: row["translation_text"]
+        for row in conn.execute(
+            """
+            SELECT record_id, translation_text
+            FROM translation_units
+            WHERE source_type = 'localization'
+              AND category = 'Localization'
+            ORDER BY record_id
+            """
+        )
+    }
+    payload = {
+        str(key): translations.get(str(key), "")
+        for key in source
+    }
+    path = out_dir / "local-files" / "localization.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    translated = sum(1 for value in payload.values() if value)
+    return len(payload), translated
+
+
 def write_metadata(out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "version.txt").write_text(datetime.now().strftime("%Y%m%d_%H%M%S"), encoding="utf-8")
@@ -336,6 +367,7 @@ def write_metadata(out_dir: Path) -> None:
 def clear_output_dir(out_dir: Path) -> None:
     targets = [
         out_dir / "version.txt",
+        out_dir / "local-files" / "localization.json",
         out_dir / "local-files" / "masterTrans",
         out_dir / "local-files" / "resource" / "adv",
     ]
@@ -367,9 +399,13 @@ def main() -> None:
         write_metadata(out_dir)
         master_count = export_masterdb(conn, out_dir)
         adv_count = export_adv(conn, out_dir)
+        localization_total, localization_translated = export_localization(conn, out_dir)
     finally:
         conn.close()
-    print(f"Exported {master_count} masterdb units and {adv_count} adv units to {out_dir}")
+    print(
+        f"Exported {master_count} masterdb units, {adv_count} adv units, and "
+        f"{localization_translated}/{localization_total} localization units to {out_dir}"
+    )
 
 
 if __name__ == "__main__":

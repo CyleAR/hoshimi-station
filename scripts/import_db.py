@@ -15,6 +15,8 @@ from typing import Any, Iterable, TextIO
 ROOT = Path(__file__).resolve().parents[1]
 MASTERDB_DIR = ROOT / "res" / "masterdb"
 ADV_DIR = ROOT / "res" / "adv" / "resource"
+LOCALIZATION_PATH = ROOT / "res" / "localization.json"
+LOCALIZATION_TRANSLATION_PATH = ROOT / "output" / "local-files" / "localization.json"
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 PREFILL_TRANSLATIONS_PATH = ROOT / "scripts" / "prefill_translations.json"
 PREFILL_TRANSLATOR = "[BOT] auto-prefill"
@@ -243,6 +245,14 @@ def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     return any(row[1] == column for row in conn.execute(f"PRAGMA table_info({table})"))
 
 
+def has_existing_localization_units(conn: sqlite3.Connection) -> bool:
+    if not table_exists(conn, "translation_units"):
+        return False
+    return conn.execute(
+        "SELECT 1 FROM translation_units WHERE source_type = 'localization' LIMIT 1"
+    ).fetchone() is not None
+
+
 def preserve_existing_translations(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE IF EXISTS temp.saved_translations")
     if not table_exists(conn, "translation_units"):
@@ -309,6 +319,41 @@ def restore_existing_translations(conn: sqlite3.Connection, duplicate_story_ids:
             WHERE saved.unit_id = translation_units.unit_id
               AND saved.original_text = translation_units.original_text
         )
+        """
+    )
+    conn.execute(
+        """
+        UPDATE translation_units
+        SET translation_text = (
+                SELECT saved.translation_text
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                LIMIT 1
+            ),
+            status = (
+                SELECT saved.status
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                LIMIT 1
+            ),
+            translator_name = (
+                SELECT saved.translator_name
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                LIMIT 1
+            ),
+            updated_at = (
+                SELECT saved.updated_at
+                FROM saved_translations saved
+                WHERE saved.unit_id = translation_units.unit_id
+                LIMIT 1
+            )
+        WHERE source_type = 'localization'
+          AND EXISTS (
+            SELECT 1
+            FROM saved_translations saved
+            WHERE saved.unit_id = translation_units.unit_id
+          )
         """
     )
     conn.execute(
@@ -1210,6 +1255,59 @@ def import_masterdb(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> 
                     )
 
 
+def read_localization(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return {str(key): str(value) for key, value in data.items() if isinstance(value, str)}
+
+
+def import_localization(conn: sqlite3.Connection) -> int:
+    imported = 0
+    for key, original in read_localization(LOCALIZATION_PATH).items():
+        unit_upsert(
+            conn,
+            f"localization:{key}",
+            "localization",
+            "Localization",
+            LOCALIZATION_PATH.name,
+            key,
+            "value",
+            original,
+            scope_type="category",
+            scope_id="Localization",
+            context={"key": key},
+        )
+        imported += 1
+    return imported
+
+
+def seed_localization_translations(conn: sqlite3.Connection) -> int:
+    translations = read_localization(LOCALIZATION_TRANSLATION_PATH)
+    updates = [
+        (translation, PREFILL_TRANSLATOR, f"localization:{key}")
+        for key, translation in translations.items()
+        if translation
+    ]
+    if not updates:
+        return 0
+    cursor = conn.executemany(
+        """
+        UPDATE translation_units
+        SET translation_text = ?,
+            status = 'prefilled',
+            translator_name = ?,
+            updated_at = datetime('now')
+        WHERE unit_id = ?
+          AND translation_text = ''
+        """,
+        updates,
+    )
+    return cursor.rowcount
+
+
 TAG_RE = re.compile(r"^\[(?P<tag>[a-zA-Z0-9_]+)\s*(?P<body>.*)\]$")
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
 
@@ -1321,6 +1419,7 @@ def rebuild(
     conn = sqlite3.connect(db_path)
     try:
         duplicate_story_ids = duplicate_limited_story_ids()
+        had_localization_units = has_existing_localization_units(conn)
         preserve_existing_translations(conn)
         conn.executescript(
             """
@@ -1334,13 +1433,17 @@ def rebuild(
         seed_entities_and_links(conn, duplicate_story_ids)
         import_masterdb(conn, duplicate_story_ids)
         import_adv(conn)
+        localization_imported = import_localization(conn)
         restore_existing_translations(conn, duplicate_story_ids)
+        localization_seeded = 0 if had_localization_units else seed_localization_translations(conn)
         prefill_stats = prefill_translations(
             conn,
             overwrite=overwrite_prefill,
             log_limit=prefill_log_limit,
             log_path=prefill_log_path,
         )
+        prefill_stats["localization_imported"] = localization_imported
+        prefill_stats["localization_seeded"] = localization_seeded
         conn.commit()
         return prefill_stats
     finally:
@@ -1386,6 +1489,10 @@ def main() -> None:
             f"{prefill_stats['updated']} entries={prefill_stats['entries']} formats={prefill_stats['formats']} "
             f"exact={prefill_stats['exact_updated']} format={prefill_stats['format_updated']} "
             f"conflicts={prefill_stats['conflicts']} overwrite={prefill_stats['overwrite']}"
+        )
+        print(
+            f"localization_units={prefill_stats['localization_imported']} "
+            f"seeded={prefill_stats['localization_seeded']}"
         )
         if prefill_stats["log_path"]:
             print(f"prefill_log={prefill_stats['log_path']}")

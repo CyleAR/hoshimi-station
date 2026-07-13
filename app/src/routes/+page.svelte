@@ -116,6 +116,7 @@
 	};
 
 	const fieldNames = {
+		value: "문구",
 		name: "이름",
 		description: "설명",
 		obtainMessage: "획득 메시지",
@@ -144,6 +145,7 @@
 	};
 
 	const categoryNames = {
+		Localization: "Localization",
 		Card: "카드 정보",
 		Costume: "의상",
 		Hair: "헤어",

@@ -174,7 +174,7 @@ function categoryItems(kind, q) {
 	const params = {};
 	const where = [];
 	if (kind === 'adv') where.push("category LIKE 'adv/%'");
-	else if (kind === 'masterdb') where.push("source_type = 'masterdb'");
+	else if (kind === 'masterdb') where.push("source_type IN ('masterdb', 'localization')");
 	else where.push('1 = 1');
 	if (q) {
 		where.push(`(category LIKE $q ESCAPE '!' OR ${searchableUnitWhere('translation_units')})`);
