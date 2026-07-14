@@ -839,7 +839,7 @@
 					!String(unit.translation_text ?? "").trim() &&
 					!String(unit.draft ?? "").trim(),
 			)
-			.slice(0, 100);
+			.slice(0, 150);
 		if (!targets.length) return { targets, referenceUnitIds: [] };
 		const targetIds = new Set(targets.map((unit) => String(unit.unit_id)));
 		const targetIndexes = units

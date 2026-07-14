@@ -4,7 +4,7 @@ import path from 'node:path';
 import { verifyAdmin } from '$lib/server/admin.js';
 import { all, get, json, run } from '$lib/server/db.js';
 
-const MAX_UNITS = 100;
+const MAX_UNITS = 150;
 const MAX_REFERENCE_UNITS = 200;
 const DAILY_REQUEST_LIMIT = 10;
 const JOB_TTL_MS = 30 * 60 * 1000;
