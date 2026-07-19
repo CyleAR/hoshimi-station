@@ -17,6 +17,7 @@ DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 REPORT_PATH = ROOT / "tmp" / "reports" / "auto_translate_skills_report.md"
 AUDIT_REPORT_PATH = ROOT / "tmp" / "reports" / "auto_translate_skills_audit_report.md"
 REPORT_CANDIDATE_PREVIEW_LIMIT = 300
+AUTO_SKILL_TRANSLATOR = "[BOT] auto-skill"
 
 SKILL_CATEGORIES = {
     "Skill",
@@ -1117,6 +1118,35 @@ def apply_candidates(conn: sqlite3.Connection, candidates: Iterable[Candidate], 
     return applied
 
 
+def prefill_missing_skills(
+    conn: sqlite3.Connection,
+    *,
+    translator: str = AUTO_SKILL_TRANSLATOR,
+    include_review: bool = True,
+) -> dict[str, object]:
+    original_row_factory = conn.row_factory
+    conn.row_factory = sqlite3.Row
+    try:
+        candidates, blocked, stats = collect_candidates(conn, set(SKILL_CATEGORIES), "missing", None)
+    finally:
+        conn.row_factory = original_row_factory
+    applicable = [
+        item for item in candidates
+        if include_review or item.confidence == "safe"
+    ]
+    applied = apply_candidates(conn, applicable, translator, include_review)
+    return {
+        "candidates": len(candidates),
+        "blocked": len(blocked),
+        "applied": applied,
+        "safe": sum(item.confidence == "safe" for item in applicable),
+        "review": sum(item.confidence == "review" for item in applicable),
+        "exact_memory": stats["exact_memory"],
+        "cross_memory": stats["cross_memory"],
+        "changes": applicable,
+    }
+
+
 def preview_pattern_key(item: Candidate) -> tuple[str, str, str, str]:
     original = item.original.replace("％", "%")
     original = re.sub(r"[A-Za-zⅢ]+メンバー", "GROUPメンバー", original)
@@ -1435,7 +1465,7 @@ def main() -> int:
     parser.add_argument("--preview-limit", type=int, default=REPORT_CANDIDATE_PREVIEW_LIMIT, help="Number of varied candidate samples to show in the markdown report.")
     parser.add_argument("--apply", action="store_true", help="Write safe candidates to translation_units.")
     parser.add_argument("--apply-review", action="store_true", help="Also write review candidates. Use only after inspecting the report.")
-    parser.add_argument("--translator", default="[BOT] auto-skill")
+    parser.add_argument("--translator", default=AUTO_SKILL_TRANSLATOR)
     args = parser.parse_args()
 
     inventory = load_source_inventory(args.masterdb_dir)

@@ -33,7 +33,24 @@ def load_ipr_rules() -> tuple[dict[str, Any], list[re.Pattern[str]]]:
     return module.IPR_RULES, module.IPR_IGNORE_PATTERNS
 
 
+def load_auto_skill_module() -> Any:
+    path = ROOT / "scripts" / "auto_translate_skills.py"
+    module_name = "hoshimi_auto_translate_skills"
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
+
+
 IPR_RULES, IPR_IGNORE_PATTERNS = load_ipr_rules()
+AUTO_SKILL_MODULE = load_auto_skill_module()
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -1449,6 +1466,8 @@ def rebuild(
             log_limit=prefill_log_limit,
             log_path=prefill_log_path,
         )
+        auto_skill_stats = AUTO_SKILL_MODULE.prefill_missing_skills(conn)
+        prefill_stats["auto_skill"] = auto_skill_stats
         prefill_stats["localization_imported"] = localization_imported
         prefill_stats["localization_seeded"] = localization_seeded
         conn.commit()
@@ -1501,6 +1520,22 @@ def main() -> None:
             f"localization_units={prefill_stats['localization_imported']} "
             f"seeded={prefill_stats['localization_seeded']}"
         )
+        auto_skill = prefill_stats["auto_skill"]
+        print(
+            "auto_skill_translations="
+            f"{auto_skill['applied']} candidates={auto_skill['candidates']} "
+            f"blocked={auto_skill['blocked']} safe={auto_skill['safe']} review={auto_skill['review']}"
+        )
+        for item in auto_skill["changes"][:50]:
+            original_text = item.original.replace("\n", "\\n")
+            new_text = item.new.replace("\n", "\\n")
+            print(
+                "auto_skill_change "
+                f"confidence={item.confidence} unit_id={item.unit_id} "
+                f"original={original_text} new={new_text}"
+            )
+        if len(auto_skill["changes"]) > 50:
+            print(f"auto_skill_change ... plus={len(auto_skill['changes']) - 50}")
         if prefill_stats["log_path"]:
             print(f"prefill_log={prefill_stats['log_path']}")
         if prefill_stats["log_count"]:
