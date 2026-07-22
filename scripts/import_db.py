@@ -248,9 +248,16 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             updated_at TEXT NOT NULL,
             PRIMARY KEY(nickname, usage_date)
         );
+        CREATE TABLE IF NOT EXISTS new_import_units (
+            unit_id TEXT NOT NULL,
+            original_text TEXT NOT NULL,
+            imported_at TEXT NOT NULL,
+            PRIMARY KEY(unit_id, original_text)
+        );
         CREATE INDEX IF NOT EXISTS idx_units_category ON translation_units(category);
         CREATE INDEX IF NOT EXISTS idx_units_scope ON translation_units(scope_type, scope_id);
         CREATE INDEX IF NOT EXISTS idx_units_source ON translation_units(source_type, source_file);
+        CREATE INDEX IF NOT EXISTS idx_new_import_units_time ON new_import_units(imported_at);
         CREATE INDEX IF NOT EXISTS idx_links_from ON links(from_type, from_id);
         CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_type, to_id);
         """
@@ -296,6 +303,62 @@ def preserve_existing_translations(conn: sqlite3.Connection) -> None:
         ON saved_translations(unit_id, original_text)
         """
     )
+
+
+def preserve_existing_unit_inventory(conn: sqlite3.Connection) -> bool:
+    conn.execute("DROP TABLE IF EXISTS temp.existing_unit_inventory")
+    if not table_exists(conn, "translation_units"):
+        return False
+    conn.execute(
+        """
+        CREATE TEMP TABLE existing_unit_inventory AS
+        SELECT unit_id, original_text
+        FROM translation_units
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX existing_unit_inventory_lookup
+        ON existing_unit_inventory(unit_id, original_text)
+        """
+    )
+    return conn.execute("SELECT 1 FROM existing_unit_inventory LIMIT 1").fetchone() is not None
+
+
+def track_new_untranslated_units(conn: sqlite3.Connection, had_existing_units: bool) -> dict[str, int]:
+    conn.execute(
+        """
+        DELETE FROM new_import_units
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM translation_units unit
+            WHERE unit.unit_id = new_import_units.unit_id
+              AND unit.original_text = new_import_units.original_text
+              AND unit.translation_text = ''
+        )
+        """
+    )
+    added = 0
+    if had_existing_units:
+        cursor = conn.execute(
+            """
+            INSERT OR IGNORE INTO new_import_units(unit_id, original_text, imported_at)
+            SELECT unit.unit_id, unit.original_text, ?
+            FROM translation_units unit
+            WHERE unit.translation_text = ''
+              AND unit.original_text <> ''
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM existing_unit_inventory old
+                  WHERE old.unit_id = unit.unit_id
+                    AND old.original_text = unit.original_text
+              )
+            """,
+            (now(),),
+        )
+        added = cursor.rowcount
+    total = conn.execute("SELECT COUNT(*) FROM new_import_units").fetchone()[0]
+    return {"added": added, "total": total}
 
 
 def restore_existing_translations(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> None:
@@ -1444,6 +1507,7 @@ def rebuild(
     try:
         duplicate_story_ids = duplicate_limited_story_ids()
         had_localization_units = has_existing_localization_units(conn)
+        had_existing_units = preserve_existing_unit_inventory(conn)
         preserve_existing_translations(conn)
         conn.executescript(
             """
@@ -1468,6 +1532,7 @@ def rebuild(
         )
         auto_skill_stats = AUTO_SKILL_MODULE.prefill_missing_skills(conn)
         prefill_stats["auto_skill"] = auto_skill_stats
+        prefill_stats["new_untranslated"] = track_new_untranslated_units(conn, had_existing_units)
         prefill_stats["localization_imported"] = localization_imported
         prefill_stats["localization_seeded"] = localization_seeded
         conn.commit()
@@ -1536,6 +1601,11 @@ def main() -> None:
             )
         if len(auto_skill["changes"]) > 50:
             print(f"auto_skill_change ... plus={len(auto_skill['changes']) - 50}")
+        new_untranslated = prefill_stats["new_untranslated"]
+        print(
+            "new_untranslated="
+            f"{new_untranslated['total']} added={new_untranslated['added']}"
+        )
         if prefill_stats["log_path"]:
             print(f"prefill_log={prefill_stats['log_path']}")
         if prefill_stats["log_count"]:

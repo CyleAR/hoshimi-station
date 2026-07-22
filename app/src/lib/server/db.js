@@ -32,7 +32,14 @@ function migrate(database) {
 			request_count INTEGER NOT NULL DEFAULT 0,
 			updated_at TEXT NOT NULL,
 			PRIMARY KEY(nickname, usage_date)
-		)
+		);
+		CREATE TABLE IF NOT EXISTS new_import_units (
+			unit_id TEXT NOT NULL,
+			original_text TEXT NOT NULL,
+			imported_at TEXT NOT NULL,
+			PRIMARY KEY(unit_id, original_text)
+		);
+		CREATE INDEX IF NOT EXISTS idx_new_import_units_time ON new_import_units(imported_at)
 	`);
 	if (!hasColumn(database, 'translation_units', 'translator_name')) {
 		database.exec("ALTER TABLE translation_units ADD COLUMN translator_name TEXT NOT NULL DEFAULT ''");

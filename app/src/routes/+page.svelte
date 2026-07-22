@@ -207,6 +207,11 @@
 	let bulkPreview = $state(null);
 	let bulkError = $state("");
 	let bulkWorking = $state(false);
+	let newDataOpen = $state(false);
+	let newDataItems = $state([]);
+	let newDataCount = $state(0);
+	let newDataError = $state("");
+	let newDataLoading = $state(false);
 	let recentOpen = $state(false);
 	let recentItems = $state([]);
 	let recentTranslators = $state([]);
@@ -644,6 +649,15 @@
 			unit.status = data.status;
 			unit.translator_name = data.translator_name ?? currentUser.nickname;
 			unit.dirty = false;
+			if (
+				unit.translation_text.trim() &&
+				newDataItems.some((item) => item.unit_id === unit.unit_id)
+			) {
+				newDataItems = newDataItems.filter(
+					(item) => item.unit_id !== unit.unit_id,
+				);
+				newDataCount = Math.max(0, newDataCount - 1);
+			}
 			refreshActiveSectionProgress();
 			notice = "저장되었습니다.";
 			await loadSummary();
@@ -726,6 +740,7 @@
 				JSON.stringify(currentUser),
 			);
 			localStorage.setItem("translatorNickname", data.user.nickname);
+			void loadNewData();
 		} catch (err) {
 			loginError = err.message;
 		} finally {
@@ -741,6 +756,69 @@
 	function closeRecent() {
 		recentOpen = false;
 		recentError = "";
+	}
+
+	async function openNewData() {
+		newDataOpen = true;
+		await loadNewData();
+	}
+
+	function closeNewData() {
+		newDataOpen = false;
+		newDataError = "";
+	}
+
+	function newDataSectionKey(item) {
+		if (item.source_type !== "adv") return "direct";
+		if (item.category === "adv/card") return "adv_card";
+		if (item.category === "adv/bond") return "adv_bond";
+		if (item.category === "adv/hbd") return "adv_hbd";
+		if (item.category === "adv/love") return "adv_love";
+		if (item.category === "adv/userhbd") return "adv_userhbd";
+		if (item.category === "adv/group") return "adv_group";
+		return "adv";
+	}
+
+	async function openNewDataItem(event, item) {
+		const target = recentItemTarget(item);
+		if (!target) return;
+		const preferredKey = newDataSectionKey(item);
+		if (shouldOpenInNewTab(event)) {
+			event.preventDefault();
+			event.stopPropagation();
+			openItemInNewTab(target, preferredKey);
+			return;
+		}
+		closeNewData();
+		await navigateToItem(target, preferredKey);
+	}
+
+	function closeNewDataFromBackdrop(event) {
+		if (event.target === event.currentTarget) closeNewData();
+	}
+
+	async function loadNewData() {
+		if (!currentUser) return;
+		newDataError = "";
+		newDataLoading = true;
+		try {
+			const data = await fetchJson("/api/new-data", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					nickname: currentUser.nickname,
+					pin: currentUser.pin,
+					limit: 500,
+				}),
+			});
+			newDataItems = data.items ?? [];
+			newDataCount = Number(data.count ?? newDataItems.length);
+		} catch (err) {
+			newDataError = err.message;
+			newDataItems = [];
+		} finally {
+			newDataLoading = false;
+		}
 	}
 
 	function recentItemTarget(item) {
@@ -797,6 +875,9 @@
 
 	function logout() {
 		currentUser = null;
+		newDataOpen = false;
+		newDataItems = [];
+		newDataCount = 0;
 		loginPin = "";
 		localStorage.removeItem("translatorUser");
 		sessionStorage.removeItem("translatorUser");
@@ -1482,6 +1563,7 @@
 		} catch {
 			loginNickname = localStorage.getItem("translatorNickname") || "";
 		}
+		if (currentUser) void loadNewData();
 		const params = new URLSearchParams(window.location.search);
 		const initialSelected =
 			params.get("type") && params.get("id")
@@ -1621,6 +1703,12 @@
 			{/if}
 			{#if currentUser}
 				<span class="summary-pill">작업자: {currentUser.nickname}</span>
+				<button
+					class="soft compact-button"
+					class:active={newDataCount > 0}
+					onclick={openNewData}
+					>신규 데이터{newDataCount ? ` ${newDataCount}` : ""}</button
+				>
 				<button class="soft compact-button" onclick={openRecent}
 					>최근 작업</button
 				>
@@ -2095,6 +2183,67 @@
 					disabled={bulkWorking || !bulkPreview?.targets}>적용</button
 				>
 			</footer>
+		</section>
+	</div>
+{/if}
+
+{#if newDataOpen}
+	<div
+		class="modal-backdrop"
+		role="presentation"
+		onclick={closeNewDataFromBackdrop}
+	>
+		<section class="recent-modal">
+			<header>
+				<div>
+					<h2>신규 미번역 데이터</h2>
+					<p>DB 임포트에서 새로 추가됐으며 자동으로 채워지지 않은 항목입니다.</p>
+				</div>
+				<button class="soft compact-button" onclick={closeNewData}>닫기</button>
+			</header>
+
+			<div class="recent-controls">
+				<strong>미번역 {newDataCount}개</strong>
+				<button class="soft" onclick={loadNewData} disabled={newDataLoading}
+					>{newDataLoading ? "불러오는 중..." : "새로고침"}</button
+				>
+			</div>
+
+			{#if newDataError}
+				<div class="login-error">{newDataError}</div>
+			{:else if newDataLoading}
+				<div class="state-card">신규 데이터를 불러오는 중...</div>
+			{:else if !newDataItems.length}
+				<div class="state-card">새로 추가된 미번역 항목이 없습니다.</div>
+			{:else}
+				<div class="recent-list">
+					{#each newDataItems as item}
+						<article class="recent-row">
+							<header>
+								<div>
+									<strong>{item.category}</strong>
+									{#if item.scope_type && item.scope_id}
+										<small>{item.scope_type} · {item.scope_id}</small>
+									{/if}
+								</div>
+								<time>{displayKstTime(item.imported_at)}</time>
+							</header>
+							<div class="recent-meta-row">
+								<code>{item.source_file || item.record_id} · {item.field_path}</code>
+								{#if recentItemTarget(item)}
+									<button
+										class="soft compact-button"
+										onclick={(event) => openNewDataItem(event, item)}
+										onauxclick={(event) => openNewDataItem(event, item)}
+										>번역하기</button
+									>
+								{/if}
+							</div>
+							<p class="recent-original">{displayText(item.original_text)}</p>
+						</article>
+					{/each}
+				</div>
+			{/if}
 		</section>
 	</div>
 {/if}
