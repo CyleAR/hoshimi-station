@@ -771,6 +771,7 @@
 
 	function newDataSectionKey(item) {
 		if (item.source_type !== "adv") return "direct";
+		if (item.field_path === "place") return "adv_places";
 		if (item.category === "adv/card") return "adv_card";
 		if (item.category === "adv/bond") return "adv_bond";
 		if (item.category === "adv/hbd") return "adv_hbd";

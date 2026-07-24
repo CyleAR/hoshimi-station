@@ -16,6 +16,7 @@ const sectionMeta = {
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
 	adv: ['▤', 'ADV 본문'],
+	adv_places: ['⌖', 'ADV 장소'],
 	common_messages: ['✉', '공통 문자'],
 	common_home_talks: ['⌂', '공통 홈 대화'],
 	common_telephones: ['☎', '공통 전화'],
@@ -47,6 +48,7 @@ const sectionOverrides = {
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
 	adv: ['📜', 'ADV 본문'],
+	adv_places: ['⌖', 'ADV 장소'],
 	adv_card: ['📜', '카드 ADV'],
 	adv_bond: ['💬', 'Bond ADV'],
 	adv_hbd: ['🎂', '생일 ADV'],
@@ -302,7 +304,7 @@ function groupCardSection(id) {
 	);
 }
 
-function advSection(type, id, category = '', key = 'adv') {
+function advSection(type, id, category = '', key = 'adv', fieldWhere = "field_path <> 'place'") {
 	const params = { $type: type, $id: id };
 	let categoryWhere = '';
 	if (category) {
@@ -311,7 +313,7 @@ function advSection(type, id, category = '', key = 'adv') {
 	}
 	return section(
 		key,
-		`source_type = 'adv' ${categoryWhere} AND (
+		`source_type = 'adv' AND ${fieldWhere} ${categoryWhere} AND (
 			(scope_type = $type AND scope_id = $id)
 			OR source_file IN (
 				SELECT to_id FROM links
@@ -515,6 +517,10 @@ function linksFor(type, id) {
 		`,
 		{ $type: type, $id: id }
 	);
+}
+
+function advPlaceSection(type, id) {
+	return advSection(type, id, '', 'adv_places', "field_path = 'place'");
 }
 
 function nestedStoryPartLinks(type, id) {
@@ -726,7 +732,10 @@ export function GET({ url }) {
 			) ?? { type, id, label: id, subtitle: 'ADV' };
 		return json({
 			entity,
-			sections: [section('adv', "source_type = 'adv' AND source_file = $id", { $id: id })].filter((item) => item.total > 0),
+			sections: [
+				section('adv', "source_type = 'adv' AND source_file = $id AND field_path <> 'place'", { $id: id }),
+				section('adv_places', "source_type = 'adv' AND source_file = $id AND field_path = 'place'", { $id: id })
+			].filter((item) => item.total > 0),
 			links: linksFor(type, id)
 		});
 	}
@@ -754,6 +763,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('accessories', type, id, ['accessory']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id, 'adv/group', 'adv_group'));
+		sections.push(advPlaceSection(type, id));
 	}
 
 	if (type === 'character') {
@@ -776,6 +786,7 @@ export function GET({ url }) {
 		sections.push(advSection(type, id, 'adv/hbd', 'adv_hbd'));
 		sections.push(advSection(type, id, 'adv/love', 'adv_love'));
 		sections.push(advSection(type, id, 'adv/userhbd', 'adv_userhbd'));
+		sections.push(advPlaceSection(type, id));
 	}
 
 	if (type === 'card') {
@@ -792,12 +803,14 @@ export function GET({ url }) {
 		sections.push(cardCostumeHomeActionSection(id));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
+		sections.push(advPlaceSection(type, id));
 	}
 
 	if (['story_part', 'story_collection', 'story', 'love'].includes(type)) {
 		sections.push(storyUnitSection(type, id));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id));
+		sections.push(advPlaceSection(type, id));
 	}
 
 	if (type === 'costume') {

@@ -219,7 +219,7 @@ function characterCommonWhere(id, toTypes) {
 	];
 }
 
-function advWhere(type, id, category = '') {
+function advWhere(type, id, category = '', fieldWhere = "field_path <> 'place'") {
 	const params = { $type: type, $id: id };
 	let categoryWhere = '';
 	if (category) {
@@ -227,7 +227,7 @@ function advWhere(type, id, category = '') {
 		categoryWhere = 'AND category = $advCategory';
 	}
 	return [
-		`source_type = 'adv' ${categoryWhere} AND (
+		`source_type = 'adv' AND ${fieldWhere} ${categoryWhere} AND (
 			(scope_type = $type AND scope_id = $id)
 			OR source_file IN (
 				SELECT to_id FROM links
@@ -289,8 +289,12 @@ function advWhere(type, id, category = '') {
 function whereFor(type, id, key, category) {
 	if (type === 'search' || key === 'search') return [searchableUnitWhere('translation_units'), { $q: like(id) }];
 	if (type === 'category' || key === 'category') return ['category = $category', { $category: category || id }];
-	if (type === 'adv_file') return ["source_type = 'adv' AND source_file = $id", { $id: id }];
+	if (type === 'adv_file') {
+		const fieldWhere = key === 'adv_places' ? "field_path = 'place'" : "field_path <> 'place'";
+		return [`source_type = 'adv' AND source_file = $id AND ${fieldWhere}`, { $id: id }];
+	}
 	if (key === 'direct') return directWhere(type, id);
+	if (key === 'adv_places') return advWhere(type, id, '', "field_path = 'place'");
 	if (key === 'adv') return advWhere(type, id);
 	if (key === 'adv_card') return advWhere(type, id, 'adv/card');
 	if (key === 'adv_bond') return advWhere(type, id, 'adv/bond');
