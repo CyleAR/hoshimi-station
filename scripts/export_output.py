@@ -20,6 +20,7 @@ LOCALIZATION_PATH = ROOT / "res" / "localization.json"
 DEFAULT_OUTPUT_DIR = ROOT / "output"
 
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
+PLACE_ATTR_RE = re.compile(r"(?<![A-Za-z0-9_])place=(?P<value>.*?)(?=\]|\s+[A-Za-z_][A-Za-z0-9_]*=|$)")
 TAG_RE = re.compile(r"^\[(?P<tag>[a-zA-Z0-9_]+)\s*(?P<body>.*)\]$")
 
 
@@ -223,6 +224,21 @@ def replace_attr(line: str, attr: str, value: str, occurrence: int = 0) -> str:
     return ATTR_RE.sub(repl, line)
 
 
+def replace_mapped_places(line: str, translations: dict[str, str]) -> tuple[str, int]:
+    applied = 0
+
+    def repl(match: re.Match[str]) -> str:
+        nonlocal applied
+        original = match.group("value").strip()
+        translated = translations.get(original)
+        if not translated:
+            return match.group(0)
+        applied += 1
+        return f"place={translated}"
+
+    return PLACE_ATTR_RE.sub(repl, line), applied
+
+
 def parse_attrs(line: str) -> dict[str, str]:
     return {match.group("key"): match.group("value").strip() for match in ATTR_RE.finditer(line)}
 
@@ -239,18 +255,21 @@ def write_adv_file(
         return 0
     lines = source_path.read_text(encoding="utf-8").splitlines()
     name_map = {row["original_text"]: row["translation_text"] for row in units if row["field_path"] == "name"}
+    place_map = {row["original_text"]: row["translation_text"] for row in units if row["field_path"] == "place"}
     text_map = {
         (row["field_path"], row["original_text"]): row["translation_text"]
         for row in units
-        if row["field_path"] != "name"
+        if row["field_path"] not in {"name", "place"}
     }
     line_units: dict[int, list[sqlite3.Row]] = defaultdict(list)
     for row in units:
-        if row["field_path"] != "name" and row["line_no"]:
+        if row["field_path"] not in {"name", "place"} and row["line_no"]:
             line_units[int(row["line_no"])].append(row)
 
     applied = 0
     for idx, line in enumerate(lines, start=1):
+        line, place_applied = replace_mapped_places(line, place_map)
+        applied += place_applied
         for original, translated in name_map.items():
             attrs = parse_attrs(line)
             if attrs.get("name") == original:

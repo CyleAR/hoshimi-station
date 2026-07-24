@@ -118,6 +118,7 @@
 	const fieldNames = {
 		value: "문구",
 		name: "이름",
+		place: "장소",
 		description: "설명",
 		obtainMessage: "획득 메시지",
 		evolveMessage: "진화 메시지",

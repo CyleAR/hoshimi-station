@@ -1397,10 +1397,15 @@ def seed_localization_translations(conn: sqlite3.Connection) -> int:
 
 TAG_RE = re.compile(r"^\[(?P<tag>[a-zA-Z0-9_]+)\s*(?P<body>.*)\]$")
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
+PLACE_ATTR_RE = re.compile(r"(?<![A-Za-z0-9_])place=(?P<value>.*?)(?=\]|\s+[A-Za-z_][A-Za-z0-9_]*=|$)")
 
 
 def parse_attrs(body: str) -> dict[str, str]:
     return {m.group("key"): m.group("value").strip() for m in ATTR_RE.finditer(body)}
+
+
+def place_values(body: str) -> list[str]:
+    return [match.group("value").strip() for match in PLACE_ATTR_RE.finditer(body)]
 
 
 def adv_category(filename: str) -> str:
@@ -1429,6 +1434,11 @@ def adv_name_unit_id(filename: str, name: str) -> str:
     return f"adv:{filename}:name:{digest}"
 
 
+def adv_place_unit_id(filename: str, place: str) -> str:
+    digest = hashlib.sha1(place.encode("utf-8")).hexdigest()[:12]
+    return f"adv:{filename}:place:{digest}"
+
+
 def import_adv(conn: sqlite3.Connection) -> None:
     for path in sorted(ADV_DIR.glob("adv_*.txt")):
         category = f"adv/{adv_category(path.name)}"
@@ -1441,6 +1451,7 @@ def import_adv(conn: sqlite3.Connection) -> None:
 
         order = 0
         seen_names: set[str] = set()
+        seen_places: set[str] = set()
         for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             match = TAG_RE.match(line)
             if not match:
@@ -1464,6 +1475,24 @@ def import_adv(conn: sqlite3.Connection) -> None:
                     scope_type=scope_type,
                     scope_id=scope_id,
                     context={"tag": tag, "nameSource": "speaker"},
+                )
+            for place in place_values(match.group("body")):
+                if not place or place in seen_places or should_ignore(place):
+                    continue
+                seen_places.add(place)
+                unit_upsert(
+                    conn,
+                    adv_place_unit_id(path.name, place),
+                    "adv",
+                    category,
+                    path.name,
+                    path.stem,
+                    "place",
+                    place,
+                    line_no=line_no,
+                    scope_type=scope_type,
+                    scope_id=scope_id,
+                    context={"tag": tag, "placeSource": "backgroundlayout"},
                 )
             candidates: list[tuple[str, str, str]] = []
             if tag in {"message", "narration"} and attrs.get("text"):
