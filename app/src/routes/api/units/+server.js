@@ -71,11 +71,12 @@ function searchableUnitWhere(alias = 'translation_units') {
 	)`;
 }
 
-function linkedWhere(type, id, toTypes) {
+function linkedWhere(type, id, toTypes, fieldWhere = '') {
 	const params = { $type: type, $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
+	const fieldClause = fieldWhere ? `${fieldWhere} AND` : '';
 	return [
-		`EXISTS (
+		`${fieldClause} EXISTS (
 			SELECT 1
 			FROM links l
 			WHERE l.from_type = $type AND l.from_id = $id AND l.to_type IN (${toSql})
@@ -419,6 +420,7 @@ function whereFor(type, id, key, category) {
 	}
 
 	if (type === 'message_thread') {
+		if (key === 'series_message_titles') return linkedWhere(type, id, ['message'], "field_path = 'name'");
 		if (key === 'group_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'linked_telephones') return linkedWhere(type, id, ['telephone']);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);

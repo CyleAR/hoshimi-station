@@ -25,6 +25,7 @@ const sectionMeta = {
 	card_home_talks: ['⌂', '카드 홈 대화'],
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['☷', '그룹 문자'],
+	series_message_titles: ['✎', '시리즈 문자 제목'],
 	group_telephones: ['☏', '그룹 통화'],
 	linked_messages: ['💬', '연결 문자'],
 	linked_telephones: ['☏', '연결 전화'],
@@ -63,6 +64,7 @@ const sectionOverrides = {
 	card_home_talks: ['🏠', '카드 홈 대사'],
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['💬', '그룹 문자'],
+	series_message_titles: ['✎', '시리즈 문자 제목'],
 	group_telephones: ['☎', '그룹 통화'],
 	linked_messages: ['💬', '연결 문자'],
 	linked_telephones: ['☏', '연결 전화'],
@@ -164,12 +166,13 @@ function placeholders(values, params, prefix) {
 		.join(',');
 }
 
-function linkedUnitSection(key, type, id, toTypes) {
+function linkedUnitSection(key, type, id, toTypes, fieldWhere = '') {
 	const params = { $type: type, $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
+	const fieldClause = fieldWhere ? `${fieldWhere} AND` : '';
 	return section(
 		key,
-		`EXISTS (
+		`${fieldClause} EXISTS (
 			SELECT 1
 			FROM links l
 			WHERE l.from_type = $type AND l.from_id = $id AND l.to_type IN (${toSql})
@@ -409,15 +412,16 @@ function linksFor(type, id) {
 		       			  AND tu.scope_type = l.to_type
 		       			  AND tu.scope_id = l.to_id
 		       			  AND tu.translation_text <> ''
-		       			  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
+				AND tu.field_path IN ('name', 'title', 'description', 'text', 'evolveMessage', 'managerCallText', 'characterArrivalText')
 		       			ORDER BY CASE
 		       				WHEN tu.scope_type = 'story_collection' AND tu.category = 'EventStory' AND tu.field_path = 'description' THEN -1
 		       				WHEN tu.field_path = 'name' THEN 0
 		       				WHEN tu.field_path = 'title' THEN 1
 		       				WHEN tu.field_path = 'description' THEN 2
 		       				WHEN tu.field_path = 'text' THEN 3
-		       				WHEN tu.field_path = 'managerCallText' THEN 4
-		       				WHEN tu.field_path = 'characterArrivalText' THEN 5
+				WHEN tu.field_path = 'evolveMessage' THEN 4
+				WHEN tu.field_path = 'managerCallText' THEN 5
+				WHEN tu.field_path = 'characterArrivalText' THEN 6
 		       				ELSE 9
 		       			END
 		       			LIMIT 1
@@ -471,15 +475,16 @@ function linksFor(type, id) {
 		       			  AND tu.scope_type = l.from_type
 		       			  AND tu.scope_id = l.from_id
 		       			  AND tu.translation_text <> ''
-		       			  AND tu.field_path IN ('name', 'title', 'description', 'text', 'managerCallText', 'characterArrivalText')
+				AND tu.field_path IN ('name', 'title', 'description', 'text', 'evolveMessage', 'managerCallText', 'characterArrivalText')
 		       			ORDER BY CASE
 		       				WHEN tu.scope_type = 'story_collection' AND tu.category = 'EventStory' AND tu.field_path = 'description' THEN -1
 		       				WHEN tu.field_path = 'name' THEN 0
 		       				WHEN tu.field_path = 'title' THEN 1
 		       				WHEN tu.field_path = 'description' THEN 2
 		       				WHEN tu.field_path = 'text' THEN 3
-		       				WHEN tu.field_path = 'managerCallText' THEN 4
-		       				WHEN tu.field_path = 'characterArrivalText' THEN 5
+				WHEN tu.field_path = 'evolveMessage' THEN 4
+				WHEN tu.field_path = 'managerCallText' THEN 5
+				WHEN tu.field_path = 'characterArrivalText' THEN 6
 		       				ELSE 9
 		       			END
 		       			LIMIT 1
@@ -859,6 +864,7 @@ export function GET({ url }) {
 	}
 
 	if (type === 'message_thread') {
+		sections.push(linkedUnitSection('series_message_titles', type, id, ['message'], "field_path = 'name'"));
 		sections.push(linkedUnitSection('group_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('linked_telephones', type, id, ['telephone']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
