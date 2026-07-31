@@ -218,27 +218,16 @@ function birthdayStorySection(id) {
 	return section(
 		'birthday_stories',
 		`source_type = 'masterdb' AND (
-			EXISTS (
-				SELECT 1
-				FROM links birthday
-				WHERE birthday.from_type = 'character'
-				  AND birthday.from_id = $id
-				  AND birthday.to_type = 'story_collection'
-				  AND birthday.relation = 'birthday_story'
-				  AND birthday.to_type = translation_units.scope_type
-				  AND birthday.to_id = translation_units.scope_id
+			(
+				translation_units.scope_type = 'story_collection'
+				AND translation_units.scope_id LIKE 'ex-story-part-birthday-%-' || substr($id, 6) || '-%'
 			)
 			OR EXISTS (
 				SELECT 1
-				FROM links birthday
-				JOIN links story
-				  ON story.from_type = birthday.to_type
-				 AND story.from_id = birthday.to_id
-				 AND story.to_type = 'story'
-				WHERE birthday.from_type = 'character'
-				  AND birthday.from_id = $id
-				  AND birthday.to_type = 'story_collection'
-				  AND birthday.relation = 'birthday_story'
+				FROM links story
+				WHERE story.from_type = 'story_collection'
+				  AND story.from_id LIKE 'ex-story-part-birthday-%-' || substr($id, 6) || '-%'
+				  AND story.to_type = 'story'
 				  AND story.to_type = translation_units.scope_type
 				  AND story.to_id = translation_units.scope_id
 			)
