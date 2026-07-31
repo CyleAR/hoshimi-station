@@ -19,6 +19,7 @@ const sectionMeta = {
 	adv: ['▤', 'ADV 본문'],
 	adv_places: ['⌖', 'ADV 장소'],
 	common_messages: ['✉', '공통 문자'],
+	birthday_messages: ['🎂', '생일 문자'],
 	common_home_talks: ['⌂', '공통 홈 대화'],
 	common_telephones: ['☎', '공통 전화'],
 	call_patterns: ['☀', '접속 대사'],
@@ -59,6 +60,7 @@ const sectionOverrides = {
 	adv_userhbd: ['🎁', '유저 생일 ADV'],
 	adv_group: ['📜', '그룹 ADV'],
 	common_messages: ['💬', '공통 문자'],
+	birthday_messages: ['🎂', '생일 문자'],
 	common_home_talks: ['🏠', '공통 홈 대사'],
 	common_telephones: ['☎', '공통 전화'],
 	call_patterns: ['📣', '접속 대사'],
@@ -289,9 +291,10 @@ function homeActionCardSection(type, id) {
 	);
 }
 
-function characterCommonSection(key, id, toTypes) {
+function characterCommonSection(key, id, toTypes, unitWhere = '') {
 	const params = { $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
+	const unitClause = unitWhere ? `AND (${unitWhere})` : '';
 	return section(
 		key,
 		`EXISTS (
@@ -299,6 +302,7 @@ function characterCommonSection(key, id, toTypes) {
 			WHERE l.from_type = 'character' AND l.from_id = $id AND l.to_type IN (${toSql})
 			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
 		)
+		${unitClause}
 		AND NOT EXISTS (
 			SELECT 1 FROM links c
 			WHERE c.from_type = 'card'
@@ -545,6 +549,28 @@ function linksFor(type, id) {
 		LIMIT 900
 		`,
 		{ $type: type, $id: id }
+	);
+}
+
+function birthdayMessageSection(id) {
+	return section(
+		'birthday_messages',
+		`source_type = 'masterdb' AND (
+			(scope_type = 'message' AND scope_id LIKE 'message-hbd-' || substr($id, 6) || '-%')
+			OR (scope_type = 'telephone' AND scope_id IN (
+				SELECT birthday_message.to_id FROM links birthday_message
+				WHERE birthday_message.from_type = 'message'
+				  AND birthday_message.from_id LIKE 'message-hbd-' || substr($id, 6) || '-%'
+				  AND birthday_message.to_type = 'telephone'
+			))
+			OR (scope_type = 'condition_description' AND scope_id IN (
+				SELECT birthday_message.to_id FROM links birthday_message
+				WHERE birthday_message.from_type = 'message'
+				  AND birthday_message.from_id LIKE 'message-hbd-' || substr($id, 6) || '-%'
+				  AND birthday_message.to_type = 'condition_description'
+			))
+		)`,
+		{ $id: id }
 	);
 }
 
@@ -807,9 +833,15 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('excursion_places', type, id, ['excursion_place']));
 		sections.push(section('excursion_reactions', "source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }));
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
-		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group']));
-		sections.push(characterCommonSection('common_telephones', id, ['telephone']));
-		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
+		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group'], "NOT (scope_type = 'message' AND scope_id LIKE 'message-hbd-%')"));
+		sections.push(birthdayMessageSection(id));
+		sections.push(characterCommonSection('common_telephones', id, ['telephone'], "scope_id NOT LIKE 'tel-hbd-%'"));
+		sections.push(linkedUnitSection('conditions', type, id, ['condition_description'], `scope_id NOT IN (
+			SELECT birthday_message.to_id FROM links birthday_message
+			WHERE birthday_message.from_type = 'message'
+			  AND birthday_message.from_id LIKE 'message-hbd-' || substr($id, 6) || '-%'
+			  AND birthday_message.to_type = 'condition_description'
+		)`));
 		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
 		sections.push(advSection(type, id, 'adv/bond', 'adv_bond'));

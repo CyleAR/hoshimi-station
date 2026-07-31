@@ -223,21 +223,44 @@ function directWhere(type, id) {
 	return [where, params];
 }
 
-function characterCommonWhere(id, toTypes) {
+function characterCommonWhere(id, toTypes, unitWhere = '') {
 	const params = { $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
+	const unitClause = unitWhere ? `AND (${unitWhere})` : '';
 	return [
 		`EXISTS (
 			SELECT 1 FROM links l
 			WHERE l.from_type = 'character' AND l.from_id = $id AND l.to_type IN (${toSql})
 			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
 		)
+		${unitClause}
 		AND NOT EXISTS (
 			SELECT 1 FROM links c
 			WHERE c.from_type = 'card'
 			  AND c.to_type = translation_units.scope_type AND c.to_id = translation_units.scope_id
 		)`,
 		params
+	];
+}
+
+function birthdayMessageWhere(id) {
+	return [
+		`source_type = 'masterdb' AND (
+			(scope_type = 'message' AND scope_id LIKE 'message-hbd-' || substr($id, 6) || '-%')
+			OR (scope_type = 'telephone' AND scope_id IN (
+				SELECT birthday_message.to_id FROM links birthday_message
+				WHERE birthday_message.from_type = 'message'
+				  AND birthday_message.from_id LIKE 'message-hbd-' || substr($id, 6) || '-%'
+				  AND birthday_message.to_type = 'telephone'
+			))
+			OR (scope_type = 'condition_description' AND scope_id IN (
+				SELECT birthday_message.to_id FROM links birthday_message
+				WHERE birthday_message.from_type = 'message'
+				  AND birthday_message.from_id LIKE 'message-hbd-' || substr($id, 6) || '-%'
+				  AND birthday_message.to_type = 'condition_description'
+			))
+		)`,
+		{ $id: id }
 	];
 }
 
@@ -359,8 +382,9 @@ function whereFor(type, id, key, category) {
 			];
 		}
 		if (key === 'common_home_talks') return characterCommonWhere(id, ['home_talk']);
-		if (key === 'common_messages') return characterCommonWhere(id, ['message', 'message_group']);
-		if (key === 'common_telephones') return characterCommonWhere(id, ['telephone']);
+		if (key === 'common_messages') return characterCommonWhere(id, ['message', 'message_group'], "NOT (scope_type = 'message' AND scope_id LIKE 'message-hbd-%')");
+		if (key === 'birthday_messages') return birthdayMessageWhere(id);
+		if (key === 'common_telephones') return characterCommonWhere(id, ['telephone'], "scope_id NOT LIKE 'tel-hbd-%'");
 		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
 		if (key === 'costumes') return linkedWhere(type, id, ['costume']);
 		if (key === 'hair') return linkedWhere(type, id, ['hair']);
@@ -371,7 +395,12 @@ function whereFor(type, id, key, category) {
 		if (key === 'home_actions') return linkedWhere(type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']);
 		if (key === 'excursion_places') return linkedWhere(type, id, ['excursion_place']);
 		if (key === 'excursion_reactions') return ["source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }];
-		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);
+		if (key === 'conditions') return linkedWhere(type, id, ['condition_description'], `scope_id NOT IN (
+			SELECT birthday_message.to_id FROM links birthday_message
+			WHERE birthday_message.from_type = 'message'
+			  AND birthday_message.from_id LIKE 'message-hbd-' || substr($id, 6) || '-%'
+			  AND birthday_message.to_type = 'condition_description'
+		)`);
 	}
 
 	if (type === 'card') {
