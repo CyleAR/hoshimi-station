@@ -1061,6 +1061,16 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
     cache: dict[str, dict[str, Any]] = {}
     for filename in MASTERDB_DIR.glob("*.json"):
         cache[filename.stem] = {cache_key(filename.stem, row): row for row in read_json(filename)}
+    character_id_by_asset = {
+        str(character.get("assetId", "")): str(character.get("id", ""))
+        for character in cache.get("Character", {}).values()
+        if character.get("assetId") and character.get("id")
+    }
+    character_ids = {
+        str(character.get("id", ""))
+        for character in cache.get("Character", {}).values()
+        if character.get("id")
+    }
 
     for row in cache.get("Character", {}).values():
         upsert_entity(conn, "character", row["id"], row.get("name", row["id"]), row.get("enName", ""), row)
@@ -1265,6 +1275,13 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
                 upsert_entity(conn, "story_collection", row["id"], row.get("description") or row.get("name", row["id"]), row.get("name", ""), row)
             else:
                 upsert_entity(conn, "story_collection", row["id"], row.get("name", row["id"]), row.get("description", ""), row)
+                birthday_part_id = str(row.get("extraStoryPartId", ""))
+                story_id = str(row.get("id", ""))
+                if birthday_part_id.startswith("ex-story-part-birthday-") and story_id.startswith(f"{birthday_part_id}-"):
+                    character_asset_id = story_id.removeprefix(f"{birthday_part_id}-").rsplit("-", 1)[0]
+                    expected_character_id = f"char-{character_asset_id}"
+                    character_id = expected_character_id if expected_character_id in character_ids else character_id_by_asset.get(character_asset_id, "")
+                    add_link(conn, "character", character_id, "story_collection", row["id"], "birthday_story", row)
             add_link(conn, "story_part", row.get("extraStoryPartId", ""), "story_collection", row["id"], "contains")
             for index, episode in enumerate(row.get("episodes", []) or []):
                 add_link(conn, "story_collection", row["id"], "story", canonical_story_id(episode.get("storyId", ""), duplicate_story_ids), "episode", with_order(episode, index))
