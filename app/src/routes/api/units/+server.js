@@ -115,6 +115,38 @@ function storyWhere(type, id) {
 	];
 }
 
+function birthdayStoryWhere(id) {
+	return [
+		`source_type = 'masterdb' AND (
+			EXISTS (
+				SELECT 1
+				FROM links birthday
+				WHERE birthday.from_type = 'character'
+				  AND birthday.from_id = $id
+				  AND birthday.to_type = 'story_collection'
+				  AND birthday.relation = 'birthday_story'
+				  AND birthday.to_type = translation_units.scope_type
+				  AND birthday.to_id = translation_units.scope_id
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM links birthday
+				JOIN links story
+				  ON story.from_type = birthday.to_type
+				 AND story.from_id = birthday.to_id
+				 AND story.to_type = 'story'
+				WHERE birthday.from_type = 'character'
+				  AND birthday.from_id = $id
+				  AND birthday.to_type = 'story_collection'
+				  AND birthday.relation = 'birthday_story'
+				  AND story.to_type = translation_units.scope_type
+				  AND story.to_id = translation_units.scope_id
+			)
+		)`,
+		{ $id: id }
+	];
+}
+
 function incomingLinkedWhere(type, id, fromTypes) {
 	const params = { $type: type, $id: id };
 	const fromSql = placeholders(fromTypes, params, 'from');
@@ -345,7 +377,8 @@ function whereFor(type, id, key, category) {
 		if (key === 'hair') return linkedWhere(type, id, ['hair']);
 		if (key === 'accessories') return linkedWhere(type, id, ['accessory']);
 		if (key === 'goods') return linkedWhere(type, id, ['showcase_toy']);
-		if (key === 'stories') return storyWhere(type, id);
+		if (key === 'stories') return linkedWhere(type, id, ['story']);
+		if (key === 'birthday_stories') return birthdayStoryWhere(id);
 		if (key === 'home_actions') return linkedWhere(type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']);
 		if (key === 'excursion_places') return linkedWhere(type, id, ['excursion_place']);
 		if (key === 'excursion_reactions') return ["source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }];

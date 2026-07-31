@@ -15,6 +15,7 @@ const sectionMeta = {
 	home_actions: ['⌂', '홈 액션'],
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
+	birthday_stories: ['🎂', '생일 스토리'],
 	adv: ['▤', 'ADV 본문'],
 	adv_places: ['⌖', 'ADV 장소'],
 	common_messages: ['✉', '공통 문자'],
@@ -48,6 +49,7 @@ const sectionOverrides = {
 	home_actions: ['🏠', '홈 액션'],
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
+	birthday_stories: ['🎂', '생일 스토리'],
 	adv: ['📜', 'ADV 본문'],
 	adv_places: ['⌖', 'ADV 장소'],
 	adv_card: ['📜', '카드 ADV'],
@@ -209,6 +211,39 @@ function storyUnitSection(type, id) {
 			)
 		)`,
 		{ $type: type, $id: id }
+	);
+}
+
+function birthdayStorySection(id) {
+	return section(
+		'birthday_stories',
+		`source_type = 'masterdb' AND (
+			EXISTS (
+				SELECT 1
+				FROM links birthday
+				WHERE birthday.from_type = 'character'
+				  AND birthday.from_id = $id
+				  AND birthday.to_type = 'story_collection'
+				  AND birthday.relation = 'birthday_story'
+				  AND birthday.to_type = translation_units.scope_type
+				  AND birthday.to_id = translation_units.scope_id
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM links birthday
+				JOIN links story
+				  ON story.from_type = birthday.to_type
+				 AND story.from_id = birthday.to_id
+				 AND story.to_type = 'story'
+				WHERE birthday.from_type = 'character'
+				  AND birthday.from_id = $id
+				  AND birthday.to_type = 'story_collection'
+				  AND birthday.relation = 'birthday_story'
+				  AND story.to_type = translation_units.scope_type
+				  AND story.to_id = translation_units.scope_id
+			)
+		)`,
+		{ $id: id }
 	);
 }
 
@@ -777,7 +812,8 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('hair', type, id, ['hair']));
 		sections.push(linkedUnitSection('accessories', type, id, ['accessory']));
 		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
-		sections.push(storyUnitSection(type, id));
+		sections.push(linkedUnitSection('stories', type, id, ['story']));
+		sections.push(birthdayStorySection(id));
 		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
 		sections.push(linkedUnitSection('excursion_places', type, id, ['excursion_place']));
 		sections.push(section('excursion_reactions', "source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }));
