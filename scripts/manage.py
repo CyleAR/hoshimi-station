@@ -284,76 +284,6 @@ def checkpoint_db() -> None:
     print(f"WAL after: {after_size:,} bytes")
 
 
-def normalize_bot_translator_names() -> None:
-    if not DB_PATH.exists():
-        raise SystemExit(f"Database not found: {DB_PATH}")
-
-    mapping = {
-        "prefill_translations": "[BOT] auto-prefill",
-        "auto-skill": "[BOT] auto-skill",
-    }
-    print()
-    print("== 자동 번역자명 통일 ==")
-    print("prefill_translations -> [BOT] auto-prefill")
-    print("auto-skill -> [BOT] auto-skill")
-
-    conn = sqlite3.connect(DB_PATH)
-    try:
-        before = dict(
-            conn.execute(
-                """
-                SELECT translator_name, COUNT(*)
-                FROM translation_units
-                WHERE translator_name IN (?, ?, ?, ?)
-                GROUP BY translator_name
-                """,
-                (
-                    "prefill_translations",
-                    "auto-skill",
-                    "[BOT] auto-prefill",
-                    "[BOT] auto-skill",
-                ),
-            ).fetchall()
-        )
-        print("before:", before)
-
-        updated = 0
-        for old_name, new_name in mapping.items():
-            cursor = conn.execute(
-                """
-                UPDATE translation_units
-                SET translator_name = ?,
-                    updated_at = datetime('now')
-                WHERE translator_name = ?
-                """,
-                (new_name, old_name),
-            )
-            updated += cursor.rowcount
-        conn.commit()
-
-        after = dict(
-            conn.execute(
-                """
-                SELECT translator_name, COUNT(*)
-                FROM translation_units
-                WHERE translator_name IN (?, ?, ?, ?)
-                GROUP BY translator_name
-                """,
-                (
-                    "prefill_translations",
-                    "auto-skill",
-                    "[BOT] auto-prefill",
-                    "[BOT] auto-skill",
-                ),
-            ).fetchall()
-        )
-    finally:
-        conn.close()
-
-    print(f"updated={updated}")
-    print("after:", after)
-
-
 def bulk_replace_translation() -> None:
     print()
     print("== translation_text 일괄 변경 ==")
@@ -525,6 +455,7 @@ def menu() -> str:
     print("2. DB 백업")
     print("   - backups/YYYYMMDD_HHMMSS 폴더를 만들고 현재 DB를 백업합니다.")
     print("   - SQLite backup API를 사용해서 WAL에 있는 최신 저장분도 포함합니다.")
+    print("   - 백업 성공 후 원본 DB의 WAL checkpoint를 실행합니다.")
     print()
     print("3. output 생성 + output 서브모듈 push")
     print("   - output을 git pull 한 뒤 DB에서 Localify output을 생성합니다.")
@@ -544,9 +475,6 @@ def menu() -> str:
     print()
     print("7. Skill auto translation")
     print("   - 신규 번역/전체 번역/감사 리포트를 실행합니다.")
-    print()
-    print("8. 자동 번역자명 통일")
-    print("   - prefill_translations/auto-skill 이름을 [BOT] 표기로 바꿉니다.")
     print()
     print()
     print("q. 종료")
@@ -568,14 +496,12 @@ def main() -> None:
             "5",
             "6",
             "7",
-            "8",
             "skill-missing-dry",
             "skill-missing",
             "skill-overwrite-dry",
             "skill-overwrite",
             "skill-audit",
             "prefill-overwrite",
-            "normalize-bot-translators",
         ],
         help="Action to run without interactive menu.",
     )
@@ -591,6 +517,7 @@ def main() -> None:
             print("서브모듈 해시 변경이 없어 DB import를 건너뜁니다.")
     elif choice == "2":
         backup_db()
+        checkpoint_db()
     elif choice == "3":
         export_output()
     elif choice == "4":
@@ -601,8 +528,6 @@ def main() -> None:
         overwrite_prefill_translations()
     elif choice == "7":
         skill_translation_menu()
-    elif choice == "8":
-        normalize_bot_translator_names()
     elif choice == "skill-missing-dry":
         run_skill_translation("missing", apply=False)
     elif choice == "skill-missing":
@@ -615,12 +540,10 @@ def main() -> None:
         run_skill_translation("overwrite", apply=False, audit=True)
     elif choice == "prefill-overwrite":
         overwrite_prefill_translations(confirm=False)
-    elif choice == "normalize-bot-translators":
-        normalize_bot_translator_names()
     elif choice in {"q", "quit", "exit"}:
         return
     else:
-        raise SystemExit("1, 2, 3, 4, 5, 6, 7, 8, q 중 하나를 입력하세요.")
+        raise SystemExit("1, 2, 3, 4, 5, 6, 7, q 중 하나를 입력하세요.")
 
 
 if __name__ == "__main__":
