@@ -34,7 +34,18 @@ def load_ipr_rules() -> dict[str, Any]:
     return module.IPR_RULES
 
 
+def load_story_reuse_module() -> Any:
+    path = ROOT / "scripts" / "story_reuse.py"
+    spec = importlib.util.spec_from_file_location("hoshimi_story_reuse", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 IPR_RULES = load_ipr_rules()
+STORY_REUSE_MODULE = load_story_reuse_module()
 
 
 def read_json(path: Path) -> list[dict[str, Any]]:
@@ -155,28 +166,35 @@ def translation_values(item: dict[str, Any], rule: dict[str, Any]) -> dict[str, 
     return values
 
 
-def duplicate_limited_story_map() -> dict[str, list[str]]:
+def duplicate_story_map() -> dict[str, str]:
     path = MASTERDB_DIR / "Story.json"
     if not path.exists() or "Story" not in IPR_RULES:
         return {}
-    stories = {str(row.get("id", "")): row for row in read_json(path) if isinstance(row, dict)}
     rule = IPR_RULES["Story"]
-    duplicates: dict[str, list[str]] = defaultdict(list)
-    for story_id, story in stories.items():
-        if not story_id.endswith("-limited"):
-            continue
-        base_id = story_id.removesuffix("-limited")
-        base = stories.get(base_id)
-        if base is not None and translation_values(story, rule) == translation_values(base, rule):
-            duplicates[base_id].append(story_id)
-    return duplicates
+    stories = [row for row in read_json(path) if isinstance(row, dict)]
+    return STORY_REUSE_MODULE.duplicate_story_map(
+        stories,
+        lambda story: translation_values(story, rule),
+    )
+
+
+def duplicate_shelf_adv_map(story_duplicates: dict[str, str]) -> dict[str, list[str]]:
+    stories = [
+        row
+        for row in read_json(MASTERDB_DIR / "Story.json")
+        if isinstance(row, dict)
+    ]
+    return STORY_REUSE_MODULE.duplicate_shelf_adv_map(stories, story_duplicates, ADV_DIR)
 
 
 def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
     master_dir = out_dir / "local-files" / "masterTrans"
     master_dir.mkdir(parents=True, exist_ok=True)
     total = 0
-    limited_story_map = duplicate_limited_story_map()
+    story_duplicates = duplicate_story_map()
+    story_copies: dict[str, list[str]] = defaultdict(list)
+    for duplicate_id, canonical_id in story_duplicates.items():
+        story_copies[canonical_id].append(duplicate_id)
     for category in sorted(IPR_RULES):
         rows = conn.execute(
             """
@@ -194,14 +212,16 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
         path_map, key_map = build_export_maps(category)
         data: dict[str, str] = {}
         for record_id, field_path, translation in rows:
+            if category == "Story" and record_id in story_duplicates:
+                continue
             export_path = path_map.get((record_id, field_path), field_path)
             export_key = key_map.get(record_id, record_id)
             data[f"{export_key}|{export_path}"] = translation
             if category == "Story":
-                for limited_id in limited_story_map.get(record_id, []):
-                    limited_export_path = path_map.get((limited_id, field_path), export_path)
-                    limited_export_key = key_map.get(limited_id, limited_id)
-                    data.setdefault(f"{limited_export_key}|{limited_export_path}", translation)
+                for duplicate_id in story_copies.get(record_id, []):
+                    duplicate_export_path = path_map.get((duplicate_id, field_path), export_path)
+                    duplicate_export_key = key_map.get(duplicate_id, duplicate_id)
+                    data[f"{duplicate_export_key}|{duplicate_export_path}"] = translation
         payload = {"rule": output_rule_paths(IPR_RULES[category]), "data": data}
         (master_dir / f"{category}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         total += len(data)
@@ -321,6 +341,7 @@ def write_adv_file(
 def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
     adv_dir = out_dir / "local-files" / "resource" / "adv"
     adv_dir.mkdir(parents=True, exist_ok=True)
+    shelf_adv_duplicates = duplicate_shelf_adv_map(duplicate_story_map())
     rows = conn.execute(
         """
         SELECT source_file, line_no, field_path, original_text, translation_text
@@ -337,6 +358,8 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
 
     exported = 0
     for source_file, units in sorted(by_file.items()):
+        if source_file in shelf_adv_duplicates:
+            continue
         applied = write_adv_file(adv_dir, source_file, units)
         if not applied:
             continue
@@ -345,6 +368,10 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
             short_file = source_file.replace(".txt", "_short.txt")
             if (ADV_DIR / short_file).exists():
                 exported += write_adv_file(adv_dir, short_file, units, short_file, match_by_text=True)
+    for target_file, source_files in sorted(shelf_adv_duplicates.items()):
+        units = [row for source_file in source_files for row in by_file.get(source_file, [])]
+        if units:
+            exported += write_adv_file(adv_dir, target_file, units, target_file, match_by_text=True)
     return exported
 
 

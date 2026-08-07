@@ -49,8 +49,19 @@ def load_auto_skill_module() -> Any:
     return module
 
 
+def load_story_reuse_module() -> Any:
+    path = ROOT / "scripts" / "story_reuse.py"
+    spec = importlib.util.spec_from_file_location("hoshimi_story_reuse", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 IPR_RULES, IPR_IGNORE_PATTERNS = load_ipr_rules()
 AUTO_SKILL_MODULE = load_auto_skill_module()
+STORY_REUSE_MODULE = load_story_reuse_module()
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -361,7 +372,7 @@ def track_new_untranslated_units(conn: sqlite3.Connection, had_existing_units: b
     return {"added": added, "total": total}
 
 
-def restore_existing_translations(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> None:
+def restore_existing_translations(conn: sqlite3.Connection, duplicate_story_map: dict[str, str]) -> None:
     row = conn.execute(
         "SELECT 1 FROM sqlite_temp_master WHERE type = 'table' AND name = 'saved_translations'",
     ).fetchone()
@@ -371,7 +382,7 @@ def restore_existing_translations(conn: sqlite3.Connection, duplicate_story_ids:
     conn.execute("CREATE TEMP TABLE duplicate_limited_stories(limited_id TEXT PRIMARY KEY)")
     conn.executemany(
         "INSERT INTO duplicate_limited_stories(limited_id) VALUES(?)",
-        [(story_id,) for story_id in sorted(duplicate_story_ids)],
+        [(story_id,) for story_id in sorted(duplicate_story_map) if story_id.endswith("-limited")],
     )
     conn.execute(
         """
@@ -932,26 +943,30 @@ def translation_values(item: dict[str, Any], rule: dict[str, Any]) -> dict[str, 
     return values
 
 
-def duplicate_limited_story_ids() -> set[str]:
+def duplicate_story_map() -> dict[str, str]:
     path = MASTERDB_DIR / "Story.json"
     if not path.exists() or "Story" not in IPR_RULES:
-        return set()
-    stories = {str(row.get("id", "")): row for row in read_json(path) if isinstance(row, dict)}
+        return {}
     rule = IPR_RULES["Story"]
-    duplicates: set[str] = set()
-    for story_id, story in stories.items():
-        if not story_id.endswith("-limited"):
-            continue
-        base_id = story_id.removesuffix("-limited")
-        base = stories.get(base_id)
-        if base is not None and translation_values(story, rule) == translation_values(base, rule):
-            duplicates.add(story_id)
-    return duplicates
+    stories = [row for row in read_json(path) if isinstance(row, dict)]
+    return STORY_REUSE_MODULE.duplicate_story_map(
+        stories,
+        lambda story: translation_values(story, rule),
+    )
 
 
-def canonical_story_id(story_id: Any, duplicate_story_ids: set[str]) -> str:
+def duplicate_shelf_adv_map(story_duplicates: dict[str, str]) -> dict[str, list[str]]:
+    stories = [
+        row
+        for row in read_json(MASTERDB_DIR / "Story.json")
+        if isinstance(row, dict)
+    ]
+    return STORY_REUSE_MODULE.duplicate_shelf_adv_map(stories, story_duplicates, ADV_DIR)
+
+
+def canonical_story_id(story_id: Any, duplicate_story_map: dict[str, str]) -> str:
     story_id = str(story_id or "")
-    return story_id.removesuffix("-limited") if story_id in duplicate_story_ids else story_id
+    return duplicate_story_map.get(story_id, story_id)
 
 
 DETAIL_ID_RE = re.compile(r"details\[([^;\]]+);messageDetailId\]\.(.+)$")
@@ -1057,7 +1072,7 @@ def unit_upsert(
     )
 
 
-def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> dict[str, dict[str, Any]]:
+def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_map: dict[str, str]) -> dict[str, dict[str, Any]]:
     cache: dict[str, dict[str, Any]] = {}
     for filename in MASTERDB_DIR.glob("*.json"):
         cache[filename.stem] = {cache_key(filename.stem, row): row for row in read_json(filename)}
@@ -1120,7 +1135,7 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
         for hair_id in [row.get("rewardHairId", ""), *(row.get("rewardHairIds", []) or [])]:
             add_link(conn, "card", row["id"], "hair", hair_id, "reward_hair")
         for index, story in enumerate(row.get("stories", []) or []):
-            add_link(conn, "card", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_ids), "card_story", with_order(story, index))
+            add_link(conn, "card", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_map), "card_story", with_order(story, index))
         for index, message in enumerate(row.get("messages", []) or []):
             add_link(conn, "card", row["id"], "message", message.get("messageId", ""), "card_message", with_order(message, index))
             add_link(conn, "card", row["id"], "telephone", message.get("telephoneId", ""), "card_telephone", with_order(message, index))
@@ -1177,6 +1192,8 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
     for typ, cat in (("story", "Story"), ("message", "Message"), ("home_talk", "HomeTalk"), ("telephone", "Telephone")):
         for row in cache.get(cat, {}).values():
             entity_id = str(row.get("id") or row.get("homeTalkId"))
+            if typ == "story" and entity_id.startswith("st-shelf-") and entity_id in duplicate_story_map:
+                continue
             card_id = str(row.get("cardId") or "")
             if typ == "home_talk" and not card_id:
                 inferred_card_id = card_id_from_home_talk_id(entity_id)
@@ -1258,7 +1275,9 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
         add_link(conn, "card", row.get("cardId", ""), "character", row.get("characterId", ""), "evolution_voice")
 
     for row in cache.get("Story", {}).values():
-        story_id = canonical_story_id(row["id"], duplicate_story_ids)
+        if row["id"].startswith("st-shelf-") and row["id"] in duplicate_story_map:
+            continue
+        story_id = canonical_story_id(row["id"], duplicate_story_map)
         for asset in row.get("advAssetIds", []) or []:
             add_adv_link(conn, "story", story_id, asset, "uses_adv")
         for choice in row.get("branchChoices", []) or []:
@@ -1284,14 +1303,14 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
                     add_link(conn, "character", character_id, "story_collection", row["id"], "birthday_story", row)
             add_link(conn, "story_part", row.get("extraStoryPartId", ""), "story_collection", row["id"], "contains")
             for index, episode in enumerate(row.get("episodes", []) or []):
-                add_link(conn, "story_collection", row["id"], "story", canonical_story_id(episode.get("storyId", ""), duplicate_story_ids), "episode", with_order(episode, index))
+                add_link(conn, "story_collection", row["id"], "story", canonical_story_id(episode.get("storyId", ""), duplicate_story_map), "episode", with_order(episode, index))
 
     for row in cache.get("StoryPart", {}).values():
         upsert_entity(conn, "story_part", row["id"], row.get("name", row["id"]), row.get("assetId", ""), row)
         episode_order = 0
         for chapter in row.get("chapters", []) or []:
             for episode in chapter.get("episodes", []) or []:
-                story_id = canonical_story_id(episode.get("storyId", ""), duplicate_story_ids)
+                story_id = canonical_story_id(episode.get("storyId", ""), duplicate_story_map)
                 add_link(conn, "story_part", row["id"], "story", story_id, "chapter_episode", with_order(episode, episode_order))
                 if episode.get("assetId") in (cache.get("Story", {}).get(episode.get("storyId", ""), {}).get("advAssetIds", []) or []):
                     add_adv_link(conn, "story_part", row["id"], episode.get("assetId"), "chapter_adv", with_order(episode, episode_order))
@@ -1299,12 +1318,12 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
 
     for row in cache.get("Character", {}).values():
         for story in row.get("companyEnjoyStories", []) or []:
-            add_link(conn, "character", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_ids), "company_enjoy_story", story)
+            add_link(conn, "character", row["id"], "story", canonical_story_id(story.get("storyId", ""), duplicate_story_map), "company_enjoy_story", story)
             add_adv_link(conn, "character", row["id"], story.get("assetId"), "company_enjoy_adv", story)
 
     for row in cache.get("LoveStoryEpisode", {}).values():
         upsert_entity(conn, "love", row.get("loveId", ""), row.get("loveId", ""), "", row)
-        add_link(conn, "love", row.get("loveId", ""), "story", canonical_story_id(row.get("storyId", ""), duplicate_story_ids), "episode", row)
+        add_link(conn, "love", row.get("loveId", ""), "story", canonical_story_id(row.get("storyId", ""), duplicate_story_map), "episode", row)
         add_adv_link(conn, "love", row.get("loveId", ""), row.get("assetId"), "episode_adv", row)
 
     for row in cache.get("Setting", {}).values():
@@ -1326,7 +1345,7 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_ids: set[s
     return cache
 
 
-def import_masterdb(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> None:
+def import_masterdb(conn: sqlite3.Connection, duplicate_story_map: dict[str, str]) -> None:
     character_names = {str(row.get("id", "")): str(row.get("name") or row.get("id") or "") for row in read_json(MASTERDB_DIR / "Character.json")}
     for category, rule in IPR_RULES.items():
         path = MASTERDB_DIR / f"{category}.json"
@@ -1337,7 +1356,7 @@ def import_masterdb(conn: sqlite3.Connection, duplicate_story_ids: set[str]) -> 
             if not isinstance(item, dict):
                 continue
             record = pk_value(item, pk_fields)
-            if category == "Story" and record in duplicate_story_ids:
+            if category == "Story" and record in duplicate_story_map:
                 continue
             scope_type, scope_id = infer_scope(category, item)
             for parts, field_path in iter_rule_paths(rule):
@@ -1456,8 +1475,11 @@ def adv_place_unit_id(filename: str, place: str) -> str:
     return f"adv:{filename}:place:{digest}"
 
 
-def import_adv(conn: sqlite3.Connection) -> None:
+def import_adv(conn: sqlite3.Connection, duplicate_adv_files: set[str] | None = None) -> None:
+    duplicate_adv_files = duplicate_adv_files or set()
     for path in sorted(ADV_DIR.glob("adv_*.txt")):
+        if path.name in duplicate_adv_files:
+            continue
         category = f"adv/{adv_category(path.name)}"
         scope_type, scope_id = adv_scope(path.name)
         upsert_entity(conn, "adv_file", path.name, path.name, category)
@@ -1551,7 +1573,8 @@ def rebuild(
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
-        duplicate_story_ids = duplicate_limited_story_ids()
+        story_duplicates = duplicate_story_map()
+        shelf_adv_duplicates = duplicate_shelf_adv_map(story_duplicates)
         had_localization_units = has_existing_localization_units(conn)
         had_existing_units = preserve_existing_unit_inventory(conn)
         preserve_existing_translations(conn)
@@ -1564,11 +1587,11 @@ def rebuild(
             """
         )
         ensure_schema(conn)
-        seed_entities_and_links(conn, duplicate_story_ids)
-        import_masterdb(conn, duplicate_story_ids)
-        import_adv(conn)
+        seed_entities_and_links(conn, story_duplicates)
+        import_masterdb(conn, story_duplicates)
+        import_adv(conn, set(shelf_adv_duplicates))
         localization_imported = import_localization(conn)
-        restore_existing_translations(conn, duplicate_story_ids)
+        restore_existing_translations(conn, story_duplicates)
         localization_seeded = 0 if had_localization_units else seed_localization_translations(conn)
         prefill_stats = prefill_translations(
             conn,
