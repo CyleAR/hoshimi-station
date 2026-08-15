@@ -10,6 +10,12 @@ ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za
 PLACE_RE = re.compile(r"(?<![A-Za-z0-9_])place=(?P<value>.*?)(?=\]|\s+[A-Za-z_][A-Za-z0-9_]*=|$)")
 
 
+def normalized_story_values(values: dict[str, str]) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        sorted((field, value.replace("\r", "").replace("\n", "")) for field, value in values.items())
+    )
+
+
 def duplicate_story_map(
     stories: list[dict[str, Any]],
     translation_values: Callable[[dict[str, Any]], dict[str, str]],
@@ -27,12 +33,13 @@ def duplicate_story_map(
     event_stories_by_values: dict[tuple[tuple[str, str], ...], list[str]] = {}
     for story_id, story in stories_by_id.items():
         if story_id.startswith("st-eve-"):
-            values = tuple(sorted(translation_values(story).items()))
+            # Shelf titles may insert display-only line breaks at different positions.
+            values = normalized_story_values(translation_values(story))
             event_stories_by_values.setdefault(values, []).append(story_id)
     for story_id, story in stories_by_id.items():
         if not story_id.startswith("st-shelf-"):
             continue
-        values = tuple(sorted(translation_values(story).items()))
+        values = normalized_story_values(translation_values(story))
         candidates = event_stories_by_values.get(values, [])
         if len(candidates) == 1:
             duplicates[story_id] = candidates[0]
