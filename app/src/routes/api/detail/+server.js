@@ -24,6 +24,7 @@ const sectionMeta = {
 	common_telephones: ['☎', '공통 전화'],
 	call_patterns: ['☀', '접속 대사'],
 	card_messages: ['✉', '카드 문자'],
+	card_home_dialogues: ['⌂', '접속·카드 홈 대화'],
 	card_home_talks: ['⌂', '카드 홈 대화'],
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['☷', '그룹 문자'],
@@ -65,6 +66,7 @@ const sectionOverrides = {
 	common_telephones: ['☎', '공통 전화'],
 	call_patterns: ['📣', '접속 대사'],
 	card_messages: ['💬', '카드 문자'],
+	card_home_dialogues: ['🏠', '접속·카드 홈 대사'],
 	card_home_talks: ['🏠', '카드 홈 대사'],
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['💬', '그룹 문자'],
@@ -859,9 +861,8 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
 		sections.push(linkedUnitSection('stories', type, id, ['story']));
 		sections.push(linkedUnitSection('card_messages', type, id, ['message']));
-		sections.push(linkedUnitSection('card_home_talks', type, id, ['home_talk']));
+		sections.push(linkedUnitSection('card_home_dialogues', type, id, ['call_pattern', 'home_talk']));
 		sections.push(linkedUnitSection('card_telephones', type, id, ['telephone']));
-		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
 		sections.push(cardCostumeHomeActionSection(id));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));

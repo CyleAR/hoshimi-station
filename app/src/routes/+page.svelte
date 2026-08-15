@@ -1356,6 +1356,7 @@
 			"call_patterns",
 			"stories",
 			"card_messages",
+			"card_home_dialogues",
 			"card_home_talks",
 			"card_telephones",
 			"skills",

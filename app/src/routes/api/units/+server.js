@@ -411,6 +411,7 @@ function whereFor(type, id, key, category) {
 		if (key === 'goods') return linkedWhere(type, id, ['showcase_toy']);
 		if (key === 'stories') return linkedWhere(type, id, ['story']);
 		if (key === 'card_messages') return linkedWhere(type, id, ['message']);
+		if (key === 'card_home_dialogues') return linkedWhere(type, id, ['call_pattern', 'home_talk']);
 		if (key === 'card_home_talks') return linkedWhere(type, id, ['home_talk']);
 		if (key === 'card_telephones') return linkedWhere(type, id, ['telephone']);
 		if (key === 'call_patterns') return linkedWhere(type, id, ['call_pattern']);
@@ -632,6 +633,15 @@ function attachAdvOwners(units) {
 	});
 }
 
+function compareSectionUnit(key, a, b) {
+	if (key === 'card_home_dialogues') {
+		const rank = { HomeTalkCallPattern: 0, HomeTalk: 1 };
+		const categoryRank = (rank[a.category] ?? 9) - (rank[b.category] ?? 9);
+		if (categoryRank) return categoryRank;
+	}
+	return compareUnit(a, b);
+}
+
 function attachMessageThreadOwners(units) {
 	const messageIds = [...new Set(units.filter((unit) => unit.scope_type === 'message').map((unit) => unit.scope_id))];
 	if (!messageIds.length) return units;
@@ -696,6 +706,6 @@ export function GET({ url }) {
 		LIMIT $limit
 		`,
 		{ ...params, $limit: limit }
-	).sort(compareUnit);
+	).sort((a, b) => compareSectionUnit(key, a, b));
 	return json({ units: attachMessageThreadOwners(attachAdvOwners(units)) });
 }
