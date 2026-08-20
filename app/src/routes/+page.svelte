@@ -669,6 +669,47 @@
 		}
 	}
 
+	async function fillCardInfo(unit) {
+		if (!currentUser) {
+			unit.error = "로그인이 필요합니다.";
+			return;
+		}
+		if (!unit.draft.trim()) {
+			unit.error = "번역문을 먼저 입력해주세요.";
+			return;
+		}
+		
+		const ok = confirm(`'${unit.draft}' (으)로 나머지 항목(홈 대사, 문자, 굿즈 등)을 채우시겠습니까?\n(이미 번역된 항목도 덮어씁니다)`);
+		if (!ok) return;
+
+		unit.saving = true;
+		unit.error = "";
+		notice = "";
+		try {
+			const data = await fetchJson("/api/bulk-card-fill", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					card_id: selected?.id,
+					raw_title: unit.draft,
+					nickname: currentUser.nickname,
+					pin: currentUser.pin,
+				}),
+			});
+			if (!data.ok) throw new Error(data.error || "일괄 채우기 실패");
+			
+			notice = `총 ${data.updated}개 항목이 채워졌습니다. (제목: ${data.title}, 캐릭터: ${data.chr})`;
+			unit.dirty = false;
+			unit.translation_text = unit.draft;
+			unit.status = "translated";
+			await loadSummary();
+		} catch (err) {
+			unit.error = err.message;
+		} finally {
+			unit.saving = false;
+		}
+	}
+
 	function placeholders(text) {
 		return [
 			...new Set(String(text ?? "").match(/\{[A-Za-z0-9_]+\}/g) ?? []),
@@ -2077,6 +2118,13 @@
 													>
 												{/if}
 											</span>
+											{#if unit.category === "Card" && unit.field_path === "name"}
+												<button
+													class="accent"
+													onclick={() => fillCardInfo(unit)}
+													disabled={unit.saving}
+												>{unit.saving ? "채우는 중..." : "이 번역으로 나머지 항목 채우기"}</button>
+											{/if}
 											<button
 												onclick={() => saveUnit(unit)}
 												disabled={unit.saving}
