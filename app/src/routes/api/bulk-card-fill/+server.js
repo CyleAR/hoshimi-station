@@ -16,19 +16,38 @@ export async function POST({ request }) {
 	if (!user) return json({ error: 'nickname or pin is invalid' }, { status: 401 });
 
 	// 1. Get Character Name linked to this card
-	const charRow = get(`
-		SELECT tu.translation_text, tu.original_text
-		FROM links l
-		JOIN translation_units tu ON tu.scope_type = 'character' AND tu.scope_id = l.from_id AND tu.field_path = 'name'
-		WHERE l.from_type = 'character' AND l.to_type = 'card' AND l.to_id = $cardId
-		LIMIT 1
-	`, { $cardId: cardId });
+	// First get the character ID
+	const linkRow = get(`SELECT from_id FROM links WHERE from_type = 'character' AND to_type = 'card' AND to_id = $cardId LIMIT 1`, { $cardId: cardId });
+	if (!linkRow) return json({ error: '해당 카드와 연결된 캐릭터를 찾을 수 없습니다.' }, { status: 400 });
 
-	if (!charRow) {
-		return json({ error: '해당 카드와 연결된 캐릭터를 찾을 수 없습니다.' }, { status: 400 });
+	const charId = linkRow.from_id;
+	
+	const characterNames = {
+		'char-ai': '코미야마 아이', 'char-aoi': '이가와 아오이', 'char-cca': '호토 코코아',
+		'char-chk': '타카미 치카', 'char-chn': '카후우 치노', 'char-chs': '시라이시 치사',
+		'char-cinnamo': '시나모롤', 'char-gyo': '울먹이', 'char-haruhi': '스즈미야 하루히',
+		'char-hrk': '사에키 하루코', 'char-itsuki': '코이즈미 이츠키', 'char-kitty': '헬로키티',
+		'char-kkr': '아카자키 코코로', 'char-koh': '마키노 코헤이', 'char-konazusa': '나카노 아즈사',
+		'char-konmio': '아키야마 미오', 'char-konmugi': '코토부키 츠무기', 'char-konritsu': '타이나카 리츠',
+		'char-konyui': '히라사와 유이', 'char-ktn': '나가세 코토노', 'char-kuromi': '쿠로미',
+		'char-kyon': '쿈', 'char-kyui': '코테가와 유이', 'char-lala': '라라 사타린 데빌룩',
+		'char-mei': '하야사카 메이', 'char-melody': '마이멜로디', 'char-mikuru': '아사히나 미쿠루',
+		'char-mku': '하츠네 미쿠', 'char-mna': '나가세 마나', 'char-mng': '나가세 마나',
+		'char-momo': '모모 베리아 데빌룩', 'char-ngs': '이부키 나기사', 'char-rei': '이치노세 레이',
+		'char-rik': '사쿠라우치 리코', 'char-rio': '칸자키 리오', 'char-rui': '텐도 루이',
+		'char-ski': '시라이시 사키', 'char-skr': '카와사키 사쿠라', 'char-smr': '오쿠야마 스미레',
+		'char-stm': '하시모토 사토미', 'char-stm1': '하시모토 사토미', 'char-stm2': '하시모토 사토미',
+		'char-stm3': '하시모토 사토미', 'char-stm4': '하시모토 사토미', 'char-stm5': '하시모토 사토미',
+		'char-suz': '나루미야 스즈', 'char-szk': '효도 시즈쿠', 'char-vns': 'VENUS 사무국',
+		'char-yami': '금빛 어둠', 'char-ymk': '스노우 미쿠', 'char-yo': '와타나베 요우',
+		'char-yu': '스즈무라 유우', 'char-yuki': '나가토 유키',
+		'char-kan': 'kana', 'char-mhk': 'miho', 'char-kor': 'fran'
+	};
+
+	const chr = characterNames[charId];
+	if (!chr) {
+		return json({ error: '해당 캐릭터의 이름을 찾을 수 없습니다.' }, { status: 400 });
 	}
-
-	const chr = charRow.translation_text || charRow.original_text;
 
 	// 2. Extract Title by removing Character Name from the end
 	let title = rawTitle;
