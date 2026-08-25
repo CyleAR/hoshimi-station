@@ -315,6 +315,23 @@ def bulk_replace_translation() -> None:
     run([python(), "scripts/replace_translation.py", old, new, "--db", str(DB_PATH), "--apply"])
 
 
+def cleanup_message_title_quotes() -> None:
+    print()
+    print("== 문자 제목의 잘못된 작은따옴표 제거 ==")
+    print("원문이 「」로 감싸지지 않은 번역 완료 Message.name에서 바깥 작은따옴표만 제거합니다.")
+    print("미번역 항목과 원문이 「」로 감싸진 제목은 변경하지 않습니다.")
+    print()
+    run([python(), "scripts/cleanup_message_title_quotes.py", "--db", str(DB_PATH), "--limit", "30"])
+    print()
+    answer = input("위 항목을 실제로 변경할까요? [y/N] ").strip().lower()
+    if answer not in {"y", "yes"}:
+        print("변경을 취소했습니다.")
+        return
+    print()
+    print("== 변경 적용 ==")
+    run([python(), "scripts/cleanup_message_title_quotes.py", "--db", str(DB_PATH), "--apply"])
+
+
 def overwrite_prefill_translations(*, confirm: bool = True) -> None:
     print()
     print("== prefill 전체 번역 덮어쓰기 ==")
@@ -476,6 +493,10 @@ def menu() -> str:
     print("7. Skill auto translation")
     print("   - 신규 번역/전체 번역/감사 리포트를 실행합니다.")
     print()
+    print("8. 문자 제목의 잘못된 작은따옴표 제거")
+    print("   - 원문에 「」가 없는 번역 완료 문자 제목에서 바깥 작은따옴표를 제거합니다.")
+    print("   - 미리보기 후 확인하면 DB에 적용합니다.")
+    print()
     print()
     print("q. 종료")
     print()
@@ -496,6 +517,7 @@ def main() -> None:
             "5",
             "6",
             "7",
+            "8",
             "skill-missing-dry",
             "skill-missing",
             "skill-overwrite-dry",
@@ -528,6 +550,8 @@ def main() -> None:
         overwrite_prefill_translations()
     elif choice == "7":
         skill_translation_menu()
+    elif choice == "8":
+        cleanup_message_title_quotes()
     elif choice == "skill-missing-dry":
         run_skill_translation("missing", apply=False)
     elif choice == "skill-missing":
@@ -543,7 +567,7 @@ def main() -> None:
     elif choice in {"q", "quit", "exit"}:
         return
     else:
-        raise SystemExit("1, 2, 3, 4, 5, 6, 7, q 중 하나를 입력하세요.")
+        raise SystemExit("1, 2, 3, 4, 5, 6, 7, 8, q 중 하나를 입력하세요.")
 
 
 if __name__ == "__main__":
