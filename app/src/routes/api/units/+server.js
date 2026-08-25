@@ -466,6 +466,7 @@ function whereFor(type, id, key, category) {
 
 	if (type === 'message_group') {
 		if (key === 'message_threads') return linkedWhere(type, id, ['message_thread']);
+		if (key === 'group_message_titles') return linkedWhere(type, id, ['message'], "field_path = 'name'");
 		if (key === 'group_messages') return linkedWhere(type, id, ['message']);
 		if (key === 'group_telephones') return linkedWhere(type, id, ['telephone']);
 		if (key === 'conditions') return linkedWhere(type, id, ['condition_description']);

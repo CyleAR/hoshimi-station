@@ -1407,6 +1407,7 @@
 			"goods",
 			"home_actions",
 			"evolution",
+			"group_message_titles",
 			"group_messages",
 			"message_threads",
 			"group_telephones",

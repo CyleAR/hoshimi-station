@@ -28,6 +28,7 @@ const sectionMeta = {
 	card_home_talks: ['⌂', '카드 홈 대화'],
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['☷', '그룹 문자'],
+	group_message_titles: ['✎', '소속 문자 제목'],
 	series_message_titles: ['✎', '시리즈 문자 제목'],
 	group_telephones: ['☏', '그룹 통화'],
 	linked_messages: ['💬', '연결 문자'],
@@ -70,6 +71,7 @@ const sectionOverrides = {
 	card_home_talks: ['🏠', '카드 홈 대사'],
 	card_telephones: ['☎', '카드 전화'],
 	group_messages: ['💬', '그룹 문자'],
+	group_message_titles: ['✎', '소속 문자 제목'],
 	series_message_titles: ['✎', '시리즈 문자 제목'],
 	group_telephones: ['☎', '그룹 통화'],
 	linked_messages: ['💬', '연결 문자'],
@@ -916,6 +918,7 @@ export function GET({ url }) {
 
 	if (type === 'message_group') {
 		sections.push(linkedUnitSection('message_threads', type, id, ['message_thread']));
+		sections.push(linkedUnitSection('group_message_titles', type, id, ['message'], "field_path = 'name'"));
 		sections.push(linkedUnitSection('group_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('group_telephones', type, id, ['telephone']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
