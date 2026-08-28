@@ -827,6 +827,21 @@ def translate_rule_text(text: str) -> str | None:
         out,
     )
     out = re.sub(
+        r"自身が(.+?)レーンの時 隣接するアイドルの強化効果を((?:SP|A|P)スキル)前に移動",
+        lambda match: f"자신이 {translate_rule_text(match.group(1)) or match.group(1)} 레인일 때 인접한 아이돌의 강화 효과를 {match.group(2).replace('スキル', '스킬')} 이전으로 이동",
+        out,
+    )
+    out = re.sub(
+        r"隣接するアイドルの強化効果を((?:SP|A|P)スキル)前に移動",
+        lambda match: f"인접한 아이돌의 강화 효과를 {match.group(1).replace('スキル', '스킬')} 이전으로 이동",
+        out,
+    )
+    out = re.sub(
+        r"(.+?)タイプ ?(\d+)人の強化効果を((?:SP|A|P)スキル)前に移動",
+        lambda match: f"{translate_rule_text(match.group(1)) or match.group(1)} 타입 {match.group(2)}명의 강화 효과를 {match.group(3).replace('スキル', '스킬')} 이전으로 이동",
+        out,
+    )
+    out = re.sub(
         r"相手の(.+?)タイプ ?(\d+)人の強化効果消去",
         r"상대의 \1 타입 \2명의 강화 효과 제거",
         out,
