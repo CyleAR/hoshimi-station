@@ -1062,13 +1062,17 @@
 				]),
 			);
 			let applied = 0;
-			for (const unit of units) {
-				if (!translated.has(String(unit.unit_id))) continue;
-				unit.draft = translated.get(String(unit.unit_id));
-				unit.dirty = unit.draft !== unit.translation_text;
-				unit.error = "";
+			units = units.map((unit) => {
+				if (!translated.has(String(unit.unit_id))) return unit;
+				const draft = translated.get(String(unit.unit_id));
 				applied += 1;
-			}
+				return {
+					...unit,
+					draft,
+					dirty: draft !== unit.translation_text,
+					error: "",
+				};
+			});
 			notice = data.usage
 				? `AI 초벌 ${applied}개 입력됨 · 오늘 ${data.usage.remaining}회 남음`
 				: `AI 초벌 ${applied}개 입력됨`;
@@ -2008,7 +2012,7 @@
 				</section>
 			{:else}
 				<div class="group-stack">
-					{#each unitGroups() as group}
+					{#each unitGroups() as group (group.key)}
 						<section class="unit-group">
 							<header class="group-head">
 								<div>
@@ -2052,7 +2056,7 @@
 								</div>
 							</header>
 							<div class="unit-stack">
-								{#each group.units as unit}
+								{#each group.units as unit (unit.unit_id)}
 									<article
 										class="unit-card"
 										class:manager={isManagerUnit(unit)}
