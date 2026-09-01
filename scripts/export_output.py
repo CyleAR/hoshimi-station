@@ -22,6 +22,10 @@ DEFAULT_OUTPUT_DIR = ROOT / "output"
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
 PLACE_ATTR_RE = re.compile(r"(?<![A-Za-z0-9_])place=(?P<value>.*?)(?=\]|\s+[A-Za-z_][A-Za-z0-9_]*=|$)")
 TAG_RE = re.compile(r"^\[(?P<tag>[a-zA-Z0-9_]+)\s*(?P<body>.*)\]$")
+CHOICE_RE = re.compile(
+    r"(?P<prefix>choices=\[choice\s+text=)(?P<value>.*?)(?P<suffix>\](?=\s+(?:choices=|clip=)))",
+    re.DOTALL,
+)
 
 
 def load_ipr_rules() -> dict[str, Any]:
@@ -244,6 +248,14 @@ def replace_attr(line: str, attr: str, value: str, occurrence: int = 0) -> str:
     return ATTR_RE.sub(repl, line)
 
 
+def replace_choice_text(line: str, value: str, occurrence: int) -> str:
+    matches = list(CHOICE_RE.finditer(line))
+    if occurrence >= len(matches):
+        raise ValueError(f"choice not found: choice[{occurrence}]")
+    match = matches[occurrence]
+    return line[: match.start("value")] + value + line[match.end("value") :]
+
+
 def replace_mapped_places(line: str, translations: dict[str, str]) -> tuple[str, int]:
     applied = 0
 
@@ -261,6 +273,19 @@ def replace_mapped_places(line: str, translations: dict[str, str]) -> tuple[str,
 
 def parse_attrs(line: str) -> dict[str, str]:
     return {match.group("key"): match.group("value").strip() for match in ATTR_RE.finditer(line)}
+
+
+def validate_choicegroup(source_file: str, line_no: int, source: str, translated: str) -> None:
+    if not source.startswith("[choicegroup "):
+        return
+    expected = source.count("choices=[choice ")
+    markers = translated.count("choices=[choice ")
+    closed = len(CHOICE_RE.findall(translated))
+    if markers != expected or closed != expected:
+        raise ValueError(
+            f"ADV choicegroup validation failed: {source_file}:{line_no}: "
+            f"expected {expected} closed choices, got markers={markers} closed={closed}"
+        )
 
 
 def write_adv_file(
@@ -288,6 +313,7 @@ def write_adv_file(
 
     applied = 0
     for idx, line in enumerate(lines, start=1):
+        original_line = line
         line, place_applied = replace_mapped_places(line, place_map)
         applied += place_applied
         for original, translated in name_map.items():
@@ -315,8 +341,9 @@ def write_adv_file(
                         field = f"choice[{occurrence}].text"
                         translated = text_map.get((field, text_match.group(1)))
                         if translated:
-                            line = replace_attr(line, "text", translated, occurrence)
+                            line = replace_choice_text(line, translated, occurrence)
                             applied += 1
+            validate_choicegroup(source_file, idx, original_line, line)
             lines[idx - 1] = line
             continue
         for row in line_units.get(idx, []):
@@ -329,8 +356,9 @@ def write_adv_file(
                 applied += 1
             elif field.startswith("choice[") and field.endswith("].text"):
                 occurrence = int(field.removeprefix("choice[").split("]", 1)[0])
-                line = replace_attr(line, "text", row["translation_text"], occurrence)
+                line = replace_choice_text(line, row["translation_text"], occurrence)
                 applied += 1
+        validate_choicegroup(source_file, idx, original_line, line)
         lines[idx - 1] = line
     if not applied:
         return 0
