@@ -819,6 +819,7 @@
 		if (item.category === "adv/love") return "adv_love";
 		if (item.category === "adv/userhbd") return "adv_userhbd";
 		if (item.category === "adv/group") return "adv_group";
+		if (item.category === "adv/excursion") return "adv_excursion";
 		return "adv";
 	}
 
@@ -1283,9 +1284,17 @@
 		return `${unit.source_file} · ${unit.record_id}`;
 	}
 
+	const excursionPlaceLabels = {
+		"01_01": "관람차",
+		"01_02": "해안",
+		"01_03": "수영장",
+		"01_04": "쇼핑",
+		"01_05": "외출 종료",
+	};
+
 	function shouldGroupCharacterAdvByFile(unit) {
 		return (
-			["adv_bond", "adv_hbd", "adv_userhbd"].includes(
+			["adv_bond", "adv_hbd", "adv_userhbd", "adv_excursion"].includes(
 				activeSection?.key,
 			) &&
 			unit.source_type === "adv" &&
@@ -1299,6 +1308,10 @@
 			(unit.translation_text || unit.original_text)
 		) {
 			return unit.translation_text || unit.original_text;
+		}
+		const m = unit.source_file?.match(/^adv_event_excursion_.*_(\d{2}_\d{2})\.txt$/);
+		if (m && excursionPlaceLabels[m[1]]) {
+			return `${excursionPlaceLabels[m[1]]} (${m[1]}) · ${unit.source_file}`;
 		}
 		return unit.source_file;
 	}
@@ -1425,6 +1438,7 @@
 			"adv_love",
 			"adv_userhbd",
 			"adv_group",
+			"adv_excursion",
 		];
 		return (
 			ownerGroupedKeys.includes(activeSection?.key) ||

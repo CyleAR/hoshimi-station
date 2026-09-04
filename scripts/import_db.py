@@ -1110,7 +1110,16 @@ def seed_entities_and_links(conn: sqlite3.Connection, duplicate_story_map: dict[
         upsert_entity(conn, "excursion_place", place_id, row.get("name", place_id), row.get("advAssetId", ""), row)
 
     for row in cache.get("ExcursionPlaceSetting", {}).values():
-        add_link(conn, "character", row.get("characterId", ""), "excursion_place", row.get("excursionPlaceId", ""), "excursion_place", row)
+        char_id = row.get("characterId", "")
+        place_id = row.get("excursionPlaceId", "")
+        add_link(conn, "character", char_id, "excursion_place", place_id, "excursion_place", row)
+        place = cache.get("ExcursionPlace", {}).get(place_id, {})
+        adv_asset_id = place.get("advAssetId", "")
+        char_code = char_id.removeprefix("char-")
+        if adv_asset_id and char_code:
+            adv_file = f"adv_event_excursion_{char_code}_{adv_asset_id}.txt"
+            if (ADV_DIR / adv_file).exists():
+                add_link(conn, "excursion_place", place_id, "adv_file", adv_file, "uses_adv", row)
 
     for row in cache.get("HomeTalkCallPattern", {}).values():
         entity_id = f"{row.get('characterId', '')}_{row.get('patternId', '')}"
@@ -1446,6 +1455,8 @@ def place_values(body: str) -> list[str]:
 
 def adv_category(filename: str) -> str:
     stem = filename.removeprefix("adv_").removesuffix(".txt")
+    if stem.startswith("event_excursion_"):
+        return "excursion"
     return stem.split("_", 1)[0] if "_" in stem else stem
 
 
@@ -1457,6 +1468,8 @@ def adv_scope(filename: str) -> tuple[str, str]:
     if parts[0] == "hbd" and len(parts) >= 3:
         return "character", "char-" + parts[2]
     if parts[0] == "userhbd" and len(parts) >= 3:
+        return "character", "char-" + parts[2]
+    if parts[0] == "event" and len(parts) >= 4 and parts[1] == "excursion":
         return "character", "char-" + parts[2]
     if parts[0] == "event" and len(parts) >= 4 and parts[1] == "cmn":
         return "character", "char-" + parts[2]

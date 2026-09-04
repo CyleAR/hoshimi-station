@@ -3,6 +3,7 @@ import { all, get, json } from '$lib/server/db.js';
 const sectionMeta = {
 	excursion_places: ['EX', '외출 장소'],
 	excursion_reactions: ['EX', '외출 반응'],
+	adv_excursion: ['EX', '외출 ADV'],
 	direct: ['◈', '기본 프로필/정보'],
 	members: ['👤', '소속 멤버'],
 	cards: ['★', '소속 카드'],
@@ -40,6 +41,7 @@ const sectionMeta = {
 const sectionOverrides = {
 	excursion_places: ['EX', '외출 장소'],
 	excursion_reactions: ['EX', '외출 반응'],
+	adv_excursion: ['EX', '외출 ADV'],
 	direct: ['▣', '기본 정보'],
 	members: ['👥', '소속 멤버'],
 	cards: ['★', '소속 카드'],
@@ -427,14 +429,24 @@ function linksFor(type, id) {
 		SELECT l.relation, l.to_type type, l.to_id id, COALESCE(e.label, l.to_id) label, COALESCE(e.subtitle, '') subtitle,
 		       ${linkSortExpr('l')} sort_order,
 		       CASE
-		       	WHEN l.to_type = 'adv_file' THEN (
-		       		SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
-		       		FROM translation_units tu
-		       		WHERE tu.source_type = 'adv'
-		       		  AND tu.source_file = l.to_id
-		       		  AND tu.field_path = 'title'
-		       		ORDER BY tu.line_no, tu.unit_id
-		       		LIMIT 1
+		       	WHEN l.to_type = 'adv_file' THEN COALESCE(
+		       		(
+		       			SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
+		       			FROM translation_units tu
+		       			WHERE tu.source_type = 'adv'
+		       			  AND tu.source_file = l.to_id
+		       			  AND tu.field_path = 'title'
+		       			ORDER BY tu.line_no, tu.unit_id
+		       			LIMIT 1
+		       		),
+		       		CASE
+		       			WHEN l.to_id LIKE '%_01_01.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '관람차 (01_01)'
+		       			WHEN l.to_id LIKE '%_01_02.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '해안 (01_02)'
+		       			WHEN l.to_id LIKE '%_01_03.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '수영장 (01_03)'
+		       			WHEN l.to_id LIKE '%_01_04.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '쇼핑 (01_04)'
+		       			WHEN l.to_id LIKE '%_01_05.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '외출 종료 (01_05)'
+		       			ELSE NULL
+		       		END
 		       	)
 		       	ELSE COALESCE(
 		       		(
@@ -490,14 +502,24 @@ function linksFor(type, id) {
 		SELECT l.relation, l.from_type type, l.from_id id, COALESCE(e.label, l.from_id) label, COALESCE(e.subtitle, '') subtitle,
 		       ${linkSortExpr('l')} sort_order,
 		       CASE
-		       	WHEN l.from_type = 'adv_file' THEN (
-		       		SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
-		       		FROM translation_units tu
-		       		WHERE tu.source_type = 'adv'
-		       		  AND tu.source_file = l.from_id
-		       		  AND tu.field_path = 'title'
-		       		ORDER BY tu.line_no, tu.unit_id
-		       		LIMIT 1
+		       	WHEN l.from_type = 'adv_file' THEN COALESCE(
+		       		(
+		       			SELECT COALESCE(NULLIF(tu.translation_text, ''), tu.original_text)
+		       			FROM translation_units tu
+		       			WHERE tu.source_type = 'adv'
+		       			  AND tu.source_file = l.from_id
+		       			  AND tu.field_path = 'title'
+		       			ORDER BY tu.line_no, tu.unit_id
+		       			LIMIT 1
+		       		),
+		       		CASE
+		       			WHEN l.from_id LIKE '%_01_01.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '관람차 (01_01)'
+		       			WHEN l.from_id LIKE '%_01_02.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '해안 (01_02)'
+		       			WHEN l.from_id LIKE '%_01_03.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '수영장 (01_03)'
+		       			WHEN l.from_id LIKE '%_01_04.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '쇼핑 (01_04)'
+		       			WHEN l.from_id LIKE '%_01_05.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '외출 종료 (01_05)'
+		       			ELSE NULL
+		       		END
 		       	)
 		       	ELSE COALESCE(
 		       		(
@@ -836,6 +858,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
 		sections.push(linkedUnitSection('excursion_places', type, id, ['excursion_place']));
 		sections.push(section('excursion_reactions', "source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }));
+		sections.push(advSection(type, id, 'adv/excursion', 'adv_excursion'));
 		sections.push(characterCommonSection('common_home_talks', id, ['home_talk']));
 		sections.push(characterCommonSection('common_messages', id, ['message', 'message_group'], "NOT (scope_type = 'message' AND scope_id LIKE 'message-hbd-%')"));
 		sections.push(birthdayMessageSection(id));

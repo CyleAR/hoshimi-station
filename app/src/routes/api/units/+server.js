@@ -347,6 +347,7 @@ function whereFor(type, id, key, category) {
 	if (key === 'adv_love') return advWhere(type, id, 'adv/love');
 	if (key === 'adv_userhbd') return advWhere(type, id, 'adv/userhbd');
 	if (key === 'adv_group') return advWhere(type, id, 'adv/group');
+	if (key === 'adv_excursion') return advWhere(type, id, 'adv/excursion');
 
 	if (type === 'group') {
 		if (key === 'members') {
