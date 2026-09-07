@@ -363,6 +363,8 @@ export async function POST({ request }) {
 
 		const prompt = [
 			'You are preparing first-draft Korean translations for a Japanese game localization tool.',
+			'Write natural, clear, and grammatically complete Korean sentences with rich semantic context (Fluent Korean).',
+			'Avoid machine-translation artifacts: do not drop particles or verb endings, avoid excessive "~의", and write complete sentences with proper predicate endings.',
 			'Return ONLY a JSON array. Each item must be {"unit_id":"...","translation_text":"..."} with no markdown.',
 			'Translate every row whose needs_translation is true. Do not omit target rows and do not leave translation_text empty.',
 			'Rows whose needs_translation is false contain approved Korean translations for context. Use them as style and terminology references, but do not return them.',
@@ -389,8 +391,8 @@ export async function POST({ request }) {
 			const referenceRows = payload.filter((row) => !row.needs_translation);
 			const externalPrompt = [
 				[
-					'다음 일본어 게임 문구를 한국어로 번역해 주세요.',
-					'아래 번역 지침을 따르고, placeholder, 제어 코드, 태그와 줄바꿈 표기를 원문 그대로 보존해 주세요.',
+					'다음 일본어 게임 문구를 자연스럽고 유려한 한국어로 번역해 주세요.',
+					'아래 번역 지침 및 자연스러운 한국어 문장 지침(Fluent Korean)을 준수해 주세요.',
 					'기존 번역이 함께 제공된 경우 용어와 말투를 맞추는 참고 자료로만 사용해 주세요.'
 				].join('\n'),
 				`AI 번역 지침:\n${guidelines}`,
