@@ -77,8 +77,15 @@ function extractOutputText(response) {
 	return parts.join('\n');
 }
 
+function cleanOutputText(text) {
+	let clean = String(text ?? '').trim();
+	clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+	clean = clean.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+	return clean;
+}
+
 function parseJsonText(text) {
-	const clean = String(text ?? '').trim();
+	const clean = cleanOutputText(text);
 	if (!clean) throw new Error('AI response is empty.');
 	try {
 		return JSON.parse(clean);
@@ -89,15 +96,28 @@ function parseJsonText(text) {
 	}
 }
 
-function openaiBaseUrl() {
-	return String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+function aiBaseUrl() {
+	return String(process.env.HYPER_BASE_URL || process.env.OPENAI_BASE_URL || 'https://hyper.charm.land/v1').replace(/\/+$/, '');
+}
+
+function aiApiKey() {
+	return String(process.env.HYPER_API_KEY || process.env.OPENAI_API_KEY || '').trim();
+}
+
+function aiModel() {
+	return String(process.env.HYPER_MODEL || process.env.OPENAI_MODEL || 'deepseek-v4-flash-0731').trim();
+}
+
+function aiReasoningEffort() {
+	return String(process.env.HYPER_REASONING_EFFORT || process.env.OPENAI_REASONING_EFFORT || '').trim();
 }
 
 async function callJson(url, body) {
+	const apiKey = aiApiKey();
 	const response = await fetch(url, {
 		method: 'POST',
 		headers: {
-			authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+			authorization: `Bearer ${apiKey}`,
 			'content-type': 'application/json'
 		},
 		body: JSON.stringify(body)
@@ -113,10 +133,27 @@ async function callJson(url, body) {
 }
 
 async function requestAi(model, prompt, reasoningEffort) {
-	const baseUrl = openaiBaseUrl();
+	const baseUrl = aiBaseUrl();
 	const reasoning = reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {};
 	const chatReasoning = reasoningEffort ? { reasoning_effort: reasoningEffort } : {};
 	const attempts = [
+		{
+			name: 'chat.completions',
+			url: `${baseUrl}/chat/completions`,
+			body: {
+				model,
+				...chatReasoning,
+				messages: [{ role: 'user', content: prompt }]
+			}
+		},
+		{
+			name: 'chat.completions.plain',
+			url: `${baseUrl}/chat/completions`,
+			body: {
+				model,
+				messages: [{ role: 'user', content: prompt }]
+			}
+		},
 		{
 			name: 'responses.input_string',
 			url: `${baseUrl}/responses`,
@@ -134,15 +171,6 @@ async function requestAi(model, prompt, reasoningEffort) {
 						content: [{ type: 'input_text', text: prompt }]
 					}
 				]
-			}
-		},
-		{
-			name: 'chat.completions',
-			url: `${baseUrl}/chat/completions`,
-			body: {
-				model,
-				...chatReasoning,
-				messages: [{ role: 'user', content: prompt }]
 			}
 		}
 	];
@@ -214,7 +242,7 @@ function pruneAiJobs() {
 
 async function completeAiJob(jobId, { model, prompt, reasoningEffort, rows, usage }) {
 	try {
-		const upstreamUrl = `${openaiBaseUrl()}/responses`;
+		const upstreamUrl = `${aiBaseUrl()}/chat/completions`;
 		const aiResult = await requestAi(model, prompt, reasoningEffort);
 		if (aiResult.failures) {
 			console.info(`[ai-translate] all attempts failed=${JSON.stringify(aiResult.failures).slice(0, 1200)}`);
@@ -294,9 +322,12 @@ export async function POST({ request }) {
 			? [...new Set(body.reference_unit_ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, MAX_REFERENCE_UNITS)
 			: [];
 		const promptOnly = body.prompt_only === true;
-		const openaiReasoningEffort = String(process.env.OPENAI_REASONING_EFFORT || '').trim();
+		const reasoningEffort = aiReasoningEffort();
+		const model = aiModel();
+		const baseUrl = aiBaseUrl();
+		const apiKey = aiApiKey();
 		console.info(
-			`[ai-translate] request nickname=${nickname} units=${unitIds.length} mode=${promptOnly ? 'prompt' : 'translate'} provider=openai base=${openaiBaseUrl()} model=${process.env.OPENAI_MODEL || 'gpt-5.2'} reasoning=${openaiReasoningEffort || 'default'}`
+			`[ai-translate] request nickname=${nickname} units=${unitIds.length} mode=${promptOnly ? 'prompt' : 'translate'} base=${baseUrl} model=${model} reasoning=${reasoningEffort || 'default'}`
 		);
 
 		const isAdmin = verifyAdmin(nickname, pin);
@@ -386,7 +417,7 @@ export async function POST({ request }) {
 			});
 		}
 
-		if (!process.env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY is not set.' }, { status: 500 });
+		if (!apiKey) return json({ error: 'AI API Key is not set. (Set HYPER_API_KEY or OPENAI_API_KEY)' }, { status: 500 });
 
 		const usage = isAdmin ? null : consumeDailyRequest(nickname);
 		if (usage && !usage.allowed) {
@@ -399,14 +430,13 @@ export async function POST({ request }) {
 			);
 		}
 
-		const model = process.env.OPENAI_MODEL || 'gpt-5.2';
 		pruneAiJobs();
 		const jobId = randomUUID();
 		aiJobs.set(jobId, { createdAt: Date.now(), status: 'processing' });
 		void completeAiJob(jobId, {
 			model,
 			prompt,
-			reasoningEffort: openaiReasoningEffort,
+			reasoningEffort,
 			rows,
 			usage
 		});
