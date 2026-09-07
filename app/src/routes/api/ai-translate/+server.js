@@ -55,6 +55,30 @@ function readTranslationText(item) {
 	return '';
 }
 
+function sanitizeEndingPunctuation(original, translated) {
+	const orig = String(original ?? '').trim();
+	let trans = String(translated ?? '').trim();
+	if (!orig || !trans) return trans;
+
+	// 원문 끝에 마침표(. or 。)가 없는데 번역문 끝에 마침표(.)가 붙어 있다면 제거 (말줄임표 제외)
+	if (!/[.。]$/.test(orig) && trans.endsWith('.') && !trans.endsWith('..') && !trans.endsWith('….')) {
+		trans = trans.slice(0, -1).trim();
+	}
+
+	// 닫는 따옴표/괄호 직전에 마침표가 들어간 경우 (예: "대사." -> "대사")
+	const quoteMatch = trans.match(/\.([」』"')\]）])$/);
+	if (quoteMatch) {
+		const closingChar = quoteMatch[1];
+		const escapedClosing = closingChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const origClosingRegex = new RegExp(`[^.。]${escapedClosing}$`);
+		if (origClosingRegex.test(orig)) {
+			trans = trans.slice(0, -(closingChar.length + 1)) + closingChar;
+		}
+	}
+
+	return trans;
+}
+
 function responseKeys(item) {
 	if (!item || typeof item !== 'object') return 'non-object';
 	return Object.keys(item).slice(0, 12).join(', ') || 'no keys';
@@ -274,11 +298,12 @@ async function completeAiJob(jobId, { model, prompt, reasoningEffort, rows, usag
 			const unitId = String(item?.unit_id ?? '').trim();
 			const row = byId.get(unitId);
 			if (!row) continue;
-			const translationText = readTranslationText(item).trim();
+			let translationText = readTranslationText(item).trim();
 			if (!translationText) {
 				warnings.push({ unit_id: unitId, message: `empty translation_text (keys: ${responseKeys(item)})` });
 				continue;
 			}
+			translationText = sanitizeEndingPunctuation(row.original_text, translationText);
 			const missing = missingPlaceholders(row.original_text, translationText);
 			if (missing.length) {
 				warnings.push({ unit_id: unitId, message: `missing placeholder: ${missing.join(', ')}` });
