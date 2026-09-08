@@ -382,6 +382,18 @@ function whereFor(type, id, key, category) {
 				{ $id: id }
 			];
 		}
+		if (key === 'card_skills' || key === 'skills') {
+			return [
+				`(scope_type, scope_id) IN (
+					SELECT skill.to_type, skill.to_id
+					FROM links card
+					JOIN links skill ON skill.from_type = 'card' AND skill.from_id = card.to_id
+					WHERE card.from_type = 'character' AND card.from_id = $id AND card.to_type = 'card'
+					  AND skill.to_type IN ('skill', 'skill_efficacy', 'live_ability', 'activity_ability')
+				)`,
+				{ $id: id }
+			];
+		}
 		if (key === 'common_home_talks') return characterCommonWhere(id, ['home_talk']);
 		if (key === 'common_messages') return characterCommonWhere(id, ['message', 'message_group'], "NOT (scope_type = 'message' AND scope_id LIKE 'message-hbd-%')");
 		if (key === 'birthday_messages') return birthdayMessageWhere(id);

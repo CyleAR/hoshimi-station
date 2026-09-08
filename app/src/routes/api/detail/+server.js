@@ -7,6 +7,7 @@ const sectionMeta = {
 	direct: ['◈', '기본 프로필/정보'],
 	members: ['👤', '소속 멤버'],
 	cards: ['★', '소속 카드'],
+	card_skills: ['⚡', '카드 스킬'],
 	skills: ['⚡', '스킬'],
 	skill_efficacies: ['⚙', '스킬 효과'],
 	costumes: ['▣', '의상'],
@@ -45,6 +46,7 @@ const sectionOverrides = {
 	direct: ['▣', '기본 정보'],
 	members: ['👥', '소속 멤버'],
 	cards: ['★', '소속 카드'],
+	card_skills: ['⚡', '카드 스킬'],
 	skills: ['⚡', '스킬'],
 	skill_efficacies: ['⚙', '스킬 효과'],
 	costumes: ['▣', '의상'],
@@ -323,6 +325,20 @@ function characterCardSection(id) {
 		'cards',
 		`source_type = 'masterdb' AND category = 'Card' AND scope_type = 'card' AND scope_id IN (
 			SELECT to_id FROM links WHERE from_type = 'character' AND from_id = $id AND to_type = 'card'
+		)`,
+		{ $id: id }
+	);
+}
+
+function characterCardSkillSection(id) {
+	return section(
+		'card_skills',
+		`(scope_type, scope_id) IN (
+			SELECT skill.to_type, skill.to_id
+			FROM links card
+			JOIN links skill ON skill.from_type = 'card' AND skill.from_id = card.to_id
+			WHERE card.from_type = 'character' AND card.from_id = $id AND card.to_type = 'card'
+			  AND skill.to_type IN ('skill', 'skill_efficacy', 'live_ability', 'activity_ability')
 		)`,
 		{ $id: id }
 	);
@@ -849,6 +865,7 @@ export function GET({ url }) {
 
 	if (type === 'character') {
 		sections.push(characterCardSection(id));
+		sections.push(characterCardSkillSection(id));
 		sections.push(linkedUnitSection('costumes', type, id, ['costume']));
 		sections.push(linkedUnitSection('hair', type, id, ['hair']));
 		sections.push(linkedUnitSection('accessories', type, id, ['accessory']));

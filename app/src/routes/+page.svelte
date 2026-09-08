@@ -1418,6 +1418,7 @@
 			"card_home_talks",
 			"card_telephones",
 			"skills",
+			"card_skills",
 			"costumes",
 			"hair",
 			"accessories",
