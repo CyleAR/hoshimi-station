@@ -1,8 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { Agent } from 'undici';
 import { verifyAdmin } from '$lib/server/admin.js';
 import { all, get, json, run } from '$lib/server/db.js';
+
+const aiDispatcher = new Agent({
+	headersTimeout: 15 * 60 * 1000,
+	bodyTimeout: 15 * 60 * 1000,
+	connectTimeout: 60 * 1000
+});
 
 const MAX_UNITS = 150;
 const MAX_REFERENCE_UNITS = 200;
@@ -138,22 +145,35 @@ function aiReasoningEffort() {
 
 async function callJson(url, body) {
 	const apiKey = aiApiKey();
-	const response = await fetch(url, {
-		method: 'POST',
-		headers: {
-			authorization: `Bearer ${apiKey}`,
-			'content-type': 'application/json'
-		},
-		body: JSON.stringify(body)
-	});
-	const raw = await response.text();
-	let data = {};
 	try {
-		data = raw ? JSON.parse(raw) : {};
-	} catch {
-		data = { error: { message: raw.replace(/\s+/g, ' ').slice(0, 240), type: 'non_json_response' } };
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				authorization: `Bearer ${apiKey}`,
+				'content-type': 'application/json'
+			},
+			body: JSON.stringify(body),
+			dispatcher: aiDispatcher
+		});
+		const raw = await response.text();
+		let data = {};
+		try {
+			data = raw ? JSON.parse(raw) : {};
+		} catch {
+			data = { error: { message: raw.replace(/\s+/g, ' ').slice(0, 240), type: 'non_json_response' } };
+		}
+		return { response, raw, data };
+	} catch (err) {
+		const isTimeout = err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.name === 'HeadersTimeoutError';
+		const message = isTimeout
+			? 'AI 응답 대기 시간이 초과되었습니다 (15분 타임아웃).'
+			: `AI 서버 연결 실패: ${err.message || String(err)}`;
+		return {
+			response: { ok: false, status: isTimeout ? 504 : 502 },
+			raw: message,
+			data: { error: { message, code: err.code || err.name } }
+		};
 	}
-	return { response, raw, data };
 }
 
 async function requestAi(model, prompt, reasoningEffort) {

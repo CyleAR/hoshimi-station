@@ -942,7 +942,7 @@
 	}
 
 	async function waitForAiDraft(jobId) {
-		for (let attempt = 0; attempt < 400; attempt += 1) {
+		for (let attempt = 0; attempt < 600; attempt += 1) {
 			await sleep(1500);
 			try {
 				const data = await fetchJson(
@@ -954,7 +954,7 @@
 				throw err;
 			}
 		}
-		throw new Error("AI 번역이 10분 안에 끝나지 않았습니다.");
+		throw new Error("AI 번역이 15분 안에 끝나지 않았습니다.");
 	}
 
 	function aiDraftSelection() {
