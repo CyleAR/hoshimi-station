@@ -220,6 +220,41 @@
 	let recentError = $state("");
 	let recentLoading = $state(false);
 	let showOnlyUntranslated = $state(false);
+	let selectedFieldLabels = $state(null);
+	let fieldFilterElement;
+	const fieldFilterOptions = $derived.by(() => {
+		const counts = new Map();
+		for (const unit of units) {
+			const label = fieldLabel(unit.field_path);
+			const count = counts.get(label) ?? { done: 0, total: 0 };
+			count.total += 1;
+			if (String(unit.translation_text ?? "").trim()) count.done += 1;
+			counts.set(label, count);
+		}
+		return [...counts].sort(([a], [b]) => a.localeCompare(b, "ko"));
+	});
+
+	function fieldFilterDismiss(node) {
+		const close = (event) => {
+			if (event.type === "keydown" && event.key !== "Escape") return;
+			if (event.type === "pointerdown" && node.contains(event.target)) return;
+			if (node.open && event.type === "keydown") node.querySelector("summary")?.focus();
+			node.open = false;
+		};
+		document.addEventListener("pointerdown", close);
+		document.addEventListener("keydown", close);
+		return { destroy() {
+			document.removeEventListener("pointerdown", close);
+			document.removeEventListener("keydown", close);
+		} };
+	}
+
+	function toggleFieldLabel(label, checked) {
+		const selected = new Set(selectedFieldLabels ?? fieldFilterOptions.map(([name]) => name));
+		if (checked) selected.add(label);
+		else selected.delete(label);
+		selectedFieldLabels = selected.size === fieldFilterOptions.length ? null : [...selected];
+	}
 	let aiDrafting = $state(false);
 	let aiPromptCopying = $state(false);
 	let aiDraftError = $state("");
@@ -591,6 +626,8 @@
 	}
 
 	async function loadUnits(part) {
+		selectedFieldLabels = null;
+		if (fieldFilterElement) fieldFilterElement.open = false;
 		activeSection = part;
 		loadingUnits = true;
 		error = "";
@@ -1373,7 +1410,9 @@
 
 	function untranslatedCount() {
 		return units.filter(
-			(unit) => !String(unit.translation_text ?? "").trim(),
+			(unit) =>
+				(selectedFieldLabels === null || selectedFieldLabels.includes(fieldLabel(unit.field_path))) &&
+				!String(unit.translation_text ?? "").trim(),
 		).length;
 	}
 
@@ -1582,9 +1621,10 @@
 	}
 
 	function filteredUnits() {
-		if (!showOnlyUntranslated) return units;
 		return units.filter(
-			(unit) => !String(unit.translation_text ?? "").trim(),
+			(unit) =>
+				(selectedFieldLabels === null || selectedFieldLabels.includes(fieldLabel(unit.field_path))) &&
+				(!showOnlyUntranslated || !String(unit.translation_text ?? "").trim()),
 		);
 	}
 
@@ -1980,13 +2020,25 @@
 							{aiDrafting ? "AI 초벌 중..." : "AI 초벌"}
 						</button>
 					{/if}
-					<label class="inline-check">
-						<input
-							type="checkbox"
-							bind:checked={showOnlyUntranslated}
-						/>
-						<span>미번역만 보기</span>
-					</label>
+					<details class="field-filter" bind:this={fieldFilterElement} use:fieldFilterDismiss>
+						<summary class="soft" class:active={selectedFieldLabels !== null} class:untranslated={showOnlyUntranslated}>분류 {selectedFieldLabels === null ? "전체" : `${selectedFieldLabels.length}개`}{showOnlyUntranslated ? " · 미번역" : ""}</summary>
+						<div class="field-filter-menu">
+							<label class="field-filter-untranslated">
+								<input type="checkbox" bind:checked={showOnlyUntranslated} />
+								<span>미번역만 보기</span>
+							</label>
+							<div class="field-filter-actions">
+								<button class="soft" onclick={() => (selectedFieldLabels = null)}>전체 선택</button>
+								<button class="soft" onclick={() => (selectedFieldLabels = [])}>전체 해제</button>
+							</div>
+							{#each fieldFilterOptions as [label, count] (label)}
+								<label>
+									<input type="checkbox" checked={selectedFieldLabels === null || selectedFieldLabels.includes(label)} onchange={(event) => toggleFieldLabel(label, event.currentTarget.checked)} />
+									<span>{label}</span><small>{count.done}/{count.total}</small>
+								</label>
+							{/each}
+						</div>
+					</details>
 					<button
 						class="save-all"
 						onclick={() =>
@@ -2021,9 +2073,9 @@
 				<section class="state-card large">
 					이 묶음에는 번역 단위가 없습니다.
 				</section>
-			{:else if showOnlyUntranslated && !filteredUnits().length}
+			{:else if !filteredUnits().length}
 				<section class="state-card large">
-					이 묶음에는 미번역 항목이 없습니다.
+					선택한 조건에 맞는 항목이 없습니다.
 				</section>
 			{:else}
 				<div class="group-stack">
