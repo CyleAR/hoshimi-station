@@ -187,9 +187,22 @@
 		accent-color: var(--accent);
 	}
 	.workspace {
+		--nav-pane-width: clamp(300px, 20vw, 360px);
+		--work-pane-width: clamp(230px, 15vw, 300px);
+		--links-pane-width: clamp(330px, 22vw, 430px);
 		min-height: 0;
 		display: grid;
-		grid-template-columns: clamp(300px, 20vw, 360px) clamp(230px, 15vw, 300px) clamp(330px, 22vw, 430px) minmax(460px, 1fr);
+		grid-template-columns: var(--nav-pane-width) var(--work-pane-width) var(--links-pane-width) minmax(460px, 1fr);
+		transition: grid-template-columns 160ms ease;
+	}
+	.workspace.nav-collapsed {
+		--nav-pane-width: 40px;
+	}
+	.workspace.work-collapsed {
+		--work-pane-width: 40px;
+	}
+	.workspace.links-collapsed {
+		--links-pane-width: 40px;
 	}
 	.nav-pane,
 	.work-pane,
@@ -723,6 +736,52 @@
 		font-size: 12px;
 		font-weight: 800;
 	}
+	.pane-title-tools {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.pane-toggle {
+		width: 26px;
+		height: 26px;
+		display: grid;
+		place-items: center;
+		padding: 0;
+		border: 1px solid var(--border-strong);
+		border-radius: 6px;
+		background: var(--surface-2);
+		color: var(--accent-text);
+		font-size: 19px;
+		line-height: 1;
+	}
+	.pane-toggle:hover {
+		background: var(--hover);
+		color: white;
+	}
+	.nav-pane.collapsed > :not(.pane-title),
+	.work-pane.collapsed > :not(.pane-title),
+	.links-pane.collapsed > :not(.pane-title) {
+		display: none;
+	}
+	.nav-pane.collapsed .pane-title,
+	.work-pane.collapsed .pane-title,
+	.links-pane.collapsed .pane-title {
+		height: 100%;
+		padding: 8px 0;
+		flex-direction: column;
+		justify-content: flex-start;
+		gap: 12px;
+	}
+	.nav-pane.collapsed .pane-heading,
+	.work-pane.collapsed .pane-heading,
+	.links-pane.collapsed .pane-heading {
+		writing-mode: vertical-rl;
+	}
+	.nav-pane.collapsed .pane-count,
+	.work-pane.collapsed .pane-count,
+	.links-pane.collapsed .pane-count {
+		display: none;
+	}
 	.unit-card footer span.dirty {
 		color: var(--warning);
 	}
@@ -739,7 +798,11 @@
 	}
 	@media (max-width: 1100px) {
 		.workspace {
-			grid-template-columns: 280px 1fr;
+			grid-template-columns: var(--nav-pane-width) 1fr;
+			--nav-pane-width: 280px;
+		}
+		.workspace.nav-collapsed {
+			--nav-pane-width: 40px;
 		}
 		.work-pane,
 		.links-pane {

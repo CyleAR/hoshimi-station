@@ -220,6 +220,9 @@
 	let recentError = $state("");
 	let recentLoading = $state(false);
 	let showOnlyUntranslated = $state(false);
+	let navPaneCollapsed = $state(false);
+	let workPaneCollapsed = $state(false);
+	let linksPaneCollapsed = $state(false);
 	let selectedFieldLabels = $state(null);
 	let fieldFilterElement;
 	const fieldFilterOptions = $derived.by(() => {
@@ -1823,13 +1826,28 @@
 		</div>
 	</header>
 
-	<div class="workspace">
-		<aside class="nav-pane">
+	<div
+		class="workspace"
+		class:nav-collapsed={navPaneCollapsed}
+		class:work-collapsed={workPaneCollapsed}
+		class:links-collapsed={linksPaneCollapsed}
+	>
+		<aside class="nav-pane" class:collapsed={navPaneCollapsed}>
 			<div class="pane-title">
-				<span
+				<span class="pane-heading"
 					>{tabs.find((tab) => tab.key === section)?.label ?? "항목"} 목록</span
 				>
-				<span>{items.length}</span>
+				<div class="pane-title-tools">
+					<span class="pane-count">{items.length}</span>
+					<button
+						class="pane-toggle"
+						type="button"
+						title={navPaneCollapsed ? "목록 펼치기" : "목록 접기"}
+						aria-label={navPaneCollapsed ? "목록 펼치기" : "목록 접기"}
+						onclick={() => (navPaneCollapsed = !navPaneCollapsed)}
+						>{navPaneCollapsed ? "›" : "‹"}</button
+					>
+				</div>
 			</div>
 
 			<nav class="tabs">
@@ -1894,10 +1912,20 @@
 			</div>
 		</aside>
 
-		<aside class="work-pane">
+		<aside class="work-pane" class:collapsed={workPaneCollapsed}>
 			<div class="pane-title">
-				<span>작업 묶음</span>
-				<span>{detail?.sections?.length ?? 0}</span>
+				<span class="pane-heading">작업 묶음</span>
+				<div class="pane-title-tools">
+					<span class="pane-count">{detail?.sections?.length ?? 0}</span>
+					<button
+						class="pane-toggle"
+						type="button"
+						title={workPaneCollapsed ? "작업 묶음 펼치기" : "작업 묶음 접기"}
+						aria-label={workPaneCollapsed ? "작업 묶음 펼치기" : "작업 묶음 접기"}
+						onclick={() => (workPaneCollapsed = !workPaneCollapsed)}
+						>{workPaneCollapsed ? "›" : "‹"}</button
+					>
+				</div>
 			</div>
 			<div class="section-list">
 				{#if loadingDetail}
@@ -1924,12 +1952,23 @@
 			</div>
 		</aside>
 
-		<aside class="links-pane">
+		<aside class="links-pane" class:collapsed={linksPaneCollapsed}>
+			<div class="pane-title">
+				<span class="pane-heading">연결 항목</span>
+				<div class="pane-title-tools">
+					<span class="pane-count">{detail?.links?.length ?? 0}</span>
+					<button
+						class="pane-toggle"
+						type="button"
+						title={linksPaneCollapsed ? "연결 항목 펼치기" : "연결 항목 접기"}
+						aria-label={linksPaneCollapsed ? "연결 항목 펼치기" : "연결 항목 접기"}
+						onclick={() => (linksPaneCollapsed = !linksPaneCollapsed)}
+						>{linksPaneCollapsed ? "›" : "‹"}</button
+					>
+				</div>
+			</div>
 			{#if detail?.links?.length}
 				<div class="link-list">
-					<div class="pane-title compact">
-						연결 항목 <span>{detail.links.length}</span>
-					</div>
 					{#each linkGroups() as group}
 						<section class="link-group">
 							<header>
@@ -1972,10 +2011,6 @@
 					{/each}
 				</div>
 			{:else}
-				<div class="pane-title">
-					<span>연결 항목</span>
-					<span>0</span>
-				</div>
 				<div class="link-list">
 					<div class="state-card">연결된 항목이 없습니다.</div>
 				</div>
