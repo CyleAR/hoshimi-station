@@ -17,7 +17,7 @@ const sectionMeta = {
 	home_actions: ['⌂', '홈 액션'],
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
-	birthday_stories: ['🎂', '생일 스토리'],
+	birthday_stories: ['🎂', '생일 선택지'],
 	adv: ['▤', 'ADV 본문'],
 	adv_places: ['⌖', 'ADV 장소'],
 	common_messages: ['✉', '공통 문자'],
@@ -56,7 +56,7 @@ const sectionOverrides = {
 	home_actions: ['🏠', '홈 액션'],
 	evolution: ['✦', '개화 대사'],
 	stories: ['📖', '연결 스토리'],
-	birthday_stories: ['🎂', '생일 스토리'],
+	birthday_stories: ['🎂', '생일 선택지'],
 	adv: ['📜', 'ADV 본문'],
 	adv_places: ['⌖', 'ADV 장소'],
 	adv_card: ['📜', '카드 ADV'],
@@ -872,6 +872,7 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('goods', type, id, ['showcase_toy']));
 		sections.push(linkedUnitSection('stories', type, id, ['story']));
 		sections.push(birthdayStorySection(id));
+		sections.push(advSection(type, id, 'adv/hbd', 'adv_hbd'));
 		sections.push(linkedUnitSection('home_actions', type, id, ['home_action', 'love_home_action', 'company_enjoy_home_action']));
 		sections.push(linkedUnitSection('excursion_places', type, id, ['excursion_place']));
 		sections.push(section('excursion_reactions', "source_type = 'masterdb' AND category = 'ExcursionGazeReaction' AND scope_type = 'character' AND scope_id = $id", { $id: id }));
@@ -889,7 +890,6 @@ export function GET({ url }) {
 		sections.push(linkedUnitSection('call_patterns', type, id, ['call_pattern']));
 		sections.push(advSection(type, id, 'adv/card', 'adv_card'));
 		sections.push(advSection(type, id, 'adv/bond', 'adv_bond'));
-		sections.push(advSection(type, id, 'adv/hbd', 'adv_hbd'));
 		sections.push(advSection(type, id, 'adv/love', 'adv_love'));
 		sections.push(advSection(type, id, 'adv/userhbd', 'adv_userhbd'));
 		sections.push(advPlaceSection(type, id));
