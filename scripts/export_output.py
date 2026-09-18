@@ -377,6 +377,7 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
         WHERE source_type = 'adv'
           AND translation_text <> ''
           AND source_file NOT LIKE 'adv_card_%_short.txt'
+          AND source_file != 'adv_card_rei_17_03.txt'
         ORDER BY source_file, line_no, field_path
         """
     ).fetchall()
