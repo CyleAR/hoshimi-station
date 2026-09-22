@@ -780,6 +780,13 @@ def upsert_entity(conn: sqlite3.Connection, typ: str, entity_id: str, label: str
     )
 
 
+def compact_link_meta(meta: dict[str, Any] | None) -> str:
+    # Keep every key used by linkSortExpr and short-ADV provenance.
+    keys = ("order", "sortOrder", "number", "episodeNumber", "episodeNo", "assetId", "storyId", "baseAdvFile")
+    compact = {key: meta[key] for key in keys if key in meta} if meta else {}
+    return json.dumps(compact, ensure_ascii=False, separators=(",", ":"))
+
+
 def add_link(conn: sqlite3.Connection, from_type: str, from_id: str, to_type: str, to_id: str, relation: str, meta: dict[str, Any] | None = None) -> None:
     if not from_id or not to_id:
         return
@@ -788,7 +795,7 @@ def add_link(conn: sqlite3.Connection, from_type: str, from_id: str, to_type: st
         INSERT OR IGNORE INTO links(from_type, from_id, to_type, to_id, relation, meta_json)
         VALUES(?, ?, ?, ?, ?, ?)
         """,
-        (from_type, from_id, to_type, to_id, relation, json.dumps(meta or {}, ensure_ascii=False)),
+        (from_type, from_id, to_type, to_id, relation, compact_link_meta(meta)),
     )
 
 
@@ -1093,7 +1100,7 @@ def unit_upsert(
             original,
             scope_type,
             scope_id,
-            json.dumps(context or {}, ensure_ascii=False),
+            "{}",  # Source identity lives in the dedicated columns; context_json has no consumers.
             now(),
         ),
     )

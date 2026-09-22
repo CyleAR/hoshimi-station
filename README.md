@@ -76,6 +76,18 @@ npm run import-db
 python scripts/import_db.py --db data/hoshimi.sqlite3
 ```
 
+## DB 용량 정리
+
+임포트는 연결 정보에 정렬용 필드와 ADV 출처만 보관하며, 사용하지 않는 `context_json`은 비워 둡니다. 원문·번역문·항목 출처·연결 관계는 유지됩니다.
+
+기존 DB는 사이트를 중지한 상태에서 프로젝트 루트에서 다음 명령으로 정리할 수 있습니다.
+
+```bash
+python3 scripts/compact_db.py
+```
+
+정리 전에 `backups/compact_날짜_시간/`에 SQLite 백업을 만들고 무결성을 확인합니다. 부가 정보를 정리한 뒤 `VACUUM`과 WAL 체크포인트를 수행하며, 절감 용량과 백업 경로를 출력합니다. DB를 다시 임포트할 필요는 없습니다. 다른 DB를 대상으로 하려면 `--db 경로`를 지정합니다.
+
 ## 한섭 데이터 prefill
 
 `json-kor`와 `adv-kor`에 있는 번역 데이터를 1차 번역으로 DB에 채웁니다.
