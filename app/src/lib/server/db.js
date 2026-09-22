@@ -39,11 +39,33 @@ function migrate(database) {
 			imported_at TEXT NOT NULL,
 			PRIMARY KEY(unit_id, original_text)
 		);
-		CREATE INDEX IF NOT EXISTS idx_new_import_units_time ON new_import_units(imported_at)
+		CREATE INDEX IF NOT EXISTS idx_new_import_units_time ON new_import_units(imported_at);
+		CREATE TABLE IF NOT EXISTS translation_changes (
+			id INTEGER PRIMARY KEY,
+			unit_id TEXT NOT NULL,
+			original_text TEXT NOT NULL,
+			previous_text TEXT NOT NULL,
+			translation_text TEXT NOT NULL,
+			translator_name TEXT NOT NULL,
+			changed_at TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_translation_changes_unit ON translation_changes(unit_id, id DESC)
 	`);
 	if (!hasColumn(database, 'translation_units', 'translator_name')) {
 		database.exec("ALTER TABLE translation_units ADD COLUMN translator_name TEXT NOT NULL DEFAULT ''");
 	}
+	database.exec(`
+		CREATE TRIGGER IF NOT EXISTS track_translation_changes
+		AFTER UPDATE OF translation_text ON translation_units
+		WHEN trim(OLD.translation_text) <> '' AND NEW.translation_text <> OLD.translation_text
+		BEGIN
+			INSERT INTO translation_changes
+				(unit_id, original_text, previous_text, translation_text, translator_name, changed_at)
+			VALUES
+				(NEW.unit_id, NEW.original_text, OLD.translation_text, NEW.translation_text,
+				 NEW.translator_name, datetime('now'));
+		END
+	`);
 }
 
 export function getDb() {

@@ -40,8 +40,15 @@ export async function POST({ request }) {
 		`
 		SELECT unit_id, source_type, category, source_file, record_id, field_path,
 		       scope_type, scope_id,
-		       line_no, speaker, original_text, translation_text, translator_name, updated_at
-		FROM translation_units
+		       line_no, speaker, original_text, translation_text, translator_name, updated_at,
+		       (SELECT previous_text FROM translation_changes AS change
+		        WHERE change.unit_id = unit.unit_id
+		          AND change.original_text = unit.original_text
+		          AND change.translation_text = unit.translation_text
+		          AND change.translator_name = unit.translator_name
+		          AND change.changed_at = unit.updated_at
+		        ORDER BY change.id DESC LIMIT 1) AS previous_text
+		FROM translation_units AS unit
 		WHERE translation_text <> ''
 		  AND translator_name <> ''
 		  ${translatorWhere}

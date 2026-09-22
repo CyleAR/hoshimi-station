@@ -265,12 +265,39 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             imported_at TEXT NOT NULL,
             PRIMARY KEY(unit_id, original_text)
         );
+        CREATE TABLE IF NOT EXISTS translation_changes (
+            id INTEGER PRIMARY KEY,
+            unit_id TEXT NOT NULL,
+            original_text TEXT NOT NULL,
+            previous_text TEXT NOT NULL,
+            translation_text TEXT NOT NULL,
+            translator_name TEXT NOT NULL,
+            changed_at TEXT NOT NULL
+        );
         CREATE INDEX IF NOT EXISTS idx_units_category ON translation_units(category);
         CREATE INDEX IF NOT EXISTS idx_units_scope ON translation_units(scope_type, scope_id);
         CREATE INDEX IF NOT EXISTS idx_units_source ON translation_units(source_type, source_file);
         CREATE INDEX IF NOT EXISTS idx_new_import_units_time ON new_import_units(imported_at);
+        CREATE INDEX IF NOT EXISTS idx_translation_changes_unit ON translation_changes(unit_id, id DESC);
         CREATE INDEX IF NOT EXISTS idx_links_from ON links(from_type, from_id);
         CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_type, to_id);
+        """
+    )
+
+
+def install_change_tracking(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS track_translation_changes
+        AFTER UPDATE OF translation_text ON translation_units
+        WHEN trim(OLD.translation_text) <> '' AND NEW.translation_text <> OLD.translation_text
+        BEGIN
+            INSERT INTO translation_changes
+                (unit_id, original_text, previous_text, translation_text, translator_name, changed_at)
+            VALUES
+                (NEW.unit_id, NEW.original_text, OLD.translation_text, NEW.translation_text,
+                 NEW.translator_name, datetime('now'));
+        END
         """
     )
 
@@ -1617,6 +1644,7 @@ def rebuild(
         prefill_stats["new_untranslated"] = track_new_untranslated_units(conn, had_existing_units)
         prefill_stats["localization_imported"] = localization_imported
         prefill_stats["localization_seeded"] = localization_seeded
+        install_change_tracking(conn)
         conn.commit()
         return prefill_stats
     finally:

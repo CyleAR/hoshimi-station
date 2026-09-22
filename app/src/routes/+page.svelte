@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from "svelte";
+	import { translationDiff } from "$lib/translation-diff.js";
 	import "./page.css";
 
 	const tabs = [
@@ -947,7 +948,10 @@
 					limit: 150,
 				}),
 			});
-			recentItems = data.items ?? [];
+			recentItems = (data.items ?? []).map((item) => ({
+				...item,
+				diff: item.previous_text == null ? null : translationDiff(item.previous_text, item.translation_text),
+			}));
 			recentTranslators = data.translators ?? [];
 		} catch (err) {
 			recentError = err.message;
@@ -2479,9 +2483,24 @@
 							<p class="recent-original">
 								{displayText(item.original_text)}
 							</p>
-							<p class="recent-translation">
-								{displayText(item.translation_text)}
-							</p>
+							{#if item.diff}
+								<div class="recent-change">
+									<span>변경 전</span>
+									<p class="recent-translation">
+										{#each item.diff.oldSegments as segment}
+											{#if segment.changed}<mark class="recent-removed">{displayText(segment.text)}</mark>{:else}{displayText(segment.text)}{/if}
+										{/each}
+									</p>
+									<span>변경 후</span>
+									<p class="recent-translation">
+										{#each item.diff.newSegments as segment}
+											{#if segment.changed}<mark class="recent-added">{displayText(segment.text)}</mark>{:else}{displayText(segment.text)}{/if}
+										{/each}
+									</p>
+								</div>
+							{:else}
+								<p class="recent-translation">{displayText(item.translation_text)}</p>
+							{/if}
 						</article>
 					{/each}
 				</div>
