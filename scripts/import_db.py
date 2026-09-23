@@ -270,6 +270,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             unit_id TEXT NOT NULL,
             original_text TEXT NOT NULL,
             previous_text TEXT NOT NULL,
+            previous_translator_name TEXT NOT NULL DEFAULT '',
             translation_text TEXT NOT NULL,
             translator_name TEXT NOT NULL,
             changed_at TEXT NOT NULL
@@ -279,23 +280,29 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_units_source ON translation_units(source_type, source_file);
         CREATE INDEX IF NOT EXISTS idx_new_import_units_time ON new_import_units(imported_at);
         CREATE INDEX IF NOT EXISTS idx_translation_changes_unit ON translation_changes(unit_id, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_units_recent ON translation_units(datetime(updated_at) DESC, unit_id DESC)
+            WHERE translation_text <> '' AND translator_name <> '';
+        CREATE INDEX IF NOT EXISTS idx_translation_changes_recent ON translation_changes(datetime(changed_at) DESC, id DESC);
         CREATE INDEX IF NOT EXISTS idx_links_from ON links(from_type, from_id);
         CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_type, to_id);
         """
     )
+    if not column_exists(conn, "translation_changes", "previous_translator_name"):
+        conn.execute("ALTER TABLE translation_changes ADD COLUMN previous_translator_name TEXT NOT NULL DEFAULT ''")
 
 
 def install_change_tracking(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP TRIGGER IF EXISTS track_translation_changes")
     conn.execute(
         """
-        CREATE TRIGGER IF NOT EXISTS track_translation_changes
+        CREATE TRIGGER track_translation_changes
         AFTER UPDATE OF translation_text ON translation_units
         WHEN trim(OLD.translation_text) <> '' AND NEW.translation_text <> OLD.translation_text
         BEGIN
             INSERT INTO translation_changes
-                (unit_id, original_text, previous_text, translation_text, translator_name, changed_at)
+                (unit_id, original_text, previous_text, previous_translator_name, translation_text, translator_name, changed_at)
             VALUES
-                (NEW.unit_id, NEW.original_text, OLD.translation_text, NEW.translation_text,
+                (NEW.unit_id, NEW.original_text, OLD.translation_text, OLD.translator_name, NEW.translation_text,
                  NEW.translator_name, datetime('now'));
         END
         """

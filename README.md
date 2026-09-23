@@ -76,6 +76,14 @@ npm run import-db
 python scripts/import_db.py --db data/hoshimi.sqlite3
 ```
 
+## 최근 작업 API
+
+외부 서비스에서 최근 작업을 조회하려면 서버 환경변수 `RECENT_WORK_API_TOKEN`에 긴 임의 문자열을 설정하고 사이트 프로세스를 재시작합니다. 토큰은 브라우저 코드에 넣지 말고 외부 서비스의 서버에서만 보관하세요.
+
+`GET /api/recent-work`는 번역된 현재 항목을 최신순으로, `GET /api/recent-work?view=changes`는 기록된 번역 수정 내역을 최신순으로 돌려줍니다. `Authorization: Bearer <토큰>` 헤더가 필요합니다. `limit`은 1~200(기본 100), `translator`로 번역자 필터가 가능하며, 응답의 `next_cursor`를 다음 요청의 `cursor`에 전달하면 전체를 순회할 수 있습니다. `next_cursor`가 `null`이면 마지막 페이지입니다.
+
+응답에는 원문, 번역문, 수정 전 번역문, 이전·현재 번역자와 항목 출처 정보가 포함됩니다. 이전 번역자 기록은 이 버전 적용 후의 수정부터 확실히 남습니다. 기존 수정 이력은 기록만으로 복원할 수 있는 경우에만 이전 번역자명이 표시되며, 최초 번역과 이력 기록 이전의 작업은 `view=changes`에 없습니다. 이 기능 때문에 DB를 다시 임포트할 필요는 없습니다.
+
 ## DB 용량 정리
 
 임포트는 연결 정보에 정렬용 필드와 ADV 출처만 보관하며, 사용하지 않는 `context_json`은 비워 둡니다. 원문·번역문·항목 출처·연결 관계는 유지됩니다.

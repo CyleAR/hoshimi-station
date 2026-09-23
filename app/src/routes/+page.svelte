@@ -950,7 +950,7 @@
 			});
 			recentItems = (data.items ?? []).map((item) => ({
 				...item,
-				diff: item.previous_text == null ? null : translationDiff(item.previous_text, item.translation_text),
+				diff: !item.previous_text ? null : translationDiff(item.previous_text, item.translation_text),
 			}));
 			recentTranslators = data.translators ?? [];
 		} catch (err) {
@@ -2480,26 +2480,36 @@
 									>
 								{/if}
 							</div>
-							<p class="recent-original">
-								{displayText(item.original_text)}
-							</p>
+							<p class="recent-original">{displayText(item.original_text)}</p>
 							{#if item.diff}
 								<div class="recent-change">
-									<span>변경 전</span>
-									<p class="recent-translation">
-										{#each item.diff.oldSegments as segment}
-											{#if segment.changed}<mark class="recent-removed">{displayText(segment.text)}</mark>{:else}{displayText(segment.text)}{/if}
-										{/each}
-									</p>
-									<span>변경 후</span>
-									<p class="recent-translation">
-										{#each item.diff.newSegments as segment}
-											{#if segment.changed}<mark class="recent-added">{displayText(segment.text)}</mark>{:else}{displayText(segment.text)}{/if}
-										{/each}
-									</p>
+									<div class="recent-embed recent-embed-before">
+										<div class="recent-embed-heading">
+											<span>변경 전</span>
+											{#if item.previous_translator_name}
+												<span>이전 번역자: {item.previous_translator_name}</span>
+											{/if}
+										</div>
+										<p class="recent-translation">
+											{#each item.diff.oldSegments as segment}
+												{#if segment.changed}<mark class="recent-removed">{displayText(segment.text)}</mark>{:else}{displayText(segment.text)}{/if}
+											{/each}
+										</p>
+									</div>
+									<div class="recent-embed recent-embed-after">
+										<span class="recent-embed-heading">변경 후</span>
+										<p class="recent-translation">
+											{#each item.diff.newSegments as segment}
+												{#if segment.changed}<mark class="recent-added">{displayText(segment.text)}</mark>{:else}{displayText(segment.text)}{/if}
+											{/each}
+										</p>
+									</div>
 								</div>
 							{:else}
-								<p class="recent-translation">{displayText(item.translation_text)}</p>
+								<div class="recent-embed recent-embed-after">
+									<span class="recent-embed-heading">번역문</span>
+									<p class="recent-translation">{displayText(item.translation_text)}</p>
+								</div>
 							{/if}
 						</article>
 					{/each}

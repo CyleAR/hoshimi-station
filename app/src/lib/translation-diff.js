@@ -13,12 +13,12 @@ function contiguousDiff(before, after) {
 		before[before.length - 1 - end] === after[after.length - 1 - end]) end++;
 	const oldSegments = [];
 	const newSegments = [];
-	append(oldSegments, before.slice(0, start), false);
-	append(newSegments, after.slice(0, start), false);
-	append(oldSegments, before.slice(start, before.length - end), true);
-	append(newSegments, after.slice(start, after.length - end), true);
-	append(oldSegments, before.slice(before.length - end), false);
-	append(newSegments, after.slice(after.length - end), false);
+	append(oldSegments, before.slice(0, start).join(""), false);
+	append(newSegments, after.slice(0, start).join(""), false);
+	append(oldSegments, before.slice(start, before.length - end).join(""), true);
+	append(newSegments, after.slice(start, after.length - end).join(""), true);
+	append(oldSegments, before.slice(before.length - end).join(""), false);
+	append(newSegments, after.slice(after.length - end).join(""), false);
 	return { oldSegments, newSegments };
 }
 

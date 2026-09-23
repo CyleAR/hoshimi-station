@@ -1,4 +1,5 @@
 import { all, get, json } from '$lib/server/db.js';
+import { listRecentWork } from '$lib/server/recent-work.js';
 
 function cleanLimit(value) {
 	const limit = Number(value ?? 100);
@@ -21,13 +22,6 @@ export async function POST({ request }) {
 		return json({ error: 'nickname or pin is invalid' }, { status: 401 });
 	}
 
-	const params = { $limit: limit };
-	let translatorWhere = '';
-	if (filterTranslator) {
-		params.$translator = filterTranslator;
-		translatorWhere = 'AND translator_name = $translator';
-	}
-
 	const translators = all(`
 		SELECT translator_name, COUNT(*) count, MAX(updated_at) last_updated_at
 		FROM translation_units
@@ -36,27 +30,7 @@ export async function POST({ request }) {
 		ORDER BY last_updated_at DESC, translator_name
 	`);
 
-	const items = all(
-		`
-		SELECT unit_id, source_type, category, source_file, record_id, field_path,
-		       scope_type, scope_id,
-		       line_no, speaker, original_text, translation_text, translator_name, updated_at,
-		       (SELECT previous_text FROM translation_changes AS change
-		        WHERE change.unit_id = unit.unit_id
-		          AND change.original_text = unit.original_text
-		          AND change.translation_text = unit.translation_text
-		          AND change.translator_name = unit.translator_name
-		          AND change.changed_at = unit.updated_at
-		        ORDER BY change.id DESC LIMIT 1) AS previous_text
-		FROM translation_units AS unit
-		WHERE translation_text <> ''
-		  AND translator_name <> ''
-		  ${translatorWhere}
-		ORDER BY datetime(updated_at) DESC, unit_id DESC
-		LIMIT $limit
-		`,
-		params
-	);
+	const { items } = listRecentWork({ limit, translator: filterTranslator });
 
 	return json({ ok: true, items, translators });
 }
