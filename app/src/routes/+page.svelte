@@ -224,6 +224,7 @@
 	let navPaneCollapsed = $state(false);
 	let workPaneCollapsed = $state(false);
 	let linksPaneCollapsed = $state(false);
+	let mobilePane = $state("nav");
 	let selectedFieldLabels = $state(null);
 	let fieldFilterElement;
 	const fieldFilterOptions = $derived.by(() => {
@@ -417,6 +418,7 @@
 
 	async function selectRootItem(item) {
 		navStack = [];
+		mobilePane = "work";
 		await selectItem(item);
 		writeHistory("push");
 	}
@@ -513,6 +515,7 @@
 			}
 		} finally {
 			restoringHistory = false;
+			mobilePane = snapshot.selected ? "editor" : "nav";
 		}
 	}
 
@@ -529,6 +532,7 @@
 			await loadItems({ keepSelection: true });
 		}
 		await selectItem(item, preferredKey);
+		mobilePane = preferredKey ? "editor" : "work";
 		writeHistory("push");
 	}
 
@@ -573,6 +577,7 @@
 			return;
 		}
 		loadUnits(part);
+		mobilePane = "editor";
 	}
 
 	async function goBack({ syncHistory = true } = {}) {
@@ -580,6 +585,7 @@
 		if (!previous) return;
 		navStack = navStack.slice(0, -1);
 		await selectItem(previous.item, previous.sectionKey);
+		mobilePane = "editor";
 		if (syncHistory) writeHistory("replace");
 	}
 
@@ -773,10 +779,12 @@
 	function changeSection(next) {
 		section = next;
 		navStack = [];
+		mobilePane = "nav";
 		loadItems().then(() => writeHistory("push"));
 	}
 
 	function queueSearch() {
+		mobilePane = "nav";
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(() => loadItems(), 250);
 	}
@@ -790,6 +798,7 @@
 		section = "groups";
 		query = "";
 		navStack = [];
+		mobilePane = "nav";
 		expandedLinkGroups = {};
 		loadItems().then(() => writeHistory("push"));
 	}
@@ -1689,6 +1698,7 @@
 		section = params.get("tab") || section;
 		query = params.get("q") || "";
 		if (initialSelected) selected = initialSelected;
+		if (initialSelected) mobilePane = "editor";
 
 		loadSummary().catch((err) => (error = err.message));
 		loadItems({
@@ -1803,7 +1813,7 @@
 				</aside>
 			{/if}
 		</div>
-		<button class="soft compact-button" onclick={openBulkFill}
+		<button class="soft compact-button top-bulk-button" onclick={openBulkFill}
 			>일괄 번역</button
 		>
 		<div class="top-actions">
@@ -1836,7 +1846,13 @@
 		class:work-collapsed={workPaneCollapsed}
 		class:links-collapsed={linksPaneCollapsed}
 	>
-		<aside class="nav-pane" class:collapsed={navPaneCollapsed}>
+		<nav class="mobile-workspace-nav" aria-label="작업 화면">
+			<button class:active={mobilePane === "nav"} aria-pressed={mobilePane === "nav"} onclick={() => (mobilePane = "nav")}>목록</button>
+			<button class:active={mobilePane === "work"} aria-pressed={mobilePane === "work"} disabled={!selected} onclick={() => (mobilePane = "work")}>작업 묶음</button>
+			<button class:active={mobilePane === "links"} aria-pressed={mobilePane === "links"} disabled={!selected} onclick={() => (mobilePane = "links")}>연결 항목</button>
+			<button class:active={mobilePane === "editor"} aria-pressed={mobilePane === "editor"} disabled={!selected} onclick={() => (mobilePane = "editor")}>번역</button>
+		</nav>
+		<aside class="nav-pane" class:collapsed={navPaneCollapsed} class:mobile-active={mobilePane === "nav"}>
 			<div class="pane-title">
 				<span class="pane-heading"
 					>{tabs.find((tab) => tab.key === section)?.label ?? "항목"} 목록</span
@@ -1916,7 +1932,7 @@
 			</div>
 		</aside>
 
-		<aside class="work-pane" class:collapsed={workPaneCollapsed}>
+		<aside class="work-pane" class:collapsed={workPaneCollapsed} class:mobile-active={mobilePane === "work"}>
 			<div class="pane-title">
 				<span class="pane-heading">작업 묶음</span>
 				<div class="pane-title-tools">
@@ -1931,6 +1947,7 @@
 					>
 				</div>
 			</div>
+			{#if selected}<div class="mobile-pane-context">{selectedTitle()}</div>{/if}
 			<div class="section-list">
 				{#if loadingDetail}
 					<div class="state-card">연결 구조를 읽는 중...</div>
@@ -1956,7 +1973,7 @@
 			</div>
 		</aside>
 
-		<aside class="links-pane" class:collapsed={linksPaneCollapsed}>
+		<aside class="links-pane" class:collapsed={linksPaneCollapsed} class:mobile-active={mobilePane === "links"}>
 			<div class="pane-title">
 				<span class="pane-heading">연결 항목</span>
 				<div class="pane-title-tools">
@@ -1971,6 +1988,7 @@
 					>
 				</div>
 			</div>
+			{#if selected}<div class="mobile-pane-context">{selectedTitle()}</div>{/if}
 			{#if detail?.links?.length}
 				<div class="link-list">
 					{#each linkGroups() as group}
@@ -1982,8 +2000,9 @@
 							{#each visibleLinks(group) as link}
 								<button
 									class="mini-link"
-									onmousedown={(event) =>
-										activateLinkedItem(event, link)}
+									onmousedown={(event) => {
+										if (event.button === 1) activateLinkedItem(event, link);
+									}}
 									onclick={(event) =>
 										activateLinkedItem(event, link)}
 								>
@@ -2021,7 +2040,7 @@
 			{/if}
 		</aside>
 
-		<main class="editor-pane">
+		<main class="editor-pane" class:mobile-active={mobilePane === "editor"}>
 			<div class="editor-head">
 				<div>
 					<h1>
