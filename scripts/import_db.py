@@ -35,7 +35,7 @@ def load_ipr_rules() -> tuple[dict[str, Any], list[re.Pattern[str]]]:
 
 def load_auto_skill_module() -> Any:
     path = ROOT / "scripts" / "auto_translate_skills.py"
-    module_name = "hoshimi_auto_translate_skills"
+    module_name = f"{__package__}.hoshimi_auto_translate_skills" if __package__ else "hoshimi_auto_translate_skills"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load {path}")
@@ -1617,6 +1617,20 @@ def import_adv(conn: sqlite3.Connection, duplicate_adv_files: set[str] | None = 
                 )
 
 
+def prefill_import_translations(
+    conn: sqlite3.Connection,
+    *,
+    overwrite: bool = False,
+    log_limit: int = 50,
+    log_path: Path | None = None,
+) -> dict[str, Any]:
+    # Use the same skill wording on a fresh import and a later missing-only fill.
+    auto_skill_stats = AUTO_SKILL_MODULE.prefill_missing_skills(conn)
+    stats = prefill_translations(conn, overwrite=overwrite, log_limit=log_limit, log_path=log_path)
+    stats["auto_skill"] = auto_skill_stats
+    return stats
+
+
 def rebuild(
     db_path: Path,
     *,
@@ -1647,14 +1661,12 @@ def rebuild(
         localization_imported = import_localization(conn)
         restore_existing_translations(conn, story_duplicates)
         localization_seeded = 0 if had_localization_units else seed_localization_translations(conn)
-        prefill_stats = prefill_translations(
+        prefill_stats = prefill_import_translations(
             conn,
             overwrite=overwrite_prefill,
             log_limit=prefill_log_limit,
             log_path=prefill_log_path,
         )
-        auto_skill_stats = AUTO_SKILL_MODULE.prefill_missing_skills(conn)
-        prefill_stats["auto_skill"] = auto_skill_stats
         prefill_stats["new_untranslated"] = track_new_untranslated_units(conn, had_existing_units)
         prefill_stats["localization_imported"] = localization_imported
         prefill_stats["localization_seeded"] = localization_seeded
