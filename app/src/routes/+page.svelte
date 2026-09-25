@@ -1542,7 +1542,7 @@
 
 	function ownerGroupSubtitle(unit) {
 		if (shouldGroupByOwner() && shouldGroupCharacterAdvByFile(unit)) {
-			return `${unit.category} 쨌 ${unit.source_file}`;
+			return `${unit.category} · ${unit.source_file}`;
 		}
 		if (
 			shouldGroupByOwner() &&
