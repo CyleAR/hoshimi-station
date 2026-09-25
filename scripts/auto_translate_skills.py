@@ -562,6 +562,21 @@ def compatible_memory_translation(original: str, translated: str) -> bool:
 def translate_direct_rule_text(text: str) -> str | None:
     stripped = text.strip()
 
+    # Keep this compound CT rule scoped to the scorer A-skill description;
+    # other targets/effects must retain their existing rule or memory result.
+    match = re.fullmatch(
+        r"スコアラータイプ2人に(\d+)段階Aスキルスコア上昇効果\[(\d+)ビート\]"
+        r"とCTを(\d+)減少[ \t]*\r?\n"
+        r"スタミナ(\d+)消費 CT:(\d+)",
+        stripped,
+    )
+    if match:
+        stage, beat, reduction, stamina, ct = match.groups()
+        return (
+            f"스코어러 타입 2명에게 {stage}단계 A스킬 스코어 상승 효과 [{beat}비트] "
+            f"및 CT를 {reduction} 감소\n스태미나 {stamina} 소비 CT:{ct}"
+        )
+
     match = re.fullmatch(r"けいおん！曲限定スキル(\d+)", stripped)
     if match:
         return f"케이온! 곡 한정 스킬 {match.group(1)}"
