@@ -23,62 +23,69 @@ PREFILL_TRANSLATOR = "[BOT] auto-prefill"
 PREFILL_NUMERIC_PLACEHOLDER_RE = re.compile(r"\{(\d+)\}")
 PREFILL_CHARACTER_PLACEHOLDER_RE = re.compile(r"\{(chr_full|chr)\}")
 PREFILL_FORMAT_PLACEHOLDER_RE = re.compile(r"\{(\d+|chr_full|chr)\}")
+PREFILL_CHARACTER_PARTICLES: dict[str, tuple[str, str]] = {
+    "[와/과]": ("와", "과"),
+    "[은/는]": ("는", "은"),
+    "[을/를]": ("를", "을"),
+    "[이/가]": ("가", "이"),
+}
 
-# (character id, Japanese first name, Korean first name, Japanese full name, Korean full name)
+# (character id, Japanese first name, Korean first name, Japanese full name, Korean full name,
+#  Korean first name has final consonant, Korean full name has final consonant)
 # Character placeholders are expanded through this table instead of matching
 # arbitrary text. This prevents one-character names such as 愛, 優, 雫, and 怜
 # from consuming unrelated text.
-PREFILL_CHARACTER_NAMES: tuple[tuple[str, str, str, str, str], ...] = (
-    ("char-ai", "愛", "아이", "小美山愛", "코미야마 아이"),
-    ("char-aoi", "葵", "아오이", "井川葵", "이가와 아오이"),
-    ("char-cca", "ココア", "코코아", "ココア", "호토 코코아"),
-    ("char-chk", "千歌", "치카", "高海千歌", "타카미 치카"),
-    ("char-chn", "チノ", "치노", "チノ", "카후우 치노"),
-    ("char-chs", "千紗", "치사", "白石千紗", "시라이시 치사"),
-    ("char-cinnamo", "シナモン", "시나몬", "シナモロール", "시나모롤"),
-    ("char-gyo", "さくら", "사쿠라", "魚魚っとさん", "울먹이"),
-    ("char-haruhi", "ハルヒ", "하루히", "涼宮ハルヒ", "스즈미야 하루히"),
-    ("char-hrk", "遙子", "하루코", "佐伯遙子", "사에키 하루코"),
-    ("char-itsuki", "一樹", "이츠키", "古泉一樹", "코이즈미 이츠키"),
-    ("char-kan", "kana", "kana", "kana", "kana"),
-    ("char-kitty", "キティ", "키티", "ハローキティ", "헬로키티"),
-    ("char-kkr", "こころ", "코코로", "赤崎こころ", "아카자키 코코로"),
-    ("char-koh", "牧野", "마키노", "牧野航平", "마키노 코헤이"),
-    ("char-konazusa", "梓", "아즈사", "中野梓", "나카노 아즈사"),
-    ("char-konmio", "澪", "미오", "秋山澪", "아키야마 미오"),
-    ("char-konmugi", "紬", "츠무기", "琴吹紬", "코토부키 츠무기"),
-    ("char-konritsu", "律", "리츠", "田井中律", "타이나카 리츠"),
-    ("char-konyui", "唯", "유이", "平沢唯", "히라사와 유이"),
-    ("char-kor", "fran", "fran", "fran", "fran"),
-    ("char-ktn", "琴乃", "코토노", "長瀬琴乃", "나가세 코토노"),
-    ("char-kuromi", "クロミ", "쿠로미", "クロミ", "쿠로미"),
-    ("char-kyon", "キョン", "쿈", "キョン", "쿈"),
-    ("char-kyui", "唯", "유이", "古手川唯", "코테가와 유이"),
-    ("char-lala", "ララ", "라라", "ララ", "라라 사타린 데빌룩"),
-    ("char-mei", "芽衣", "메이", "早坂芽衣", "하야사카 메이"),
-    ("char-melody", "メロディ", "멜로디", "マイメロディ", "마이멜로디"),
-    ("char-mhk", "miho", "miho", "miho", "miho"),
-    ("char-mikuru", "みくる", "미쿠루", "朝比奈みくる", "아사히나 미쿠루"),
-    ("char-mku", "ミク", "미쿠", "初音ミク", "하츠네 미쿠"),
-    ("char-mna", "麻奈", "마나", "長瀬麻奈", "나가세 마나"),
-    ("char-mng", "麻奈", "마나", "長瀬麻奈", "나가세 마나"),
-    ("char-momo", "モモ", "모모", "モモ", "모모 베리아 데빌룩"),
-    ("char-ngs", "渚", "나기사", "伊吹渚", "이부키 나기사"),
-    ("char-rei", "怜", "레이", "一ノ瀬怜", "이치노세 레이"),
-    ("char-rik", "梨子", "리코", "桜内梨子", "사쿠라우치 리코"),
-    ("char-rio", "莉央", "리오", "神崎莉央", "칸자키 리오"),
-    ("char-rui", "瑠依", "루이", "天動瑠依", "텐도 루이"),
-    ("char-ski", "沙季", "사키", "白石沙季", "시라이시 사키"),
-    ("char-skr", "さくら", "사쿠라", "川咲さくら", "카와사키 사쿠라"),
-    ("char-smr", "すみれ", "스미레", "奥山すみれ", "오쿠야마 스미레"),
-    ("char-stm", "橋本", "하시모토", "橋本さとみ", "하시모토 사토미"),
-    ("char-suz", "すず", "스즈", "成宮すず", "나루미야 스즈"),
-    ("char-szk", "雫", "시즈쿠", "兵藤雫", "효도 시즈쿠"),
-    ("char-yami", "闇", "어둠", "金色の闇", "금빛 어둠"),
-    ("char-ymk", "ミク", "미쿠", "雪ミク", "스노우 미쿠"),
-    ("char-yo", "曜", "요우", "渡辺曜", "와타나베 요우"),
-    ("char-yu", "優", "유우", "鈴村優", "스즈무라 유우"),
-    ("char-yuki", "有希", "유키", "長門有希", "나가토 유키"),
+PREFILL_CHARACTER_NAMES: tuple[tuple[str, str, str, str, str, bool, bool], ...] = (
+    ("char-ai", "愛", "아이", "小美山愛", "코미야마 아이", False, False),
+    ("char-aoi", "葵", "아오이", "井川葵", "이가와 아오이", False, False),
+    ("char-cca", "ココア", "코코아", "ココア", "호토 코코아", False, False),
+    ("char-chk", "千歌", "치카", "高海千歌", "타카미 치카", False, False),
+    ("char-chn", "チノ", "치노", "チノ", "카후우 치노", False, False),
+    ("char-chs", "千紗", "치사", "白石千紗", "시라이시 치사", False, False),
+    ("char-cinnamo", "シナモン", "시나몬", "シナモロール", "시나모롤", True, True),
+    ("char-gyo", "さくら", "사쿠라", "魚魚っとさん", "울먹이", False, False),
+    ("char-haruhi", "ハルヒ", "하루히", "涼宮ハルヒ", "스즈미야 하루히", False, False),
+    ("char-hrk", "遙子", "하루코", "佐伯遙子", "사에키 하루코", False, False),
+    ("char-itsuki", "一樹", "이츠키", "古泉一樹", "코이즈미 이츠키", False, False),
+    ("char-kan", "kana", "kana", "kana", "kana", False, False),
+    ("char-kitty", "キティ", "키티", "ハローキティ", "헬로키티", False, False),
+    ("char-kkr", "こころ", "코코로", "赤崎こころ", "아카자키 코코로", False, False),
+    ("char-koh", "牧野", "마키노", "牧野航平", "마키노 코헤이", False, False),
+    ("char-konazusa", "梓", "아즈사", "中野梓", "나카노 아즈사", False, False),
+    ("char-konmio", "澪", "미오", "秋山澪", "아키야마 미오", False, False),
+    ("char-konmugi", "紬", "츠무기", "琴吹紬", "코토부키 츠무기", False, False),
+    ("char-konritsu", "律", "리츠", "田井中律", "타이나카 리츠", False, False),
+    ("char-konyui", "唯", "유이", "平沢唯", "히라사와 유이", False, False),
+    ("char-kor", "fran", "fran", "fran", "fran", True, True),
+    ("char-ktn", "琴乃", "코토노", "長瀬琴乃", "나가세 코토노", False, False),
+    ("char-kuromi", "クロミ", "쿠로미", "クロミ", "쿠로미", False, False),
+    ("char-kyon", "キョン", "쿈", "キョン", "쿈", True, True),
+    ("char-kyui", "唯", "유이", "古手川唯", "코테가와 유이", False, False),
+    ("char-lala", "ララ", "라라", "ララ", "라라 사타린 데빌룩", False, True),
+    ("char-mei", "芽衣", "메이", "早坂芽衣", "하야사카 메이", False, False),
+    ("char-melody", "メロディ", "멜로디", "マイメロディ", "마이멜로디", False, False),
+    ("char-mhk", "miho", "miho", "miho", "miho", False, False),
+    ("char-mikuru", "みくる", "미쿠루", "朝比奈みくる", "아사히나 미쿠루", False, False),
+    ("char-mku", "ミク", "미쿠", "初音ミク", "하츠네 미쿠", False, False),
+    ("char-mna", "麻奈", "마나", "長瀬麻奈", "나가세 마나", False, False),
+    ("char-mng", "麻奈", "마나", "長瀬麻奈", "나가세 마나", False, False),
+    ("char-momo", "モモ", "모모", "モモ", "모모 베리아 데빌룩", False, True),
+    ("char-ngs", "渚", "나기사", "伊吹渚", "이부키 나기사", False, False),
+    ("char-rei", "怜", "레이", "一ノ瀬怜", "이치노세 레이", False, False),
+    ("char-rik", "梨子", "리코", "桜内梨子", "사쿠라우치 리코", False, False),
+    ("char-rio", "莉央", "리오", "神崎莉央", "칸자키 리오", False, False),
+    ("char-rui", "瑠依", "루이", "天動瑠依", "텐도 루이", False, False),
+    ("char-ski", "沙季", "사키", "白石沙季", "시라이시 사키", False, False),
+    ("char-skr", "さくら", "사쿠라", "川咲さくら", "카와사키 사쿠라", False, False),
+    ("char-smr", "すみれ", "스미레", "奥山すみれ", "오쿠야마 스미레", False, False),
+    ("char-stm", "橋本", "하시모토", "橋本さとみ", "하시모토 사토미", False, False),
+    ("char-suz", "すず", "스즈", "成宮すず", "나루미야 스즈", False, False),
+    ("char-szk", "雫", "시즈쿠", "兵藤雫", "효도 시즈쿠", False, False),
+    ("char-yami", "闇", "어둠", "金色の闇", "금빛 어둠", True, True),
+    ("char-ymk", "ミク", "미쿠", "雪ミク", "스노우 미쿠", False, False),
+    ("char-yo", "曜", "요우", "渡辺曜", "와타나베 요우", False, False),
+    ("char-yu", "優", "유우", "鈴村優", "스즈무라 유우", False, False),
+    ("char-yuki", "有希", "유키", "長門有希", "나가토 유키", False, False),
 )
 
 
@@ -188,6 +195,26 @@ def prefill_literal_weight(format_text: str) -> tuple[int, int]:
     return sum(len(part) for part in literals), len(format_text)
 
 
+def expand_character_translation(
+    template: str,
+    ko_first: str,
+    ko_full: str,
+    first_has_final: bool,
+    full_has_final: bool,
+) -> str:
+    """Replace character placeholders and their immediately following particle marker."""
+    result = template
+    for token, name, has_final in (
+        ("{chr_full}", ko_full, full_has_final),
+        ("{chr}", ko_first, first_has_final),
+    ):
+        for marker, (without_final, with_final) in PREFILL_CHARACTER_PARTICLES.items():
+            particle = with_final if has_final else without_final
+            result = result.replace(token + marker, name + particle)
+        result = result.replace(token, name)
+    return result
+
+
 def expand_prefill_character_formats(
     formats: list[tuple[str, str]],
 ) -> tuple[list[tuple[str, str]], int, int, int]:
@@ -217,9 +244,23 @@ def expand_prefill_character_formats(
             continue
 
         character_templates += 1
-        for _, jp_first, ko_first, jp_full, ko_full in PREFILL_CHARACTER_NAMES:
+        for (
+            _,
+            jp_first,
+            ko_first,
+            jp_full,
+            ko_full,
+            first_has_final,
+            full_has_final,
+        ) in PREFILL_CHARACTER_NAMES:
             expanded_original = original.replace("{chr_full}", jp_full).replace("{chr}", jp_first)
-            expanded_translation = translation.replace("{chr_full}", ko_full).replace("{chr}", ko_first)
+            expanded_translation = expand_character_translation(
+                translation,
+                ko_first,
+                ko_full,
+                first_has_final,
+                full_has_final,
+            )
             if PREFILL_CHARACTER_PLACEHOLDER_RE.search(expanded_original + expanded_translation):
                 conflicts.add(expanded_original)
                 continue

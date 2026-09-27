@@ -111,12 +111,15 @@ python scripts/prefill_kor.py --dry-run
 - `{0}`, `{1}` ...: 반각·전각 숫자를 캡처해 번역문의 같은 번호에 삽입합니다.
 - `{chr}`: 캐릭터 이름(`firstName`)을 한국어 이름으로 치환합니다.
 - `{chr_full}`: 캐릭터 풀네임(`name`)을 한국어 풀네임으로 치환합니다.
+- `{chr}[와/과]`, `{chr}[은/는]`, `{chr}[을/를]`, `{chr}[이/가]`: 캐릭터 표에 명시된 받침 여부에 따라 조사를 확정합니다.
 - `{threshold}`, `{user}` 등 그 밖의 중괄호 표기는 기존처럼 리터럴로 취급합니다.
 
 `{chr}`와 `{chr_full}`은 임의 문자열을 캡처하지 않습니다. `scripts/import_db.py`의
 `PREFILL_CHARACTER_NAMES` 표를 캐릭터 ID 단위로 확장하므로 한 글자 이름의 오탐을 막고,
 한 템플릿에 두 placeholder가 함께 있어도 같은 캐릭터의 이름을 사용합니다.
-`fran`, `kana`, `miho`는 이름과 풀네임 모두 같은 로마자 문자열을 사용합니다.
+조사는 placeholder 바로 뒤에 붙였을 때만 `import_db.py`에서 처리합니다. 이름과 풀네임의 받침 여부는
+`PREFILL_CHARACTER_NAMES` tuple에 각각 하드코딩되어 있습니다. `fran`, `kana`, `miho`는 이름과
+풀네임 모두 같은 로마자 문자열을 사용하며, 조사 기준은 각각 받침 있음·없음·없음입니다.
 
 ## output export
 
