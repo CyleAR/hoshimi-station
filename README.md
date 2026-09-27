@@ -104,6 +104,20 @@ python scripts/prefill_kor.py --overwrite
 python scripts/prefill_kor.py --dry-run
 ```
 
+## `prefill_translations.json` 템플릿
+
+`scripts/prefill_translations.json`의 원문 키에는 다음 placeholder를 사용할 수 있습니다.
+
+- `{0}`, `{1}` ...: 반각·전각 숫자를 캡처해 번역문의 같은 번호에 삽입합니다.
+- `{chr}`: 캐릭터 이름(`firstName`)을 한국어 이름으로 치환합니다.
+- `{chr_full}`: 캐릭터 풀네임(`name`)을 한국어 풀네임으로 치환합니다.
+- `{threshold}`, `{user}` 등 그 밖의 중괄호 표기는 기존처럼 리터럴로 취급합니다.
+
+`{chr}`와 `{chr_full}`은 임의 문자열을 캡처하지 않습니다. `scripts/import_db.py`의
+`PREFILL_CHARACTER_NAMES` 표를 캐릭터 ID 단위로 확장하므로 한 글자 이름의 오탐을 막고,
+한 템플릿에 두 placeholder가 함께 있어도 같은 캐릭터의 이름을 사용합니다.
+`fran`, `kana`, `miho`는 이름과 풀네임 모두 같은 로마자 문자열을 사용합니다.
+
 ## output export
 
 DB에 저장된 번역을 `output` 폴더 구조로 내보냅니다.
