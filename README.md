@@ -120,6 +120,8 @@ python scripts/prefill_kor.py --dry-run
 조사는 placeholder 바로 뒤에 붙였을 때만 `import_db.py`에서 처리합니다. 이름과 풀네임의 받침 여부는
 `PREFILL_CHARACTER_NAMES` tuple에 각각 하드코딩되어 있습니다. `fran`, `kana`, `miho`는 이름과
 풀네임 모두 같은 로마자 문자열을 사용하며, 조사 기준은 각각 받침 있음·없음·없음입니다.
+`サニーピース`, `月のテンペスト`, `TRINITYAiLE`, `LizNoir`, `ⅢX`도 반복되는 그룹 문구를
+공유하기 위해 같은 표에 이름·풀네임이 동일한 항목으로 등록되어 `{chr}`로 확장됩니다.
 
 ## output export
 

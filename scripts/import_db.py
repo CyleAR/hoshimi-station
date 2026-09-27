@@ -30,11 +30,11 @@ PREFILL_CHARACTER_PARTICLES: dict[str, tuple[str, str]] = {
     "[이/가]": ("가", "이"),
 }
 
-# (character id, Japanese first name, Korean first name, Japanese full name, Korean full name,
+# (character/group id, Japanese first name, Korean first name, Japanese full name, Korean full name,
 #  Korean first name has final consonant, Korean full name has final consonant)
-# Character placeholders are expanded through this table instead of matching
+# Character placeholders are expanded through this explicit table instead of matching
 # arbitrary text. This prevents one-character names such as 愛, 優, 雫, and 怜
-# from consuming unrelated text.
+# from consuming unrelated text. Group names intentionally share the same placeholder.
 PREFILL_CHARACTER_NAMES: tuple[tuple[str, str, str, str, str, bool, bool], ...] = (
     ("char-ai", "愛", "아이", "小美山愛", "코미야마 아이", False, False),
     ("char-aoi", "葵", "아오이", "井川葵", "이가와 아오이", False, False),
@@ -86,6 +86,35 @@ PREFILL_CHARACTER_NAMES: tuple[tuple[str, str, str, str, str, bool, bool], ...] 
     ("char-yo", "曜", "요우", "渡辺曜", "와타나베 요우", False, False),
     ("char-yu", "優", "유우", "鈴村優", "스즈무라 유우", False, False),
     ("char-yuki", "有希", "유키", "長門有希", "나가토 유키", False, False),
+    (
+        "group-sunny-peace",
+        "サニーピース",
+        "서니 피스",
+        "サニーピース",
+        "서니 피스",
+        False,
+        False,
+    ),
+    (
+        "group-moon-tempest",
+        "月のテンペスト",
+        "달의 템페스트",
+        "月のテンペスト",
+        "달의 템페스트",
+        False,
+        False,
+    ),
+    (
+        "group-trinityaile",
+        "TRINITYAiLE",
+        "TRINITYAiLE",
+        "TRINITYAiLE",
+        "TRINITYAiLE",
+        True,
+        True,
+    ),
+    ("group-liznoir", "LizNoir", "LizNoir", "LizNoir", "LizNoir", False, False),
+    ("group-three-x", "ⅢX", "ⅢX", "ⅢX", "ⅢX", False, False),
 )
 
 
