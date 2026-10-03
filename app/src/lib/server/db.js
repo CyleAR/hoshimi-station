@@ -19,7 +19,43 @@ function hasColumn(database, table, column) {
 }
 
 function migrate(database) {
+	if (!hasColumn(database, 'translation_units', 'revision')) {
+		database.exec('ALTER TABLE translation_units ADD COLUMN revision INTEGER NOT NULL DEFAULT 0');
+	}
 	database.exec(`
+		CREATE TABLE IF NOT EXISTS ai_reviews (
+			unit_id TEXT PRIMARY KEY,
+			base_revision INTEGER NOT NULL,
+			base_original_text TEXT NOT NULL,
+			base_translation_text TEXT NOT NULL,
+			verdict TEXT NOT NULL CHECK(verdict IN ('ok', 'suggested')),
+			notes TEXT NOT NULL DEFAULT '',
+			reviewed_at TEXT NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS ai_suggestions (
+			unit_id TEXT PRIMARY KEY,
+			translation_text TEXT NOT NULL,
+			reason TEXT NOT NULL,
+			reference_unit_ids TEXT NOT NULL DEFAULT '[]',
+			base_revision INTEGER NOT NULL,
+			base_original_text TEXT NOT NULL,
+			base_translation_text TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			accepted_at TEXT,
+			accepted_by TEXT
+		);
+		INSERT OR IGNORE INTO ai_reviews
+			(unit_id, base_revision, base_original_text, base_translation_text, verdict, notes, reviewed_at)
+		SELECT s.unit_id, s.base_revision, s.base_original_text, s.base_translation_text, 'suggested', s.reason, s.created_at
+		FROM ai_suggestions s JOIN translation_units u ON u.unit_id = s.unit_id
+		WHERE s.accepted_at IS NULL AND s.base_revision = u.revision
+		  AND s.base_original_text = u.original_text AND s.base_translation_text = u.translation_text;
+		CREATE TRIGGER IF NOT EXISTS track_unit_revision
+		AFTER UPDATE OF original_text, translation_text ON translation_units
+		WHEN NEW.original_text IS NOT OLD.original_text OR NEW.translation_text IS NOT OLD.translation_text
+		BEGIN
+			UPDATE translation_units SET revision = OLD.revision + 1 WHERE unit_id = NEW.unit_id;
+		END;
 		CREATE TABLE IF NOT EXISTS users (
 			nickname TEXT PRIMARY KEY,
 			pin TEXT NOT NULL,

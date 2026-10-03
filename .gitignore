@@ -56,4 +56,5 @@ next-env.d.ts
 /app/.svelte-kit/
 /app/build/
 /app/node_modules/
+/mcp/node_modules/
 /app/output/

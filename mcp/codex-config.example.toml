@@ -1,0 +1,7 @@
+# Copy this block into Codex's config.toml. Adjust the absolute repository path.
+# Put HOSHIMI_SITE_URL and CODEX_API_TOKEN in mcp/.env, not this committed file.
+[mcp_servers.hoshimi_station]
+command = "node"
+args = ['E:\MyApps\All-Idolypride-Localify\hoshimi-station\mcp\server.mjs']
+startup_timeout_sec = 20
+tool_timeout_sec = 40

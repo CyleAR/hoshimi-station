@@ -697,6 +697,15 @@
 	.current p {
 		color: var(--muted);
 	}
+	.suggestion-content { padding: 14px; min-width: 0; }
+	.suggestion-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+	.suggestion-heading button { padding: 6px 14px; }
+	.row .suggestion-text { padding: 12px 0; }
+	.row .suggestion-reason { padding: 0 0 12px; color: var(--muted); font-size: 13px; }
+	.suggestion-references { display: grid; gap: 6px; font-size: 13px; overflow-wrap: anywhere; }
+	.suggestion-references a { color: var(--accent-soft); text-decoration: underline; }
+	.suggestion-references small, .suggestion-empty { color: var(--muted); }
+	.suggestion-warning { display: block; margin-top: 10px; color: #d59a42; }
 	.original {
 		color: var(--text-strong);
 		font-weight: 700;

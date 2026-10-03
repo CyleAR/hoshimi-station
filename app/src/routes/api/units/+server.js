@@ -1,4 +1,5 @@
 import { all, json } from '$lib/server/db.js';
+import { attachSuggestions } from '$lib/server/ai-suggestions.js';
 
 const fieldPriority = new Map(
 	[
@@ -721,5 +722,5 @@ export function GET({ url }) {
 		`,
 		{ ...params, $limit: limit }
 	).sort((a, b) => compareSectionUnit(key, a, b));
-	return json({ units: attachMessageThreadOwners(attachAdvOwners(units)) });
+	return json({ units: attachSuggestions(attachMessageThreadOwners(attachAdvOwners(units))) }, { headers: { 'cache-control': 'no-store' } });
 }

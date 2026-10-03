@@ -1,5 +1,5 @@
 <script>
-	import { onMount } from "svelte";
+	import { onMount, tick } from "svelte";
 	import { translationDiff } from "$lib/translation-diff.js";
 	import "./page.css";
 
@@ -662,6 +662,51 @@
 		} finally {
 			loadingUnits = false;
 		}
+		await tick();
+		if (window.location.hash.startsWith("#unit-")) {
+			try { document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: "center" }); } catch { /* Ignore malformed URL fragments. */ }
+		}
+	}
+
+	function suggestionReferenceUrl(reference) {
+		const params = new URLSearchParams({ tab: "stories", type: reference.scope_type, id: reference.scope_id });
+		if (reference.source_type === "adv") {
+			params.set("type", "adv_file");
+			params.set("id", reference.source_file);
+			params.set("part", "adv");
+		}
+		if (reference.field_path === "place") params.set("part", "adv_places");
+		return `/?${params}#${encodeURIComponent(`unit-${reference.unit_id}`)}`;
+	}
+
+	async function useAiSuggestion(unit) {
+		if (!currentUser) {
+			unit.error = "제안을 사용하려면 로그인해 주세요.";
+			return;
+		}
+		unit.saving = true;
+		unit.error = "";
+		try {
+			const data = await fetchJson("/api/ai-suggestions/accept", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ unit_id: unit.unit_id, created_at: unit.ai_suggestion.created_at,
+					nickname: currentUser.nickname, pin: currentUser.pin }),
+			});
+			Object.assign(unit, data.unit, { draft: data.unit.translation_text, dirty: false });
+			unit.ai_suggestion = { ...unit.ai_suggestion, accepted_at: "accepted", accepted_by: currentUser.nickname };
+			if (newDataItems.some((item) => item.unit_id === unit.unit_id)) {
+				newDataItems = newDataItems.filter((item) => item.unit_id !== unit.unit_id);
+				newDataCount = Math.max(0, newDataCount - 1);
+			}
+			refreshActiveSectionProgress();
+			notice = "AI 제안을 번역으로 저장했습니다.";
+			await loadSummary();
+		} catch (err) {
+			unit.error = err.message;
+		} finally {
+			unit.saving = false;
+		}
 	}
 
 	async function saveUnit(unit) {
@@ -688,6 +733,7 @@
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					unit_id: unit.unit_id,
+					expected_revision: unit.revision,
 					translation_text: unit.draft,
 					nickname: currentUser.nickname,
 					pin: currentUser.pin,
@@ -695,8 +741,12 @@
 			});
 			unit.translation_text = unit.draft;
 			unit.status = data.status;
+			unit.revision = data.revision;
 			unit.translator_name = data.translator_name ?? currentUser.nickname;
 			unit.dirty = false;
+			if (unit.ai_suggestion && !unit.ai_suggestion.accepted_at) {
+				unit.ai_suggestion.stale = unit.revision !== unit.ai_suggestion.base_revision || unit.original_text !== unit.ai_suggestion.base_original_text || unit.translation_text !== unit.ai_suggestion.base_translation_text;
+			}
 			if (
 				unit.translation_text.trim() &&
 				newDataItems.some((item) => item.unit_id === unit.unit_id)
@@ -749,6 +799,7 @@
 			unit.dirty = false;
 			unit.translation_text = unit.draft;
 			unit.status = "translated";
+			if (activeSection) await loadUnits(activeSection);
 			await loadSummary();
 		} catch (err) {
 			unit.error = err.message;
@@ -2184,6 +2235,7 @@
 								{#each group.units as unit (unit.unit_id)}
 									<article
 										class="unit-card"
+										id={`unit-${unit.unit_id}`}
 										class:manager={isManagerUnit(unit)}
 										class:player-choice={isPlayerChoiceUnit(
 											unit,
@@ -2235,6 +2287,38 @@
 												}}
 												placeholder="번역을 입력하세요..."
 											></textarea>
+										</div>
+										<div class="row ai-suggestion">
+											<div class="row-label">AI의 제안</div>
+											<div class="suggestion-content">
+												{#if unit.ai_suggestion}
+													<div class="suggestion-heading">
+														<strong>{unit.ai_suggestion.accepted_at ? "사용한 제안" : "번역 제안"}</strong>
+														<button class="accent" onclick={() => useAiSuggestion(unit)}
+															disabled={unit.saving || Boolean(unit.ai_suggestion.accepted_at) || unit.ai_suggestion.stale || unit.dirty}>
+															{unit.saving ? "저장 중..." : unit.ai_suggestion.accepted_at ? "사용됨" : "사용"}
+														</button>
+													</div>
+													<p class="suggestion-text">{displayText(unit.ai_suggestion.translation_text)}</p>
+													<p class="suggestion-reason"><strong>제안 이유</strong><br />{unit.ai_suggestion.reason}</p>
+													{#if unit.ai_suggestion.references.length}
+														<div class="suggestion-references">
+															<strong>참고 번역</strong>
+															{#each unit.ai_suggestion.references as reference}
+																<a href={suggestionReferenceUrl(reference)} target="_blank" rel="noopener noreferrer">{reference.label || reference.source_file} ↗</a>
+																<small>{displayText(reference.original_text)} → {displayText(reference.translation_text)}</small>
+															{/each}
+														</div>
+													{/if}
+													{#if !unit.ai_suggestion.accepted_at && unit.ai_suggestion.stale}
+														<small class="suggestion-warning">제안 이후 내용이 변경되어 사용할 수 없습니다.</small>
+													{:else if !unit.ai_suggestion.accepted_at && unit.dirty}
+														<small class="suggestion-warning">작성 중인 번역을 저장하거나 되돌린 후 사용해 주세요.</small>
+													{/if}
+												{:else}
+													<span class="suggestion-empty">아직 AI 제안이 없습니다.</span>
+												{/if}
+											</div>
 										</div>
 										<footer>
 											<span class:dirty={unit.dirty}>
