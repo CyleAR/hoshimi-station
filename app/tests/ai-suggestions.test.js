@@ -10,9 +10,9 @@ const dbUrl = dataUrl(readFileSync(new URL('../src/lib/server/db.js', import.met
 	.replace('new DatabaseSync(dbPath)', "new DatabaseSync(':memory:')"));
 const { getDb } = await import(dbUrl);
 const db = getDb();
-db.exec("CREATE TABLE entities(entity_type TEXT, entity_id TEXT, label TEXT); INSERT INTO users VALUES ('human', '123456', '', '')");
+db.exec("CREATE TABLE entities(entity_type TEXT, entity_id TEXT, label TEXT); INSERT INTO users VALUES ('human', '123456', '', ''); INSERT INTO users VALUES ('사일', '654321', '', '')");
 const suggestionsUrl = dataUrl(readFileSync(new URL('../src/lib/server/ai-suggestions.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
-const { attachSuggestions } = await import(suggestionsUrl);
+const { attachSuggestions, attachSuggestionsForUser } = await import(suggestionsUrl);
 const authUrl = dataUrl(readFileSync(new URL('../src/lib/server/codex-auth.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 const reviewsUrl = dataUrl(readFileSync(new URL('../src/lib/server/codex-reviews.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 async function endpoint(name) {
@@ -35,7 +35,7 @@ async function propose(id, extra = {}) {
 }
 function seed(id) { db.prepare('INSERT INTO translation_units(unit_id) VALUES (?)').run(id); }
 async function use(id, createdAt, extra = {}) {
-	return post(accept, { unit_id: id, created_at: createdAt, nickname: 'human', pin: '123456', ...extra });
+	return post(accept, { unit_id: id, created_at: createdAt, nickname: '사일', pin: '654321', ...extra });
 }
 
 test('proposal stays separate, resolves references, and is saved once under the accepting human', async () => {
@@ -48,7 +48,7 @@ test('proposal stays separate, resolves references, and is saved once under the 
 	assert.equal(item.ai_suggestion.stale, false);
 	assert.equal((await use('target', item.ai_suggestion.created_at)).status, 200);
 	assert.equal(unit('target').translation_text, '제안문');
-	assert.equal(unit('target').translator_name, 'human');
+	assert.equal(unit('target').translator_name, '사일');
 	assert.equal(unit('target').revision, 1);
 	assert.equal((await use('target', item.ai_suggestion.created_at)).status, 409);
 });
@@ -75,4 +75,19 @@ test('authentication, references, placeholders, and source snapshots are validat
 	const suggestion = attachSuggestions([unit('validation')])[0].ai_suggestion;
 	assert.equal((await use('validation', suggestion.created_at, { pin: '000000' })).status, 401);
 	assert.equal(unit('validation').translation_text, '');
+});
+
+
+test('only authenticated 사일 can read and accept Codex proposals', async () => {
+ seed('private'); await propose('private');
+ const target = unit('private');
+ const request = (pin) => new Request('http://localhost/api/units', { headers: pin ? { 'x-ai-suggestion-pin': pin } : {} });
+ for (const pin of ['', '000000', '123456']) {
+  assert.equal(attachSuggestionsForUser([target], request(pin))[0].ai_suggestion, null);
+ }
+ const suggestion = attachSuggestionsForUser([target], request('654321'))[0].ai_suggestion;
+ assert.ok(suggestion);
+ assert.equal((await use('private', suggestion.created_at, { nickname: 'human', pin: '123456' })).status, 403);
+ assert.equal(unit('private').translation_text, '');
+ assert.equal((await use('private', suggestion.created_at)).status, 200);
 });

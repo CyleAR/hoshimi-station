@@ -1,5 +1,5 @@
 import { all, json } from '$lib/server/db.js';
-import { attachSuggestions } from '$lib/server/ai-suggestions.js';
+import { attachSuggestionsForUser } from '$lib/server/ai-suggestions.js';
 
 const fieldPriority = new Map(
 	[
@@ -699,7 +699,7 @@ function attachMessageThreadOwners(units) {
 	});
 }
 
-export function GET({ url }) {
+export function GET({ url, request }) {
 	const type = url.searchParams.get('type') || 'character';
 	const id = url.searchParams.get('id') || '';
 	const key = url.searchParams.get('key') || 'direct';
@@ -722,5 +722,5 @@ export function GET({ url }) {
 		`,
 		{ ...params, $limit: limit }
 	).sort((a, b) => compareSectionUnit(key, a, b));
-	return json({ units: attachSuggestions(attachMessageThreadOwners(attachAdvOwners(units))) }, { headers: { 'cache-control': 'no-store' } });
+	return json({ units: attachSuggestionsForUser(attachMessageThreadOwners(attachAdvOwners(units)), request) }, { headers: { 'cache-control': 'no-store' } });
 }

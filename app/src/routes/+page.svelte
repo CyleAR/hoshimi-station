@@ -189,6 +189,8 @@
 	let loadingItems = $state(true);
 	let loadingDetail = $state(false);
 	let loadingUnits = $state(false);
+	let acceptingSuggestions = $state(false);
+	let suggestionSaveProgress = $state("");
 	let error = $state("");
 	let notice = $state("");
 	let navStack = $state([]);
@@ -648,7 +650,9 @@
 				key: part.key,
 			});
 			if (part.category) params.set("category", part.category);
-			const data = await fetchJson(`/api/units?${params}`);
+			const data = await fetchJson(`/api/units?${params}`, {
+				headers: canUseCodexSuggestions() ? { "x-ai-suggestion-pin": currentUser.pin } : {},
+			});
 			units = (data.units ?? []).map((unit) => ({
 				...unit,
 				draft: unit.translation_text ?? "",
@@ -679,11 +683,44 @@
 		return `/?${params}#${encodeURIComponent(`unit-${reference.unit_id}`)}`;
 	}
 
-	async function useAiSuggestion(unit) {
-		if (!currentUser) {
-			unit.error = "제안을 사용하려면 로그인해 주세요.";
-			return;
+	function canUseCodexSuggestions() {
+		return currentUser?.nickname === "사일";
+	}
+
+	function canAcceptSuggestion(unit) {
+		return Boolean(unit.ai_suggestion && !unit.ai_suggestion.accepted_at &&
+			!unit.ai_suggestion.stale && !unit.dirty && !unit.saving);
+	}
+
+	async function useVisibleAiSuggestions() {
+		if (acceptingSuggestions || loadingUnits || !canUseCodexSuggestions()) return;
+		const targets = filteredUnits().filter(canAcceptSuggestion);
+		if (!targets.length) return;
+		acceptingSuggestions = true;
+		let saved = 0;
+		let failed = 0;
+		let skipped = 0;
+		try {
+			for (const [index, unit] of targets.entries()) {
+				suggestionSaveProgress = `${index + 1}/${targets.length}`;
+				if (!canAcceptSuggestion(unit)) { skipped++; continue; }
+				if (await useAiSuggestion(unit, true)) saved++;
+				else failed++;
+			}
+			await loadSummary();
+		} finally {
+			acceptingSuggestions = false;
+			suggestionSaveProgress = "";
+			notice = `AI 제안 ${saved}개 저장${failed ? ` · 실패 ${failed}개 (항목별 오류 확인)` : ""}${skipped ? ` · 건너뜀 ${skipped}개` : ""}`;
 		}
+	}
+
+	async function useAiSuggestion(unit, batch = false) {
+		if (!canUseCodexSuggestions()) {
+			unit.error = "AI 제안은 사일 계정만 사용할 수 있습니다.";
+			return false;
+		}
+		if (!canAcceptSuggestion(unit)) return false;
 		unit.saving = true;
 		unit.error = "";
 		try {
@@ -700,10 +737,14 @@
 				newDataCount = Math.max(0, newDataCount - 1);
 			}
 			refreshActiveSectionProgress();
-			notice = "AI 제안을 번역으로 저장했습니다.";
-			await loadSummary();
+			if (!batch) {
+				notice = "AI 제안을 번역으로 저장했습니다.";
+				await loadSummary();
+			}
+			return true;
 		} catch (err) {
 			unit.error = err.message;
+			return false;
 		} finally {
 			unit.saving = false;
 		}
@@ -884,6 +925,13 @@
 			);
 			localStorage.setItem("translatorNickname", data.user.nickname);
 			void loadNewData();
+			if (activeSection && canUseCodexSuggestions()) {
+				const params = new URLSearchParams({ type: selected?.type ?? "category", id: selected?.id ?? "", key: activeSection.key });
+				if (activeSection.category) params.set("category", activeSection.category);
+				const data = await fetchJson(`/api/units?${params}`, { headers: { "x-ai-suggestion-pin": currentUser.pin } });
+				const suggestions = new Map(data.units.map((unit) => [unit.unit_id, unit.ai_suggestion]));
+				for (const unit of units) unit.ai_suggestion = suggestions.get(unit.unit_id) ?? null;
+			}
 		} catch (err) {
 			loginError = err.message;
 		} finally {
@@ -1023,6 +1071,7 @@
 
 	function logout() {
 		currentUser = null;
+		for (const unit of units) unit.ai_suggestion = null;
 		newDataOpen = false;
 		newDataItems = [];
 		newDataCount = 0;
@@ -2148,6 +2197,16 @@
 							{/each}
 						</div>
 					</details>
+					{#if canUseCodexSuggestions()}
+					<button
+						class="soft ai-button"
+						onclick={useVisibleAiSuggestions}
+						disabled={!currentUser || loadingUnits || acceptingSuggestions || !filteredUnits().some(canAcceptSuggestion)}
+						title="현재 표시된 항목의 사용 가능한 AI 제안을 번역으로 즉시 저장합니다. 미저장 입력·오래된 제안·사용한 제안은 제외합니다."
+					>
+						{acceptingSuggestions ? `AI 제안 저장 중 ${suggestionSaveProgress}` : `AI 제안 일괄 사용 (${filteredUnits().filter(canAcceptSuggestion).length})`}
+					</button>
+					{/if}
 					<button
 						class="save-all"
 						onclick={() =>
@@ -2288,6 +2347,7 @@
 												placeholder="번역을 입력하세요..."
 											></textarea>
 										</div>
+										{#if canUseCodexSuggestions()}
 										<div class="row ai-suggestion">
 											<div class="row-label">AI의 제안</div>
 											<div class="suggestion-content">
@@ -2320,6 +2380,7 @@
 												{/if}
 											</div>
 										</div>
+										{/if}
 										<footer>
 											<span class:dirty={unit.dirty}>
 												{unit.error ||

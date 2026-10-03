@@ -1,5 +1,11 @@
 import { get, getDb } from '$lib/server/db.js';
 
+export function attachSuggestionsForUser(units, request) {
+	const pin = request?.headers.get('x-ai-suggestion-pin') ?? '';
+	const allowed = /^\d{6}$/.test(pin) && get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: '사일', $pin: pin });
+	return allowed ? attachSuggestions(units) : units.map((unit) => ({ ...unit, ai_suggestion: null }));
+}
+
 export function attachSuggestions(units) {
 	if (!units.length) return units;
 	const suggestions = new Map();

@@ -10,6 +10,7 @@ export async function POST({ request }) {
 	if (!nickname || !/^\d{6}$/.test(pin) || !get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin })) {
 		return json({ error: '닉네임 또는 비밀번호가 맞지 않습니다.' }, { status: 401 });
 	}
+	if (nickname !== '사일') return json({ error: 'AI 제안은 사일 계정만 사용할 수 있습니다.' }, { status: 403 });
 	try {
 		return json({ ok: true, unit: acceptSuggestion(body.unit_id, nickname, body.created_at) });
 	} catch (error) {
