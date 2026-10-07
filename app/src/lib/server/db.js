@@ -118,7 +118,7 @@ export function getDb() {
 		db = new DatabaseSync(dbPath);
 		db.exec('PRAGMA query_only = OFF');
 		if (dev) {
-			db.exec('PRAGMA busy_timeout = 3000');
+			db.exec('PRAGMA busy_timeout = 5000');
 		}
 		migrate(db);
 	}

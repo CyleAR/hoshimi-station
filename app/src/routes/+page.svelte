@@ -270,7 +270,7 @@
 	let aiDraftError = $state("");
 	let searchTimer;
 
-	async function fetchJson(url, options = {}, timeoutMs = 15000) {
+	async function fetchJson(url, options = {}, timeoutMs = 20000) {
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeoutMs);
 		try {
