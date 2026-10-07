@@ -73,15 +73,15 @@ function searchableUnitWhere(alias = 'translation_units') {
 }
 
 function linkedWhere(type, id, toTypes, fieldWhere = '') {
+	// Match detail's scope-first queries; IN also prevents duplicate links from duplicating units.
 	const params = { $type: type, $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
 	const fieldClause = fieldWhere ? `${fieldWhere} AND` : '';
 	return [
-		`${fieldClause} EXISTS (
-			SELECT 1
+		`${fieldClause} (translation_units.scope_type, translation_units.scope_id) IN (
+			SELECT l.to_type, l.to_id
 			FROM links l
 			WHERE l.from_type = $type AND l.from_id = $id AND l.to_type IN (${toSql})
-			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
 		)`,
 		params
 	];
@@ -90,16 +90,14 @@ function linkedWhere(type, id, toTypes, fieldWhere = '') {
 function storyWhere(type, id) {
 	return [
 		`(
-			EXISTS (
-				SELECT 1
+			(translation_units.scope_type, translation_units.scope_id) IN (
+				SELECT l.to_type, l.to_id
 				FROM links l
 				WHERE l.from_type = $type AND l.from_id = $id
 				  AND l.to_type IN ('story', 'story_collection')
-				  AND l.to_type = translation_units.scope_type
-				  AND l.to_id = translation_units.scope_id
 			)
-			OR EXISTS (
-				SELECT 1
+			OR (translation_units.scope_type, translation_units.scope_id) IN (
+				SELECT story.to_type, story.to_id
 				FROM links collection
 				JOIN links story
 				  ON story.from_type = collection.to_type
@@ -108,8 +106,6 @@ function storyWhere(type, id) {
 				WHERE collection.from_type = $type
 				  AND collection.from_id = $id
 				  AND collection.to_type = 'story_collection'
-				  AND story.to_type = translation_units.scope_type
-				  AND story.to_id = translation_units.scope_id
 			)
 		)`,
 		{ $type: type, $id: id }
@@ -123,14 +119,12 @@ function birthdayStoryWhere(id) {
 				translation_units.scope_type = 'story_collection'
 				AND translation_units.scope_id LIKE 'ex-story-part-birthday-%-' || substr($id, 6) || '-%'
 			)
-			OR EXISTS (
-				SELECT 1
+			OR (translation_units.scope_type, translation_units.scope_id) IN (
+				SELECT story.to_type, story.to_id
 				FROM links story
 				WHERE story.from_type = 'story_collection'
 				  AND story.from_id LIKE 'ex-story-part-birthday-%-' || substr($id, 6) || '-%'
 				  AND story.to_type = 'story'
-				  AND story.to_type = translation_units.scope_type
-				  AND story.to_id = translation_units.scope_id
 			)
 		)`,
 		{ $id: id }
@@ -141,11 +135,10 @@ function incomingLinkedWhere(type, id, fromTypes) {
 	const params = { $type: type, $id: id };
 	const fromSql = placeholders(fromTypes, params, 'from');
 	return [
-		`EXISTS (
-			SELECT 1
+		`(translation_units.scope_type, translation_units.scope_id) IN (
+			SELECT l.from_type, l.from_id
 			FROM links l
 			WHERE l.to_type = $type AND l.to_id = $id AND l.from_type IN (${fromSql})
-			  AND l.from_type = translation_units.scope_type AND l.from_id = translation_units.scope_id
 		)`,
 		params
 	];
@@ -153,8 +146,8 @@ function incomingLinkedWhere(type, id, fromTypes) {
 
 function cardCostumeHomeActionWhere(id) {
 	return [
-		`EXISTS (
-			SELECT 1
+		`(translation_units.scope_type, translation_units.scope_id) IN (
+			SELECT action.to_type, action.to_id
 			FROM links costume
 			JOIN links action
 			  ON action.from_type = 'costume'
@@ -163,8 +156,6 @@ function cardCostumeHomeActionWhere(id) {
 			WHERE costume.from_type = 'card'
 			  AND costume.from_id = $id
 			  AND costume.to_type = 'costume'
-			  AND action.to_type = translation_units.scope_type
-			  AND action.to_id = translation_units.scope_id
 		)`,
 		{ $id: id }
 	];
@@ -225,21 +216,19 @@ function directWhere(type, id) {
 }
 
 function characterCommonWhere(id, toTypes, unitWhere = '') {
+	// Exclude card-owned scopes once, rather than checking card links for every text row.
 	const params = { $id: id };
 	const toSql = placeholders(toTypes, params, 'to');
 	const unitClause = unitWhere ? `AND (${unitWhere})` : '';
 	return [
-		`EXISTS (
-			SELECT 1 FROM links l
+		`(translation_units.scope_type, translation_units.scope_id) IN (
+			SELECT l.to_type, l.to_id FROM links l
 			WHERE l.from_type = 'character' AND l.from_id = $id AND l.to_type IN (${toSql})
-			  AND l.to_type = translation_units.scope_type AND l.to_id = translation_units.scope_id
+			EXCEPT
+			SELECT c.to_type, c.to_id FROM links c
+			WHERE c.from_type = 'card' AND c.to_type IN (${toSql})
 		)
-		${unitClause}
-		AND NOT EXISTS (
-			SELECT 1 FROM links c
-			WHERE c.from_type = 'card'
-			  AND c.to_type = translation_units.scope_type AND c.to_id = translation_units.scope_id
-		)`,
+		${unitClause}`,
 		params
 	];
 }
@@ -502,14 +491,12 @@ function whereFor(type, id, key, category) {
 	if (type === 'telephone') {
 		if (key === 'linked_messages') {
 			return [
-				`EXISTS (
-					SELECT 1
+				`(translation_units.scope_type, translation_units.scope_id) IN (
+					SELECT l.from_type, l.from_id
 					FROM links l
 					WHERE l.from_type = 'message'
 					  AND l.to_type = 'telephone'
 					  AND l.to_id = $id
-					  AND l.from_type = translation_units.scope_type
-					  AND l.from_id = translation_units.scope_id
 				)`,
 				{ $id: id }
 			];
@@ -704,7 +691,7 @@ export function GET({ url, request }) {
 	const id = url.searchParams.get('id') || '';
 	const key = url.searchParams.get('key') || 'direct';
 	const category = url.searchParams.get('category') || '';
-	const limit = Math.min(Number(url.searchParams.get('limit') || 5000), 10000);
+	const limit = Math.min(Number(url.searchParams.get('limit') || 10000), 10000);
 	const [where, params] = whereFor(type, id, key, category);
 
 	const units = all(

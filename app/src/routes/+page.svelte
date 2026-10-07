@@ -1,5 +1,7 @@
 <script>
 	import { onMount, tick } from "svelte";
+	import ViewportBlock from "$lib/ViewportBlock.svelte";
+	import { unitBatches, UNIT_BATCH_SIZE } from "$lib/viewport-blocks.js";
 	import { translationDiff } from "$lib/translation-diff.js";
 	import "./page.css";
 
@@ -186,6 +188,7 @@
 	let detail = $state(null);
 	let activeSection = $state(null);
 	let units = $state([]);
+	let unloadedSectionDone = 0;
 	let loadingItems = $state(true);
 	let loadingDetail = $state(false);
 	let loadingUnits = $state(false);
@@ -380,8 +383,8 @@
 		if (!detail || !activeSection) return;
 		const nextSection = {
 			...activeSection,
-			total: units.length,
-			done: units.filter((unit) =>
+			total: Math.max(Number(activeSection.total ?? 0), units.length),
+			done: unloadedSectionDone + units.filter((unit) =>
 				String(unit.translation_text ?? "").trim(),
 			).length,
 		};
@@ -638,6 +641,7 @@
 	}
 
 	async function loadUnits(part) {
+		unloadedSectionDone = 0;
 		selectedFieldLabels = null;
 		if (fieldFilterElement) fieldFilterElement.open = false;
 		activeSection = part;
@@ -660,6 +664,10 @@
 				saving: false,
 				error: "",
 			}));
+			// Saving a loaded row must not discard progress for rows beyond the API limit.
+			unloadedSectionDone = Math.max(0, Number(part.done ?? 0) - units.filter(
+				unit => String(unit.translation_text ?? "").trim(),
+			).length);
 		} catch (err) {
 			error = err.message;
 			units = [];
@@ -668,7 +676,7 @@
 		}
 		await tick();
 		if (window.location.hash.startsWith("#unit-")) {
-			try { document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: "center" }); } catch { /* Ignore malformed URL fragments. */ }
+			try { await scrollToUnit(decodeURIComponent(window.location.hash.slice("#unit-".length))); } catch { /* Ignore malformed URL fragments. */ }
 		}
 	}
 
@@ -1186,7 +1194,7 @@
 			return;
 		}
 		const ok = confirm(
-			`현재 표시된 미번역 ${targets.length}개에 AI 초벌을 채울까요?\n초안만 입력되고 저장은 직접 해야 합니다.`,
+			`현재 필터에 맞는 미번역 ${targets.length}개에 AI 초벌을 채울까요?\n화면 밖 항목도 포함하며, 한 번에 최대 150개를 처리합니다.\n초안만 입력되고 저장은 직접 해야 합니다.`,
 		);
 		if (!ok) return;
 
@@ -1532,9 +1540,23 @@
 		).length;
 	}
 
+	async function scrollToUnit(id) {
+		for (const group of unitGroups()) {
+			const index = group.units.findIndex(unit => unit.unit_id === id);
+			if (index < 0) continue;
+			const first = group.units[Math.floor(index / UNIT_BATCH_SIZE) * UNIT_BATCH_SIZE];
+			const block = document.getElementById(`unit-block-${first.unit_id}`);
+			block?.scrollIntoView({ block: "start" });
+			block?.dispatchEvent(new Event("reveal-unit"));
+			await tick();
+			document.getElementById(`unit-${id}`)?.scrollIntoView({ block: "center" });
+			return;
+		}
+	}
+
 	function scrollToNextUntranslated() {
-		const target = document.querySelector(".unit-card.untranslated");
-		target?.scrollIntoView({ behavior: "smooth", block: "center" });
+		const target = filteredUnits().find(unit => !String(unit.translation_text ?? "").trim());
+		if (target) void scrollToUnit(target.unit_id);
 	}
 
 	function displayText(text) {
@@ -2219,6 +2241,13 @@
 				</div>
 			</div>
 
+			{#if !loadingUnits && !error && activeSection && activeSection.total > units.length}
+				<section class="warning-box">
+					전체 {activeSection.total.toLocaleString()}개 중 {units.length.toLocaleString()}개를 불러왔습니다.
+					조회 한도로 나머지 항목은 아직 표시되지 않습니다.
+				</section>
+			{/if}
+
 			{#if aiDraftError}
 				<section class="warning-box">
 					<strong>AI 초벌 확인 필요</strong>
@@ -2291,7 +2320,9 @@
 								</div>
 							</header>
 							<div class="unit-stack">
-								{#each group.units as unit (unit.unit_id)}
+								{#each unitBatches(group.units) as batch (batch[0].unit_id)}
+								<ViewportBlock id={`unit-block-${batch[0].unit_id}`} count={batch.length}>
+								{#each batch as unit (unit.unit_id)}
 									<article
 										class="unit-card"
 										id={`unit-${unit.unit_id}`}
@@ -2409,6 +2440,8 @@
 											>
 										</footer>
 									</article>
+								{/each}
+								</ViewportBlock>
 								{/each}
 							</div>
 						</section>
