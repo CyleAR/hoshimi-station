@@ -152,7 +152,7 @@
 		background: var(--success);
 		border-color: var(--success);
 		color: var(--success-text);
-		font-weight: 400;
+		font-weight: 600;
 	}
 	.jump {
 		border-color: #7c5c24;
@@ -1459,7 +1459,7 @@
 		border-color: var(--warning);
 		background: var(--warning);
 		color: #2a1b00;
-		font-weight: 400;
+		font-weight: 600;
 	}
 	.field-filter summary:hover,
 	.field-filter summary.active {
