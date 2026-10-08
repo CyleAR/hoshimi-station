@@ -1,5 +1,6 @@
 <script>
 	import { onMount, tick } from "svelte";
+	import SearchText from "$lib/SearchText.svelte";
 	import ViewportBlock from "$lib/ViewportBlock.svelte";
 	import { unitBatches, UNIT_BATCH_SIZE } from "$lib/viewport-blocks.js";
 	import { translationDiff } from "$lib/translation-diff.js";
@@ -188,6 +189,64 @@
 	let detail = $state(null);
 	let activeSection = $state(null);
 	let units = $state([]);
+	let bodyFindOpen = $state(false);
+	let bodyFindQuery = $state("");
+	let bodyFindTerm = $state("");
+	let bodyFindInput = $state();
+	let editorPane = $state();
+	let findReturnFocus;
+	let bodyFindIndex = $state(0);
+	let findNavigation = 0;
+	const bodyFindMatches = $derived.by(() => {
+		const term = bodyFindTerm.toLowerCase();
+		if (!bodyFindOpen || !term || loadingUnits) return [];
+		return filteredUnits().filter(unit =>
+			[unit.original_text, unit.translation_text, unit.draft].some(
+				value => displayText(value).toLowerCase().includes(term),
+			),
+		);
+	});
+	const bodyFindActive = $derived(bodyFindMatches[bodyFindIndex]?.unit_id);
+	$effect(() => {
+		const term = bodyFindQuery;
+		const timer = setTimeout(() => { bodyFindTerm = term; }, 150);
+		return () => clearTimeout(timer);
+	});
+	$effect(() => {
+		// Recompute the position when text, filters, or the loaded section change.
+		const matches = bodyFindMatches;
+		bodyFindIndex = 0;
+		if (matches.length) void revealFindMatch(matches[0].unit_id);
+	});
+
+	async function openBodyFind() {
+		if (!bodyFindOpen) findReturnFocus = document.activeElement;
+		bodyFindOpen = true;
+		await tick();
+		bodyFindInput?.focus();
+		bodyFindInput?.select();
+	}
+
+	function closeBodyFind() {
+		findNavigation++;
+		bodyFindOpen = false;
+		if (findReturnFocus?.isConnected) findReturnFocus.focus({ preventScroll: true });
+		else editorPane?.focus({ preventScroll: true });
+	}
+
+	async function revealFindMatch(id) {
+		const request = ++findNavigation;
+		await tick();
+		if (request !== findNavigation || !bodyFindOpen) return;
+		await scrollToUnit(id);
+	}
+
+	function moveBodyFind(direction) {
+		if (!bodyFindMatches.length) return;
+		bodyFindIndex = (bodyFindIndex + direction + bodyFindMatches.length) % bodyFindMatches.length;
+		void revealFindMatch(bodyFindMatches[bodyFindIndex].unit_id);
+	}
+
 	let unloadedSectionDone = 0;
 	let loadingItems = $state(true);
 	let loadingDetail = $state(false);
@@ -1391,6 +1450,19 @@
 	}
 
 	function handleKeydown(event) {
+		if (event.isComposing || document.querySelector('.modal-backdrop, .login-backdrop')) return;
+		const inEditor = editorPane?.contains(event.target);
+		if (inEditor && (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "f") {
+			event.preventDefault();
+			void openBodyFind();
+			return;
+		}
+		if (inEditor && bodyFindOpen && event.key === "Escape") {
+			event.preventDefault();
+			closeBodyFind();
+			return;
+		}
+
 		if (
 			(event.ctrlKey || event.metaKey) &&
 			event.key.toLowerCase() === "k"
@@ -1546,8 +1618,9 @@
 			if (index < 0) continue;
 			const first = group.units[Math.floor(index / UNIT_BATCH_SIZE) * UNIT_BATCH_SIZE];
 			const block = document.getElementById(`unit-block-${first.unit_id}`);
-			block?.scrollIntoView({ block: "start" });
 			block?.dispatchEvent(new Event("reveal-unit"));
+			await tick();
+			block?.scrollIntoView({ block: "start" });
 			await tick();
 			document.getElementById(`unit-${id}`)?.scrollIntoView({ block: "center" });
 			return;
@@ -2162,7 +2235,7 @@
 			{/if}
 		</aside>
 
-		<main class="editor-pane" class:mobile-active={mobilePane === "editor"}>
+		<main bind:this={editorPane} tabindex="-1" class="editor-pane" class:mobile-active={mobilePane === "editor"}>
 			<div class="editor-head">
 				<div>
 					<h1>
@@ -2195,6 +2268,7 @@
 						<button
 							class="soft ai-button"
 							onclick={runAiDraft}
+							aria-busy={aiDrafting}
 							disabled={aiDrafting || loadingUnits}
 						>
 							{aiDrafting ? "AI 초벌 중..." : "AI 초벌"}
@@ -2223,6 +2297,7 @@
 					<button
 						class="soft ai-button"
 						onclick={useVisibleAiSuggestions}
+						aria-busy={acceptingSuggestions}
 						disabled={!currentUser || loadingUnits || acceptingSuggestions || !filteredUnits().some(canAcceptSuggestion)}
 						title="현재 표시된 항목의 사용 가능한 AI 제안을 번역으로 즉시 저장합니다. 미저장 입력·오래된 제안·사용한 제안은 제외합니다."
 					>
@@ -2238,6 +2313,27 @@
 									.map(saveUnit),
 							)}>일괄 저장</button
 					>
+				</div>
+				<div class="editor-search-row">
+					{#if bodyFindOpen}
+						<div class="body-finder" role="search" aria-label="본문 검색">
+							<div class="body-find-field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+							<input bind:this={bodyFindInput} bind:value={bodyFindQuery}
+								aria-label="현재 필터의 원문과 번역 검색" placeholder="원문·번역에서 찾기"
+								onkeydown={(event) => {
+									if (event.key === "Enter" && !event.isComposing) {
+									 event.preventDefault(); moveBodyFind(event.shiftKey ? -1 : 1);
+									}
+								}} />
+							<span class="body-find-count" aria-live="polite">{bodyFindQuery !== bodyFindTerm ? "검색 중…" : `${bodyFindMatches.length ? bodyFindIndex + 1 : 0} / ${bodyFindMatches.length}항목`}</span>
+							</div>
+							<button class="body-find-control" aria-label="이전 검색 결과" title="이전 (Shift+Enter)" disabled={!bodyFindMatches.length} onclick={() => moveBodyFind(-1)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg></button>
+							<button class="body-find-control" aria-label="다음 검색 결과" title="다음 (Enter)" disabled={!bodyFindMatches.length} onclick={() => moveBodyFind(1)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 10 6 6 6-6" /></svg></button>
+							<button class="body-find-control" aria-label="본문 검색 닫기" title="닫기 (Esc)" onclick={closeBodyFind}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
+						</div>
+					{:else}
+						<button class="soft body-find-trigger" onclick={openBodyFind} title="현재 필터의 원문·번역·작성 중인 번역 검색"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>본문 검색 <kbd>Ctrl F</kbd></button>
+					{/if}
 				</div>
 			</div>
 
@@ -2325,6 +2421,7 @@
 								{#each batch as unit (unit.unit_id)}
 									<article
 										class="unit-card"
+										class:find-active={bodyFindOpen && bodyFindActive === unit.unit_id}
 										id={`unit-${unit.unit_id}`}
 										class:manager={isManagerUnit(unit)}
 										class:player-choice={isPlayerChoiceUnit(
@@ -2350,19 +2447,13 @@
 										<div class="row">
 											<div class="row-label">원문</div>
 											<p class="original escaped">
-												{displayText(
-													unit.original_text,
-												)}
+												<SearchText text={displayText(unit.original_text)} query={bodyFindOpen ? bodyFindTerm : ""} />
 											</p>
 										</div>
 										<div class="row current">
 											<div class="row-label">현재</div>
 											<p class="escaped">
-												{unit.translation_text
-													? displayText(
-															unit.translation_text,
-														)
-													: "(미번역)"}
+												<SearchText text={unit.translation_text ? displayText(unit.translation_text) : "(미번역)"} query={bodyFindOpen ? bodyFindTerm : ""} />
 											</p>
 										</div>
 										<div class="row">
@@ -2377,6 +2468,9 @@
 												}}
 												placeholder="번역을 입력하세요..."
 											></textarea>
+											{#if bodyFindOpen && bodyFindTerm && unit.dirty && displayText(unit.draft).toLowerCase().includes(bodyFindTerm.toLowerCase())}
+												<p class="draft-find-preview escaped"><SearchText text={displayText(unit.draft)} query={bodyFindTerm} /></p>
+											{/if}
 										</div>
 										{#if canUseCodexSuggestions()}
 										<div class="row ai-suggestion">

@@ -152,7 +152,7 @@
 		background: var(--success);
 		border-color: var(--success);
 		color: var(--success-text);
-		font-weight: 800;
+		font-weight: 400;
 	}
 	.jump {
 		border-color: #7c5c24;
@@ -165,8 +165,11 @@
 		color: #d6c4ff;
 	}
 	.ai-button:disabled {
-		cursor: wait;
+		cursor: default;
 		opacity: 0.62;
+	}
+	.ai-button[aria-busy="true"] {
+		cursor: wait;
 	}
 	.inline-check {
 		height: 30px;
@@ -1456,7 +1459,7 @@
 		border-color: var(--warning);
 		background: var(--warning);
 		color: #2a1b00;
-		font-weight: 800;
+		font-weight: 400;
 	}
 	.field-filter summary:hover,
 	.field-filter summary.active {
@@ -1717,3 +1720,45 @@
 			min-width: 0;
 		}
 	}
+
+.editor-head { flex-wrap: wrap; row-gap: 10px; }
+.editor-search-row {
+	flex: 1 0 100%;
+	min-width: 0;
+	display: flex;
+	justify-content: flex-end;
+	padding-top: 10px;
+	border-top: 1px solid var(--border-soft);
+}
+.body-find-trigger { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+.body-find-trigger kbd { font: inherit; color: var(--muted); border-left: 1px solid var(--border); padding-left: 8px; }
+.body-finder {
+	display: flex;
+	align-items: center;
+	width: min(100%, 520px);
+	min-width: 0;
+	height: 36px;
+	padding: 3px;
+	border: 1px solid var(--border-strong);
+	border-radius: 7px;
+	background: var(--field);
+	transition: border-color .15s, box-shadow .15s;
+}
+.body-finder:focus-within { border-color: var(--accent-soft); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.body-find-field { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 0 9px; }
+.body-find-field > svg { flex: none; color: var(--muted); }
+.body-finder input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13px; }
+.body-finder input::placeholder { color: var(--muted); }
+.body-find-count { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.body-find-control { display: grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-soft); }
+.body-find-control:last-child { margin-left: 3px; border-left: 1px solid var(--border-soft); border-radius: 0 4px 4px 0; }
+.body-find-control:hover:not(:disabled), .body-find-trigger:hover { background: var(--hover); color: var(--text-strong); }
+.body-find-control:disabled { opacity: .3; cursor: default; }
+.body-find-control:focus-visible, .body-find-trigger:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+.unit-card.find-active { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
+.draft-find-preview { grid-column: 2; margin: 4px 0; font-size: 13px; }
+@media (max-width: 600px) {
+	.body-finder { width: 100%; }
+	.body-find-field { gap: 6px; padding: 0 6px; }
+	.body-find-trigger { height: 34px; }
+}
