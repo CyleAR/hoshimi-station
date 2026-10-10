@@ -326,6 +326,10 @@
 	}
 	let aiDrafting = $state(false);
 	let aiPromptCopying = $state(false);
+	let aiPromptPreview = $state("");
+	let aiPromptTargetCount = $state(0);
+	let aiPromptCopyHelp = $state("");
+	let aiPromptTextarea = $state();
 	let aiDraftError = $state("");
 	let searchTimer;
 
@@ -1204,6 +1208,32 @@
 		return { targets, referenceUnitIds };
 	}
 
+	async function copyPromptText(text) {
+		if (navigator.clipboard?.writeText) {
+			try {
+				await navigator.clipboard.writeText(text);
+				return true;
+			} catch { /* Fall back when clipboard permissions deny access. */ }
+		}
+		// LAN HTTP origins need the compatibility copy command.
+		const field = document.createElement("textarea");
+		const previousFocus = document.activeElement;
+		field.value = text;
+		field.readOnly = true;
+		field.style.cssText = "position:fixed;top:0;left:-9999px;font-size:16px";
+		document.body.appendChild(field);
+		try {
+			field.focus({ preventScroll: true });
+			field.select();
+			return document.execCommand("copy");
+		} catch {
+			return false;
+		} finally {
+			field.remove();
+			if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+		}
+	}
+
 	async function copyAiPrompt() {
 		if (!currentUser) {
 			aiDraftError = "먼저 로그인해 주세요.";
@@ -1229,12 +1259,32 @@
 					prompt_only: true,
 				}),
 			});
-			await navigator.clipboard.writeText(data.prompt ?? "");
-			notice = `외부 AI용 지침과 미번역 ${data.target_count ?? targets.length}개 복사됨`;
+			const prompt = String(data.prompt ?? "");
+			if (!prompt.trim()) throw new Error("복사할 프롬프트가 비어 있습니다.");
+			const targetCount = data.target_count ?? targets.length;
+			if (await copyPromptText(prompt)) {
+				notice = `외부 AI용 지침과 미번역 ${targetCount}개 복사됨`;
+				return;
+			}
+			aiPromptPreview = prompt;
+			aiPromptTargetCount = targetCount;
+			aiPromptCopyHelp = "";
 		} catch (err) {
 			aiDraftError = err.message;
 		} finally {
 			aiPromptCopying = false;
+		}
+	}
+
+	async function copyPreparedAiPrompt() {
+		if (!aiPromptTextarea) return;
+		if (await copyPromptText(aiPromptPreview)) {
+			notice = `외부 AI용 지침과 미번역 ${aiPromptTargetCount}개 복사됨`;
+			aiPromptPreview = "";
+		} else {
+			aiPromptTextarea.focus();
+			aiPromptTextarea.select();
+			aiPromptCopyHelp = "자동 복사가 차단되었습니다. 선택된 내용을 직접 복사해 주세요.";
 		}
 	}
 
@@ -2637,6 +2687,26 @@
 				>
 			</footer>
 		</section>
+	</div>
+{/if}
+
+{#if aiPromptPreview}
+	<div class="modal-backdrop">
+		<div class="bulk-modal ai-prompt-modal" role="dialog" aria-modal="true" aria-label="외부 AI용 프롬프트" tabindex="-1">
+			<header>
+				<div>
+					<h2>외부 AI용 프롬프트</h2>
+					<p>지침과 미번역 {aiPromptTargetCount}개</p>
+				</div>
+				<button class="soft compact-button" onclick={() => (aiPromptPreview = "")}>닫기</button>
+			</header>
+			<textarea bind:this={aiPromptTextarea} value={aiPromptPreview} readonly aria-label="외부 AI용 프롬프트" spellcheck="false"></textarea>
+			{#if aiPromptCopyHelp}<p class="ai-prompt-copy-help" role="status">{aiPromptCopyHelp}</p>{/if}
+			<footer>
+				<button class="soft" onclick={() => { aiPromptTextarea?.focus(); aiPromptTextarea?.select(); }}>전체 선택</button>
+				<button class="save-all" onclick={copyPreparedAiPrompt}>복사</button>
+			</footer>
+		</div>
 	</div>
 {/if}
 

@@ -1260,6 +1260,16 @@
 		min-height: 86px;
 		margin: 0;
 	}
+	.ai-prompt-modal textarea {
+		height: min(56dvh, 500px);
+		min-height: 180px;
+		font-size: 13px;
+		font-weight: 400;
+		resize: vertical;
+	}
+	.ai-prompt-copy-help {
+		color: var(--warning);
+	}
 	.check-line {
 		display: flex !important;
 		grid-template-columns: none;
