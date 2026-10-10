@@ -702,7 +702,20 @@
 	}
 	.suggestion-content { padding: 14px; min-width: 0; }
 	.suggestion-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-	.suggestion-heading button { padding: 6px 14px; }
+	.suggestion-heading .suggestion-save {
+		background: #fff;
+		border-color: #fff;
+		color: #141820;
+		font-weight: 600;
+	}
+	.suggestion-heading .suggestion-save:hover:not(:disabled) {
+		background: #e9edf2;
+		border-color: #e9edf2;
+	}
+	.suggestion-heading .suggestion-save:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
 	.row .suggestion-text { padding: 12px 0; }
 	.row .suggestion-reason { padding: 0 0 12px; color: var(--muted); font-size: 13px; }
 	.suggestion-references { display: grid; gap: 6px; font-size: 13px; overflow-wrap: anywhere; }
