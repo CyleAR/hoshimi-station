@@ -1682,6 +1682,15 @@
 		if (target) void scrollToUnit(target.unit_id);
 	}
 
+	function pendingSuggestionUnits() {
+		return filteredUnits().filter(unit => unit.ai_suggestion && !unit.ai_suggestion.accepted_at);
+	}
+
+	function scrollToAiSuggestion() {
+		const target = pendingSuggestionUnits()[0];
+		if (target) void scrollToUnit(target.unit_id);
+	}
+
 	function displayText(text) {
 		return String(text ?? "")
 			.replace(/\r\n/g, "\\n")
@@ -2300,6 +2309,12 @@
 						<button class="soft" onclick={goBack}>이전 항목</button>
 					{/if}
 					<button class="soft" onclick={retry}>새로고침</button>
+					{#if canUseCodexSuggestions() && pendingSuggestionUnits().length}
+						<button class="soft" onclick={scrollToAiSuggestion}
+							title="현재 필터에서 아직 사용하지 않은 AI 제안이 있는 첫 항목으로 이동">
+							AI 제안 {pendingSuggestionUnits().length}
+						</button>
+					{/if}
 					{#if untranslatedCount()}
 						<button
 							class="soft jump"
@@ -2529,7 +2544,7 @@
 												{#if unit.ai_suggestion}
 													<div class="suggestion-heading">
 														<strong>{unit.ai_suggestion.accepted_at ? "사용한 제안" : "번역 제안"}</strong>
-														<button class="accent" onclick={() => useAiSuggestion(unit)}
+														<button class="soft" onclick={() => useAiSuggestion(unit)}
 															disabled={unit.saving || Boolean(unit.ai_suggestion.accepted_at) || unit.ai_suggestion.stale || unit.dirty}>
 															{unit.saving ? "저장 중..." : unit.ai_suggestion.accepted_at ? "사용됨" : "사용"}
 														</button>
