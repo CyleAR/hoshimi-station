@@ -137,9 +137,22 @@ function useGemini() {
 	return !process.env.HYPER_API_KEY && !process.env.OPENAI_API_KEY && Boolean(process.env.GEMINI_API_KEY);
 }
 
+// The provider is the one whose API key is set (Hyper, then OpenAI-compatible, then Gemini),
+// and base URL / model come from that provider's variables so a stale HYPER_* default
+// can never redirect an OpenAI key to the wrong host.
+function aiProvider() {
+	if (process.env.HYPER_API_KEY) return 'hyper';
+	if (process.env.OPENAI_API_KEY) return 'openai';
+	return useGemini() ? 'gemini' : 'hyper';
+}
+
 function aiBaseUrl() {
-	const fallback = useGemini() ? GEMINI_BASE_URL : 'https://hyper.charm.land/v1';
-	return String(process.env.HYPER_BASE_URL || process.env.OPENAI_BASE_URL || fallback).replace(/\/+$/, '');
+	const provider = aiProvider();
+	const raw =
+		provider === 'hyper' ? process.env.HYPER_BASE_URL || 'https://hyper.charm.land/v1'
+		: provider === 'openai' ? process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
+		: GEMINI_BASE_URL;
+	return String(raw).replace(/\/+$/, '');
 }
 
 function aiApiKey() {
@@ -147,8 +160,12 @@ function aiApiKey() {
 }
 
 function aiModel() {
-	const fallback = useGemini() ? GEMINI_DEFAULT_MODEL : 'deepseek-v4-flash-0731';
-	return String(process.env.HYPER_MODEL || process.env.OPENAI_MODEL || fallback).trim();
+	const provider = aiProvider();
+	const raw =
+		provider === 'hyper' ? process.env.HYPER_MODEL || 'deepseek-v4-flash-0731'
+		: provider === 'openai' ? process.env.OPENAI_MODEL || 'gpt-4o-mini'
+		: process.env.OPENAI_MODEL || GEMINI_DEFAULT_MODEL;
+	return String(raw).trim();
 }
 
 // Requests per minute allowed upstream; 0 disables the limiter (e.g. LiteLLM limits it).
