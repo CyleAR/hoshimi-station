@@ -1,0 +1,14 @@
+services:
+  hoshimi-station:
+    build: .
+    image: hoshimi-station:latest
+    restart: unless-stopped
+    user: "${HOSHIMI_UID:-1000}:${HOSHIMI_GID:-1000}"
+    env_file: .env
+    environment:
+      # Public URL behind your reverse proxy; SvelteKit uses it for its CSRF origin check.
+      ORIGIN: ${HOSHIMI_SITE_URL}
+    ports:
+      - "127.0.0.1:3042:3042"
+    volumes:
+      - ./data:/data
