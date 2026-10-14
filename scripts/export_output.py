@@ -366,7 +366,16 @@ def apply_adv_reference(output_name: str, lines: list[str]) -> list[str]:
         return lines
     ref_lines = ref_path.read_bytes().decode("utf-8").split("\n")
     if len(ref_lines) != len(lines):
-        return lines
+        ADV_REVIEW.append(
+            {"file": output_name, "line": 0, "field": "linecount", "ours": len(lines), "shipped": len(ref_lines)}
+        )
+        ours_msgs = [l for l in lines if l.startswith("[message ")]
+        ref_msgs = [l for l in ref_lines if l.startswith("[message ")]
+        if len(ours_msgs) == len(ref_msgs):
+            for number, (o, r) in enumerate(zip(ours_msgs, ref_msgs), start=1):
+                if o != r:
+                    adopt_reference_line(o, r, output_name, number)
+        return ref_lines
     return [
         adopt_reference_line(line, ref, output_name, number) if line != ref else line
         for number, (line, ref) in enumerate(zip(lines, ref_lines), start=1)
