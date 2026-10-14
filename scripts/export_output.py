@@ -329,6 +329,46 @@ def replace_mapped_places(line: str, translations: dict[str, str]) -> tuple[str,
     return PLACE_ATTR_RE.sub(repl, line), applied
 
 
+ADV_REFERENCE_DIR: Path | None = None
+TEXT_ATTRS = ("text", "name", "title", "place")
+
+
+def adopt_reference_line(line: str, reference: str) -> str:
+    """Keep the shipped line's non-text data and carry over our translated values."""
+    match, ref_match = TAG_RE.match(line), TAG_RE.match(reference)
+    if not match or not ref_match or match.group("tag") != ref_match.group("tag"):
+        return reference
+    tag = match.group("tag")
+    if tag == "choicegroup":
+        ours, theirs = list(CHOICE_RE.finditer(line)), list(CHOICE_RE.finditer(reference))
+        if len(ours) != len(theirs):
+            return reference
+        for index in range(len(theirs) - 1, -1, -1):
+            value = ours[index].group("value")
+            reference = reference[: theirs[index].start("value")] + value + reference[theirs[index].end("value") :]
+        return reference
+    if tag not in {"message", "narration", "title"}:
+        return reference
+    attrs = parse_attrs(line)
+    ref_attrs = parse_attrs(reference)
+    for attr in TEXT_ATTRS:
+        if attr in attrs and attr in ref_attrs and attrs[attr] != ref_attrs[attr]:
+            reference = replace_attr(reference, attr, attrs[attr])
+    return reference
+
+
+def apply_adv_reference(output_name: str, lines: list[str]) -> list[str]:
+    if ADV_REFERENCE_DIR is None:
+        return lines
+    ref_path = ADV_REFERENCE_DIR / output_name
+    if not ref_path.is_file():
+        return lines
+    ref_lines = ref_path.read_bytes().decode("utf-8").split("\n")
+    if len(ref_lines) != len(lines):
+        return lines
+    return [adopt_reference_line(line, ref) if line != ref else line for line, ref in zip(lines, ref_lines)]
+
+
 def parse_attrs(line: str) -> dict[str, str]:
     return {match.group("key"): match.group("value").strip() for match in ATTR_RE.finditer(line)}
 
@@ -420,6 +460,7 @@ def write_adv_file(
         lines[idx - 1] = line
     if not applied:
         return 0
+    lines = apply_adv_reference(output_file or source_file, lines)
     (adv_dir / (output_file or source_file)).write_bytes("\n".join(lines).encode("utf-8"))
     return applied
 
@@ -520,7 +561,10 @@ def main() -> None:
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--format-reference", type=Path, default=None, help="Shipped masterTrans dir whose per-file JSON byte format is preserved.")
     parser.add_argument("--shipped-keys-only", action="store_true", help="With --format-reference, drop masterTrans keys absent from the shipped file.")
+    parser.add_argument("--adv-reference", type=Path, default=None, help="Shipped resource/adv dir; its non-text lines are kept when line counts match.")
     args = parser.parse_args()
+    global ADV_REFERENCE_DIR
+    ADV_REFERENCE_DIR = args.adv_reference.resolve() if args.adv_reference else None
 
     out_dir = args.out.resolve()
     if out_dir.exists() and args.overwrite:
