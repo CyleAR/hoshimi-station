@@ -7,177 +7,177 @@
 	import "./page.css";
 
 	const tabs = [
-		{ key: "groups", label: "그룹" },
-		{ key: "characters", label: "캐릭터" },
-		{ key: "stories", label: "스토리/ADV" },
-		{ key: "messages", label: "문자" },
-		{ key: "telephones", label: "전화" },
-		{ key: "home", label: "홈 대사" },
-		{ key: "cards", label: "카드" },
+		{ key: "groups", label: "Group" },
+		{ key: "characters", label: "Character" },
+		{ key: "stories", label: "Stories/ADV" },
+		{ key: "messages", label: "Message" },
+		{ key: "telephones", label: "Phone" },
+		{ key: "home", label: "Home Talk" },
+		{ key: "cards", label: "Card" },
 		{ key: "masterdb", label: "MasterDB" },
 	];
 
 	const typeNames = {
-		group: "그룹",
-		character: "캐릭터",
-		card: "카드",
-		card_evolution_message: "개화 대사",
-		costume: "의상",
-		hair: "헤어",
-		accessory: "액세서리",
-		home_action: "홈 액션",
-		love_home_action: "모시코이 홈 액션",
-		company_enjoy_home_action: "회사 홈 액션",
-		showcase_toy: "굿즈",
-		showcase_toy_category: "굿즈 분류",
-		skill: "스킬",
-		skill_efficacy: "스킬 효과",
-		live_ability: "라이브 능력",
-		activity_ability: "업무 능력",
-		story_part: "스토리 파트",
-		story_collection: "스토리 묶음",
-		story: "스토리",
-		love: "모시코이 스토리",
-		message_group: "메시지 그룹",
-		message_thread: "문자 시리즈",
-		message: "문자",
-		telephone: "전화",
-		condition_description: "조건 설명",
-		excursion_place: "외출 장소",
-		home_talk: "홈 대사",
-		call_pattern: "접속 대사",
-		adv_file: "ADV 파일",
-		search: "검색",
-		category: "카테고리",
+		group: "Group",
+		character: "Character",
+		card: "Card",
+		card_evolution_message: "Blooming Lines",
+		costume: "Costume",
+		hair: "Hair",
+		accessory: "Accessory",
+		home_action: "Home Action",
+		love_home_action: "Moshikoi Home Action",
+		company_enjoy_home_action: "Company Home Action",
+		showcase_toy: "Goods",
+		showcase_toy_category: "Goods Category",
+		skill: "Skill",
+		skill_efficacy: "Skill Effect",
+		live_ability: "Live Ability",
+		activity_ability: "Work Ability",
+		story_part: "Story Part",
+		story_collection: "Story Collection",
+		story: "Story",
+		love: "Moshikoi Story",
+		message_group: "Message Group",
+		message_thread: "Message Series",
+		message: "Message",
+		telephone: "Phone",
+		condition_description: "Condition Description",
+		excursion_place: "Excursion Place",
+		home_talk: "Home Talk",
+		call_pattern: "Login Lines",
+		adv_file: "ADV File",
+		search: "Search",
+		category: "Category",
 	};
 
 	const relationNames = {
-		member: "멤버",
-		has_card: "카드",
-		has_costume: "의상",
-		has_hair: "헤어",
-		has_accessory: "액세서리",
-		home_action: "홈 액션",
-		love_home_action: "러브 홈 액션",
-		company_enjoy_home_action: "회사 홈 액션",
-		excursion_place: "외출 장소",
-		costume_home_action: "의상 홈 액션",
-		condition_costume_home_action: "의상 홈 액션",
-		card_call_pattern: "카드 접속 대사",
-		call_pattern: "접속 대사",
-		costume_card: "의상 카드",
-		fitting_hair: "피팅 헤어",
-		has_showcase_toy: "굿즈",
-		card_goods: "카드 굿즈",
-		character_goods: "캐릭터 굿즈",
-		has_message: "문자",
-		has_telephone: "전화",
-		has_home_talk: "홈 대사",
+		member: "Member",
+		has_card: "Card",
+		has_costume: "Costume",
+		has_hair: "Hair",
+		has_accessory: "Accessory",
+		home_action: "Home Action",
+		love_home_action: "Love Home Action",
+		company_enjoy_home_action: "Company Home Action",
+		excursion_place: "Excursion Place",
+		costume_home_action: "Costume Home Action",
+		condition_costume_home_action: "Costume Home Action",
+		card_call_pattern: "Card Login Lines",
+		call_pattern: "Login Lines",
+		costume_card: "Costume Card",
+		fitting_hair: "Fitting Hair",
+		has_showcase_toy: "Goods",
+		card_goods: "Card Goods",
+		character_goods: "Character Goods",
+		has_message: "Message",
+		has_telephone: "Phone",
+		has_home_talk: "Home Talk",
 		has_adv: "ADV",
-		card_story: "카드 스토리",
-		card_message: "카드 문자",
-		card_telephone: "카드 전화",
-		card_home_talk: "카드 홈 대사",
-		evolution_message: "개화 대사",
-		reward_costume: "보상 의상",
-		reward_hair: "보상 헤어",
-		default_hair: "기본 헤어",
-		wearable_costume: "착용 가능 의상",
-		not_wearable_costume: "착용 불가 의상",
-		skillId1: "스킬 1",
-		skillId2: "스킬 2",
-		skillId3: "스킬 3",
-		skillId4: "스킬 4",
-		skill_efficacy: "스킬 효과",
-		skillId1_efficacy: "스킬 1 효과",
-		skillId2_efficacy: "스킬 2 효과",
-		skillId3_efficacy: "스킬 3 효과",
-		skillId4_efficacy: "스킬 4 효과",
-		liveAbilitySkill: "라이브 능력 스킬",
-		liveAbilitySkill_efficacy: "라이브 능력 스킬 효과",
-		level_skill: "레벨 스킬",
-		liveAbilityId: "라이브 능력",
-		activityAbilityId: "업무 능력",
-		episode: "에피소드",
-		episode_adv: "에피소드 ADV",
-		chapter_episode: "챕터 에피소드",
-		chapter_adv: "챕터 ADV",
-		uses_adv: "사용 ADV",
-		choice_adv: "선택지 ADV",
-		message_group: "메시지 그룹",
-		message_thread: "문자 시리즈",
-		thread_message: "시리즈 문자",
-		in_thread: "소속 시리즈",
-		in_group: "소속 그룹",
-		company_enjoy_story: "교류 스토리",
-		company_enjoy_adv: "교류 ADV",
-		message_telephone: "연결 전화",
-		unlock_condition: "해금 조건",
-		condition: "조건 설명",
-		message_condition: "문자 조건",
-		telephone_condition: "전화 조건",
-		home_talk_condition: "홈 대사 조건",
+		card_story: "Card Story",
+		card_message: "Card Message",
+		card_telephone: "Card Phone Call",
+		card_home_talk: "Card Home Talk",
+		evolution_message: "Blooming Lines",
+		reward_costume: "Reward Costume",
+		reward_hair: "Reward Hair",
+		default_hair: "Default Hair",
+		wearable_costume: "Wearable Costume",
+		not_wearable_costume: "Non-wearable Costume",
+		skillId1: "Skill 1",
+		skillId2: "Skill 2",
+		skillId3: "Skill 3",
+		skillId4: "Skill 4",
+		skill_efficacy: "Skill Effect",
+		skillId1_efficacy: "Skill 1 Effect",
+		skillId2_efficacy: "Skill 2 Effect",
+		skillId3_efficacy: "Skill 3 Effect",
+		skillId4_efficacy: "Skill 4 Effect",
+		liveAbilitySkill: "Live Ability Skill",
+		liveAbilitySkill_efficacy: "Live Ability Skill Effect",
+		level_skill: "Level Skill",
+		liveAbilityId: "Live Ability",
+		activityAbilityId: "Work Ability",
+		episode: "Episode",
+		episode_adv: "Episode ADV",
+		chapter_episode: "Chapter Episode",
+		chapter_adv: "Chapter ADV",
+		uses_adv: "Used ADV",
+		choice_adv: "Choice ADV",
+		message_group: "Message Group",
+		message_thread: "Message Series",
+		thread_message: "Series Message",
+		in_thread: "Parent Series",
+		in_group: "Parent Group",
+		company_enjoy_story: "Bond Story",
+		company_enjoy_adv: "Bond ADV",
+		message_telephone: "Linked Phone Call",
+		unlock_condition: "Unlock Condition",
+		condition: "Condition Description",
+		message_condition: "Message Condition",
+		telephone_condition: "Phone Condition",
+		home_talk_condition: "Home Talk Condition",
 	};
 
 	const fieldNames = {
-		value: "문구",
-		name: "이름",
-		place: "장소",
-		description: "설명",
-		obtainMessage: "획득 메시지",
-		evolveMessage: "진화 메시지",
-		title: "제목",
-		text: "대사",
-		excursionFirstText: "외출 첫 안내",
-		choiceText: "선택지",
-		managerText: "매니저 대사",
-		displayConditionDescription: "표시 조건",
-		branchFirstText: "분기 안내",
-		branchCautionText: "분기 주의문",
-		profile: "프로필",
-		shortProfile: "짧은 프로필",
-		catchphrase: "캐치프레이즈",
-		favorite: "좋아하는 것",
-		unfavorite: "싫어하는 것",
-		hometown: "출신/학교",
-		cv: "성우",
-		age: "나이",
-		birthday: "생일",
-		zodiacSign: "별자리",
-		firstName: "이름",
-		groupName: "그룹명",
-		idiom: "격언",
+		value: "Text",
+		name: "Name",
+		place: "Place",
+		description: "Description",
+		obtainMessage: "Obtain Message",
+		evolveMessage: "Evolve Message",
+		title: "Title",
+		text: "Line",
+		excursionFirstText: "Excursion Intro",
+		choiceText: "Choice",
+		managerText: "Manager Line",
+		displayConditionDescription: "Display Condition",
+		branchFirstText: "Branch Guide",
+		branchCautionText: "Branch Caution",
+		profile: "Profile",
+		shortProfile: "Short Profile",
+		catchphrase: "Catchphrase",
+		favorite: "Likes",
+		unfavorite: "Dislikes",
+		hometown: "Hometown/School",
+		cv: "Voice Actor",
+		age: "Age",
+		birthday: "Birthday",
+		zodiacSign: "Zodiac Sign",
+		firstName: "Name",
+		groupName: "Group Name",
+		idiom: "Idiom",
 	};
 
 	const categoryNames = {
 		Localization: "Localization",
-		Card: "카드 정보",
-		Costume: "의상",
-		Hair: "헤어",
-		Accessory: "액세서리",
-		HomeAction: "홈 액션",
-		LoveHomeAction: "모시코이 홈 액션",
-		CompanyEnjoyHomeAction: "회사 홈 액션",
-		ShowcaseToy: "굿즈",
-		ShowcaseToyCategory: "굿즈 분류",
-		Skill: "스킬",
-		LiveAbility: "라이브 능력",
-		ActivityAbility: "업무 능력",
-		Story: "스토리 정보",
-		StoryPart: "스토리 파트",
-		EventStory: "이벤트 스토리",
-		ExtraStory: "엑스트라 스토리",
-		Message: "문자",
-		MessageGroup: "메시지 그룹",
-		ConditionDescription: "조건 설명",
-		ExcursionGazeReaction: "외출 반응",
-		ExcursionPlace: "외출 장소",
-		Telephone: "전화",
-		HomeTalk: "홈 대사",
-		HomeTalkCallPattern: "접속 대사",
-		CardEvolutionMessage: "개화 대사",
-		Character: "캐릭터 프로필",
-		CharacterGroup: "그룹 정보",
+		Card: "Card Info",
+		Costume: "Costume",
+		Hair: "Hair",
+		Accessory: "Accessory",
+		HomeAction: "Home Action",
+		LoveHomeAction: "Moshikoi Home Action",
+		CompanyEnjoyHomeAction: "Company Home Action",
+		ShowcaseToy: "Goods",
+		ShowcaseToyCategory: "Goods Category",
+		Skill: "Skill",
+		LiveAbility: "Live Ability",
+		ActivityAbility: "Work Ability",
+		Story: "Story Info",
+		StoryPart: "Story Part",
+		EventStory: "Event Story",
+		ExtraStory: "Extra Story",
+		Message: "Message",
+		MessageGroup: "Message Group",
+		ConditionDescription: "Condition Description",
+		ExcursionGazeReaction: "Excursion Reaction",
+		ExcursionPlace: "Excursion Place",
+		Telephone: "Phone",
+		HomeTalk: "Home Talk",
+		HomeTalkCallPattern: "Login Lines",
+		CardEvolutionMessage: "Blooming Lines",
+		Character: "Character Profile",
+		CharacterGroup: "Group Info",
 	};
 
 	let section = $state("groups");
@@ -348,12 +348,12 @@
 			} catch {
 				if ([502, 503, 504].includes(response.status)) {
 					throw new Error(
-						`서버 연결이 일시적으로 끊겼습니다. 잠시 후 다시 시도해 주세요. (HTTP ${response.status})`,
+						`The server connection was interrupted. Please try again shortly. (HTTP ${response.status})`,
 					);
 				}
 				const snippet = text.replace(/\s+/g, " ").slice(0, 240);
 				throw new Error(
-					`JSON이 아닌 응답입니다: ${response.status} ${response.url} ${snippet}`,
+					`Non-JSON response: ${response.status} ${response.url} ${snippet}`,
 				);
 			}
 			if (!response.ok || data.error)
@@ -362,7 +362,7 @@
 		} catch (err) {
 			if (err.name === "AbortError")
 				throw new Error(
-					"요청 시간이 초과되었습니다. 서버 상태를 확인해 주세요.",
+					"The request timed out. Please check the server status.",
 				);
 			throw err;
 		} finally {
@@ -755,7 +755,7 @@
 	}
 
 	function canUseCodexSuggestions() {
-		return currentUser?.nickname === "사일";
+		return currentUser?.nickname === "admin";
 	}
 
 	function canAcceptSuggestion(unit) {
@@ -782,13 +782,13 @@
 		} finally {
 			acceptingSuggestions = false;
 			suggestionSaveProgress = "";
-			notice = `AI 제안 ${saved}개 저장${failed ? ` · 실패 ${failed}개 (항목별 오류 확인)` : ""}${skipped ? ` · 건너뜀 ${skipped}개` : ""}`;
+			notice = `Saved ${saved} AI suggestions${failed ? ` · ${failed} failed (check per-item errors)` : ""}${skipped ? ` · ${skipped} skipped` : ""}`;
 		}
 	}
 
 	async function useAiSuggestion(unit, batch = false) {
 		if (!canUseCodexSuggestions()) {
-			unit.error = "AI 제안은 사일 계정만 사용할 수 있습니다.";
+			unit.error = "AI suggestions can only be used by the admin account.";
 			return false;
 		}
 		if (!canAcceptSuggestion(unit)) return false;
@@ -809,7 +809,7 @@
 			}
 			refreshActiveSectionProgress();
 			if (!batch) {
-				notice = "AI 제안을 번역으로 저장했습니다.";
+				notice = "Saved the AI suggestion as the translation.";
 				await loadSummary();
 			}
 			return true;
@@ -823,16 +823,16 @@
 
 	async function saveUnit(unit) {
 		if (!currentUser) {
-			loginError = "저장하려면 먼저 닉네임을 입력해 주세요.";
+			loginError = "Enter a nickname before saving.";
 			return;
 		}
 		const missing = missingPlaceholders(unit.original_text, unit.draft);
 		if (missing.length && unit.draft.trim()) {
 			const ok = confirm(
-				`원문에 있는 placeholder가 번역문에 없습니다: ${missing.join(", ")}\n그래도 저장할까요?`,
+				`Placeholders in the source are missing from the translation: ${missing.join(", ")}\nSave anyway?`,
 			);
 			if (!ok) {
-				unit.error = `placeholder 누락: ${missing.join(", ")}`;
+				unit.error = `Missing placeholders: ${missing.join(", ")}`;
 				return;
 			}
 		}
@@ -869,7 +869,7 @@
 				newDataCount = Math.max(0, newDataCount - 1);
 			}
 			refreshActiveSectionProgress();
-			notice = "저장되었습니다.";
+			notice = "Saved.";
 			await loadSummary();
 		} catch (err) {
 			unit.error = err.message;
@@ -880,15 +880,15 @@
 
 	async function fillCardInfo(unit) {
 		if (!currentUser) {
-			unit.error = "로그인이 필요합니다.";
+			unit.error = "Login required.";
 			return;
 		}
 		if (!unit.draft.trim()) {
-			unit.error = "번역문을 먼저 입력해주세요.";
+			unit.error = "Enter the translation first.";
 			return;
 		}
 		
-		const ok = confirm(`'${unit.draft}' (으)로 나머지 항목(홈 대사, 문자, 굿즈 등)을 채우시겠습니까?\n(이미 번역된 항목도 덮어씁니다)`);
+		const ok = confirm(`Fill the remaining items (home talks, messages, goods, etc.) with '${unit.draft}'?\n(Already translated items will be overwritten)`);
 		if (!ok) return;
 
 		unit.saving = true;
@@ -905,9 +905,9 @@
 					pin: currentUser.pin,
 				}),
 			});
-			if (!data.ok) throw new Error(data.error || "일괄 채우기 실패");
+			if (!data.ok) throw new Error(data.error || "Bulk fill failed");
 			
-			notice = `총 ${data.updated}개 항목이 채워졌습니다. (제목: ${data.title}, 캐릭터: ${data.chr})`;
+			notice = `Filled ${data.updated} items. (Title: ${data.title}, Character: ${data.chr})`;
 			unit.dirty = false;
 			unit.translation_text = unit.draft;
 			unit.status = "translated";
@@ -971,11 +971,11 @@
 		const nickname = loginNickname.trim();
 		const pin = loginPin.trim();
 		if (!nickname) {
-			loginError = "닉네임을 입력해 주세요.";
+			loginError = "Enter a nickname.";
 			return;
 		}
 		if (!/^\d{6}$/.test(pin)) {
-			loginError = "비밀번호는 숫자 6자리로 입력해 주세요.";
+			loginError = "Enter a 6-digit numeric password.";
 			return;
 		}
 		loggingIn = true;
@@ -1178,7 +1178,7 @@
 				throw err;
 			}
 		}
-		throw new Error("AI 번역이 15분 안에 끝나지 않았습니다.");
+		throw new Error("AI translation did not finish within 15 minutes.");
 	}
 
 	function aiDraftSelection() {
@@ -1236,12 +1236,12 @@
 
 	async function copyAiPrompt() {
 		if (!currentUser) {
-			aiDraftError = "먼저 로그인해 주세요.";
+			aiDraftError = "Please log in first.";
 			return;
 		}
 		const { targets, referenceUnitIds } = aiDraftSelection();
 		if (!targets.length) {
-			aiDraftError = "복사할 미번역 항목이 없습니다.";
+			aiDraftError = "There are no untranslated items to copy.";
 			return;
 		}
 		aiPromptCopying = true;
@@ -1260,10 +1260,10 @@
 				}),
 			});
 			const prompt = String(data.prompt ?? "");
-			if (!prompt.trim()) throw new Error("복사할 프롬프트가 비어 있습니다.");
+			if (!prompt.trim()) throw new Error("The prompt to copy is empty.");
 			const targetCount = data.target_count ?? targets.length;
 			if (await copyPromptText(prompt)) {
-				notice = `외부 AI용 지침과 미번역 ${targetCount}개 복사됨`;
+				notice = `Copied guidelines and ${targetCount} untranslated items for external AI`;
 				return;
 			}
 			aiPromptPreview = prompt;
@@ -1279,31 +1279,31 @@
 	async function copyPreparedAiPrompt() {
 		if (!aiPromptTextarea) return;
 		if (await copyPromptText(aiPromptPreview)) {
-			notice = `외부 AI용 지침과 미번역 ${aiPromptTargetCount}개 복사됨`;
+			notice = `Copied guidelines and ${aiPromptTargetCount} untranslated items for external AI`;
 			aiPromptPreview = "";
 		} else {
 			aiPromptTextarea.focus();
 			aiPromptTextarea.select();
-			aiPromptCopyHelp = "자동 복사가 차단되었습니다. 선택된 내용을 직접 복사해 주세요.";
+			aiPromptCopyHelp = "Automatic copy was blocked. Please copy the selected text manually.";
 		}
 	}
 
 	async function runAiDraft() {
 		if (!currentUser) {
-			aiDraftError = "먼저 로그인해 주세요.";
+			aiDraftError = "Please log in first.";
 			return;
 		}
 		if (!canUseAiDraft()) {
-			aiDraftError = "AI 초벌을 사용하려면 로그인해 주세요.";
+			aiDraftError = "Log in to use AI drafts.";
 			return;
 		}
 		const { targets, referenceUnitIds } = aiDraftSelection();
 		if (!targets.length) {
-			aiDraftError = "초벌을 채울 미번역 항목이 없습니다.";
+			aiDraftError = "There are no untranslated items to draft.";
 			return;
 		}
 		const ok = confirm(
-			`현재 필터에 맞는 미번역 ${targets.length}개에 AI 초벌을 채울까요?\n화면 밖 항목도 포함하며, 한 번에 최대 150개를 처리합니다.\n초안만 입력되고 저장은 직접 해야 합니다.`,
+			`Fill AI drafts for ${targets.length} untranslated items matching the current filter?\nItems outside the screen are included; up to 150 are processed at a time.\nOnly drafts are entered; you must save them yourself.`,
 		);
 		if (!ok) return;
 
@@ -1345,8 +1345,8 @@
 				};
 			});
 			notice = data.usage
-				? `AI 초벌 ${applied}개 입력됨 · 오늘 ${data.usage.remaining}회 남음`
-				: `AI 초벌 ${applied}개 입력됨`;
+				? `${applied} AI drafts entered · ${data.usage.remaining} left today`
+				: `${applied} AI drafts entered`;
 			if (data.warnings?.length) {
 				const shown = data.warnings
 					.slice(0, 20)
@@ -1354,7 +1354,7 @@
 					.join("\n");
 				const hidden = data.warnings.length - 20;
 				aiDraftError =
-					hidden > 0 ? `${shown}\n... 외 ${hidden}개` : shown;
+					hidden > 0 ? `${shown}\n... and ${hidden} more` : shown;
 			}
 		} catch (err) {
 			aiDraftError = err.message;
@@ -1372,7 +1372,7 @@
 
 	async function previewBulkFill() {
 		if (!currentUser) {
-			bulkError = "먼저 로그인해 주세요.";
+			bulkError = "Please log in first.";
 			return;
 		}
 		bulkError = "";
@@ -1405,13 +1405,13 @@
 		}
 		const targets = Number(bulkPreview.targets ?? 0);
 		if (!targets) {
-			bulkError = "변경할 항목이 없습니다.";
+			bulkError = "There are no items to change.";
 			return;
 		}
 		const matchLabel =
-			bulkPreview.mode === "format" ? "포맷으로 일치하는 원문" : "정확히 일치하는 원문";
+			bulkPreview.mode === "format" ? "format-matching source" : "exactly matching source";
 		const ok = confirm(
-			`${matchLabel} ${targets.toLocaleString()}개에 번역을 채울까요?`,
+			`Fill translations for ${targets.toLocaleString()} ${matchLabel} items?`,
 		);
 		if (!ok) return;
 		bulkError = "";
@@ -1429,7 +1429,7 @@
 					pin: currentUser.pin,
 				}),
 			});
-			notice = `일괄 번역 ${data.updated ?? 0}개 적용됨`;
+			notice = `Bulk translation applied to ${data.updated ?? 0} items`;
 			bulkOpen = false;
 			bulkPreview = null;
 			await loadSummary();
@@ -1523,7 +1523,7 @@
 	}
 
 	function selectedTitle() {
-		return detail?.entity?.label ?? selected?.label ?? "선택한 항목 없음";
+		return detail?.entity?.label ?? selected?.label ?? "No item selected";
 	}
 
 	function selectedSubtitle() {
@@ -1568,11 +1568,11 @@
 	}
 
 	const excursionPlaceLabels = {
-		"01_01": "관람차",
-		"01_02": "해안",
-		"01_03": "수영장",
-		"01_04": "쇼핑",
-		"01_05": "외출 종료",
+		"01_01": "Ferris Wheel",
+		"01_02": "Coast",
+		"01_03": "Pool",
+		"01_04": "Shopping",
+		"01_05": "Outing End",
 	};
 
 	function shouldGroupCharacterAdvByFile(unit) {
@@ -1640,10 +1640,10 @@
 			unit.speaker === "__player_choice__" ||
 			unitFieldName(unit) === "choiceText"
 		)
-			return "플레이어 선택";
-		if (unit.speaker === "__player_text__") return "플레이어";
-		if (isManagerUnit(unit)) return "매니저";
-		if (displaySpeaker(unit)) return "발화자";
+			return "Player choice";
+		if (unit.speaker === "__player_text__") return "Player";
+		if (isManagerUnit(unit)) return "Manager";
+		if (displaySpeaker(unit)) return "Speaker";
 		return "";
 	}
 
@@ -1779,7 +1779,7 @@
 			unit.source_type === "adv" &&
 			unit.scope_type === "character"
 		) {
-			return "캐릭터 공통 ADV";
+			return "Character Common ADV";
 		}
 		if (shouldGroupByOwner() && unit.owner_label) return unit.owner_label;
 		return groupTitle(unit);
@@ -1855,8 +1855,8 @@
 	}
 
 	function entityButtonLabel(group) {
-		const name = typeNames[group.scope_type] ?? "항목";
-		return `${name} 열기`;
+		const name = typeNames[group.scope_type] ?? "Item";
+		return `Open ${name}`;
 	}
 
 	function linkGroups() {
@@ -1913,7 +1913,7 @@
 				currentUser = {
 					...saved,
 					is_admin:
-						Boolean(saved.is_admin) || saved.nickname === "사일",
+						Boolean(saved.is_admin) || saved.nickname === "admin",
 				};
 				loginNickname = saved.nickname;
 				localStorage.setItem(
@@ -1975,7 +1975,7 @@
 
 <div class="shell">
 	<header class="topbar">
-		<button class="brand" onclick={goHome} title="처음 화면으로">
+		<button class="brand" onclick={goHome} title="Back to start">
 			<span>Hoshimi Station</span>
 		</button>
 		<label class="search">
@@ -1984,7 +1984,7 @@
 				id="global-search"
 				bind:value={query}
 				oninput={queueSearch}
-				placeholder="ID / 원문 / 번역 검색... (Ctrl+K)"
+				placeholder="Search ID / source / translation... (Ctrl+K)"
 			/>
 		</label>
 		<div class="guideline-popover-wrap">
@@ -1995,17 +1995,17 @@
 				onclick={() => (guidelinesOpen = !guidelinesOpen)}
 				aria-expanded={guidelinesOpen}
 			>
-				번역 지침
+				Translation guidelines
 			</button>
 			{#if guidelinesOpen}
-				<aside class="guideline-popover" aria-label="번역 지침">
+				<aside class="guideline-popover" aria-label="Translation guidelines">
 					<header>
-						<strong>번역 지침</strong>
+						<strong>Translation guidelines</strong>
 						<button
 							class="soft compact-button"
 							type="button"
 							onclick={() => (guidelinesOpen = false)}
-							>닫기</button
+							>Close</button
 						>
 					</header>
 					<div class="floating-guideline-body">
@@ -2051,7 +2051,7 @@
 							</div>
 						{:else}
 							<div class="guideline-loading">
-								번역 주의사항을 불러오는 중...
+								Loading translation notes...
 							</div>
 						{/if}
 					</div>
@@ -2059,7 +2059,7 @@
 			{/if}
 		</div>
 		<button class="soft compact-button top-bulk-button" onclick={openBulkFill}
-			>일괄 번역</button
+			>Bulk translate</button
 		>
 		<div class="top-actions">
 			{#if summary}
@@ -2068,18 +2068,18 @@
 				>
 			{/if}
 			{#if currentUser}
-				<span class="summary-pill">작업자: {currentUser.nickname}</span>
+				<span class="summary-pill">Worker: {currentUser.nickname}</span>
 				<button
 					class="soft compact-button"
 					class:active={newDataCount > 0}
 					onclick={openNewData}
-					>신규 데이터{newDataCount ? ` ${newDataCount}` : ""}</button
+					>New data{newDataCount ? ` ${newDataCount}` : ""}</button
 				>
 				<button class="soft compact-button" onclick={openRecent}
-					>최근 작업</button
+					>Recent work</button
 				>
 				<button class="soft compact-button" onclick={logout}
-					>나가기</button
+					>Log out</button
 				>
 			{/if}
 		</div>
@@ -2091,24 +2091,24 @@
 		class:work-collapsed={workPaneCollapsed}
 		class:links-collapsed={linksPaneCollapsed}
 	>
-		<nav class="mobile-workspace-nav" aria-label="작업 화면">
-			<button class:active={mobilePane === "nav"} aria-pressed={mobilePane === "nav"} onclick={() => (mobilePane = "nav")}>목록</button>
-			<button class:active={mobilePane === "work"} aria-pressed={mobilePane === "work"} disabled={!selected} onclick={() => (mobilePane = "work")}>작업 묶음</button>
-			<button class:active={mobilePane === "links"} aria-pressed={mobilePane === "links"} disabled={!selected} onclick={() => (mobilePane = "links")}>연결 항목</button>
-			<button class:active={mobilePane === "editor"} aria-pressed={mobilePane === "editor"} disabled={!selected} onclick={() => (mobilePane = "editor")}>번역</button>
+		<nav class="mobile-workspace-nav" aria-label="Workspace">
+			<button class:active={mobilePane === "nav"} aria-pressed={mobilePane === "nav"} onclick={() => (mobilePane = "nav")}>List</button>
+			<button class:active={mobilePane === "work"} aria-pressed={mobilePane === "work"} disabled={!selected} onclick={() => (mobilePane = "work")}>Work group</button>
+			<button class:active={mobilePane === "links"} aria-pressed={mobilePane === "links"} disabled={!selected} onclick={() => (mobilePane = "links")}>Linked items</button>
+			<button class:active={mobilePane === "editor"} aria-pressed={mobilePane === "editor"} disabled={!selected} onclick={() => (mobilePane = "editor")}>Translate</button>
 		</nav>
 		<aside class="nav-pane" class:collapsed={navPaneCollapsed} class:mobile-active={mobilePane === "nav"}>
 			<div class="pane-title">
 				<span class="pane-heading"
-					>{tabs.find((tab) => tab.key === section)?.label ?? "항목"} 목록</span
+					>{tabs.find((tab) => tab.key === section)?.label ?? "Item"} list</span
 				>
 				<div class="pane-title-tools">
 					<span class="pane-count">{items.length}</span>
 					<button
 						class="pane-toggle"
 						type="button"
-						title={navPaneCollapsed ? "목록 펼치기" : "목록 접기"}
-						aria-label={navPaneCollapsed ? "목록 펼치기" : "목록 접기"}
+						title={navPaneCollapsed ? "Expand list" : "Collapse list"}
+						aria-label={navPaneCollapsed ? "Expand list" : "Collapse list"}
 						onclick={() => (navPaneCollapsed = !navPaneCollapsed)}
 						>{navPaneCollapsed ? "›" : "‹"}</button
 					>
@@ -2140,9 +2140,9 @@
 
 			<div class="scroll-list">
 				{#if loadingItems}
-					<div class="state-card">목록을 불러오는 중...</div>
+					<div class="state-card">Loading list...</div>
 				{:else if !items.length}
-					<div class="state-card">표시할 항목이 없습니다.</div>
+					<div class="state-card">No items to display.</div>
 				{:else}
 					{#each items as item}
 						<button
@@ -2179,14 +2179,14 @@
 
 		<aside class="work-pane" class:collapsed={workPaneCollapsed} class:mobile-active={mobilePane === "work"}>
 			<div class="pane-title">
-				<span class="pane-heading">작업 묶음</span>
+				<span class="pane-heading">Work group</span>
 				<div class="pane-title-tools">
 					<span class="pane-count">{detail?.sections?.length ?? 0}</span>
 					<button
 						class="pane-toggle"
 						type="button"
-						title={workPaneCollapsed ? "작업 묶음 펼치기" : "작업 묶음 접기"}
-						aria-label={workPaneCollapsed ? "작업 묶음 펼치기" : "작업 묶음 접기"}
+						title={workPaneCollapsed ? "Expand work group" : "Collapse work group"}
+						aria-label={workPaneCollapsed ? "Expand work group" : "Collapse work group"}
 						onclick={() => (workPaneCollapsed = !workPaneCollapsed)}
 						>{workPaneCollapsed ? "›" : "‹"}</button
 					>
@@ -2195,7 +2195,7 @@
 			{#if selected}<div class="mobile-pane-context">{selectedTitle()}</div>{/if}
 			<div class="section-list">
 				{#if loadingDetail}
-					<div class="state-card">연결 구조를 읽는 중...</div>
+					<div class="state-card">Reading link structure...</div>
 				{:else if detail?.sections?.length}
 					{#each detail.sections as part}
 						<button
@@ -2212,7 +2212,7 @@
 					{/each}
 				{:else}
 					<div class="state-card">
-						선택한 항목에 번역 단위가 없습니다.
+						The selected item has no translation units.
 					</div>
 				{/if}
 			</div>
@@ -2220,14 +2220,14 @@
 
 		<aside class="links-pane" class:collapsed={linksPaneCollapsed} class:mobile-active={mobilePane === "links"}>
 			<div class="pane-title">
-				<span class="pane-heading">연결 항목</span>
+				<span class="pane-heading">Linked items</span>
 				<div class="pane-title-tools">
 					<span class="pane-count">{detail?.links?.length ?? 0}</span>
 					<button
 						class="pane-toggle"
 						type="button"
-						title={linksPaneCollapsed ? "연결 항목 펼치기" : "연결 항목 접기"}
-						aria-label={linksPaneCollapsed ? "연결 항목 펼치기" : "연결 항목 접기"}
+						title={linksPaneCollapsed ? "Expand linked items" : "Collapse linked items"}
+						aria-label={linksPaneCollapsed ? "Expand linked items" : "Collapse linked items"}
 						onclick={() => (linksPaneCollapsed = !linksPaneCollapsed)}
 						>{linksPaneCollapsed ? "›" : "‹"}</button
 					>
@@ -2271,8 +2271,8 @@
 									onclick={() => toggleLinkGroup(group)}
 								>
 									{expandedLinkGroups[group.key]
-										? "접기"
-										: `외 ${group.links.length - 8}개 더 보기 (눌러서 펼침)`}
+										? "Collapse"
+										: `Show ${group.links.length - 8} more (click to expand)`}
 								</button>
 							{/if}
 						</section>
@@ -2280,7 +2280,7 @@
 				</div>
 			{:else}
 				<div class="link-list">
-					<div class="state-card">연결된 항목이 없습니다.</div>
+					<div class="state-card">No linked items.</div>
 				</div>
 			{/if}
 		</aside>
@@ -2290,21 +2290,21 @@
 				<div>
 					<h1>
 						{activeSection?.icon ?? "✦"}
-						{activeSection?.label ?? "번역"}
+						{activeSection?.label ?? "Translation"}
 					</h1>
 					<p>{selectedTitle()} <span>{selectedSubtitle()}</span></p>
 				</div>
 				<div class="editor-actions">
 					{#if notice}<span class="notice">{notice}</span>{/if}
 					{#if navStack.length}
-						<button class="soft" onclick={goBack}>이전 항목</button>
+						<button class="soft" onclick={goBack}>Previous item</button>
 					{/if}
-					<button class="soft" onclick={retry}>새로고침</button>
+					<button class="soft" onclick={retry}>Refresh</button>
 					{#if untranslatedCount()}
 						<button
 							class="soft jump"
 							onclick={scrollToNextUntranslated}
-							>미번역 {untranslatedCount()}</button
+							>Untranslated {untranslatedCount()}</button
 						>
 					{/if}
 					{#if canUseAiDraft()}
@@ -2313,7 +2313,7 @@
 							onclick={copyAiPrompt}
 							disabled={aiPromptCopying || loadingUnits}
 						>
-							{aiPromptCopying ? "복사 중..." : "외부 AI용 복사"}
+							{aiPromptCopying ? "Copying..." : "Copy for external AI"}
 						</button>
 						<button
 							class="soft ai-button"
@@ -2321,19 +2321,19 @@
 							aria-busy={aiDrafting}
 							disabled={aiDrafting || loadingUnits}
 						>
-							{aiDrafting ? "AI 초벌 중..." : "AI 초벌"}
+							{aiDrafting ? "Drafting with AI..." : "AI draft"}
 						</button>
 					{/if}
 					<details class="field-filter" bind:this={fieldFilterElement} use:fieldFilterDismiss>
-						<summary class="soft" class:active={selectedFieldLabels !== null} class:untranslated={showOnlyUntranslated}>분류 {selectedFieldLabels === null ? "전체" : `${selectedFieldLabels.length}개`}{showOnlyUntranslated ? " · 미번역" : ""}</summary>
+						<summary class="soft" class:active={selectedFieldLabels !== null} class:untranslated={showOnlyUntranslated}>Category {selectedFieldLabels === null ? "All" : `${selectedFieldLabels.length}`}{showOnlyUntranslated ? " · untranslated" : ""}</summary>
 						<div class="field-filter-menu">
 							<label class="field-filter-untranslated">
 								<input type="checkbox" bind:checked={showOnlyUntranslated} />
-								<span>미번역만 보기</span>
+								<span>Untranslated only</span>
 							</label>
 							<div class="field-filter-actions">
-								<button class="soft" onclick={() => (selectedFieldLabels = null)}>전체 선택</button>
-								<button class="soft" onclick={() => (selectedFieldLabels = [])}>전체 해제</button>
+								<button class="soft" onclick={() => (selectedFieldLabels = null)}>Select all</button>
+								<button class="soft" onclick={() => (selectedFieldLabels = [])}>Clear all</button>
 							</div>
 							{#each fieldFilterOptions as [label, count] (label)}
 								<label>
@@ -2349,9 +2349,9 @@
 						onclick={useVisibleAiSuggestions}
 						aria-busy={acceptingSuggestions}
 						disabled={!currentUser || loadingUnits || acceptingSuggestions || !filteredUnits().some(canAcceptSuggestion)}
-						title="현재 표시된 항목의 사용 가능한 AI 제안을 번역으로 즉시 저장합니다. 미저장 입력·오래된 제안·사용한 제안은 제외합니다."
+						title="Immediately saves the usable AI suggestions for the displayed items as translations. Unsaved input, stale suggestions, and already used suggestions are excluded."
 					>
-						{acceptingSuggestions ? `AI 제안 저장 중 ${suggestionSaveProgress}` : `AI 제안 일괄 사용 (${filteredUnits().filter(canAcceptSuggestion).length})`}
+						{acceptingSuggestions ? `Saving AI suggestions ${suggestionSaveProgress}` : `Use all AI suggestions (${filteredUnits().filter(canAcceptSuggestion).length})`}
 					</button>
 					{/if}
 					<button
@@ -2361,64 +2361,64 @@
 								units
 									.filter((unit) => unit.dirty)
 									.map(saveUnit),
-							)}>일괄 저장</button
+							)}>Save all</button
 					>
 				</div>
 				<div class="editor-search-row">
 					{#if bodyFindOpen}
-						<div class="body-finder" role="search" aria-label="본문 검색">
+						<div class="body-finder" role="search" aria-label="Body search">
 							<div class="body-find-field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
 							<input bind:this={bodyFindInput} bind:value={bodyFindQuery}
-								aria-label="현재 필터의 원문과 번역 검색" placeholder="원문·번역에서 찾기"
+								aria-label="Search source and translation in the current filter" placeholder="Search source / translation"
 								onkeydown={(event) => {
 									if (event.key === "Enter" && !event.isComposing) {
 									 event.preventDefault(); moveBodyFind(event.shiftKey ? -1 : 1);
 									}
 								}} />
-							<span class="body-find-count" aria-live="polite">{bodyFindQuery !== bodyFindTerm ? "검색 중…" : `${bodyFindMatches.length ? bodyFindIndex + 1 : 0} / ${bodyFindMatches.length}항목`}</span>
+							<span class="body-find-count" aria-live="polite">{bodyFindQuery !== bodyFindTerm ? "Searching…" : `${bodyFindMatches.length ? bodyFindIndex + 1 : 0} / ${bodyFindMatches.length} items`}</span>
 							</div>
-							<button class="body-find-control" aria-label="이전 검색 결과" title="이전 (Shift+Enter)" disabled={!bodyFindMatches.length} onclick={() => moveBodyFind(-1)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg></button>
-							<button class="body-find-control" aria-label="다음 검색 결과" title="다음 (Enter)" disabled={!bodyFindMatches.length} onclick={() => moveBodyFind(1)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 10 6 6 6-6" /></svg></button>
-							<button class="body-find-control" aria-label="본문 검색 닫기" title="닫기 (Esc)" onclick={closeBodyFind}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
+							<button class="body-find-control" aria-label="Previous result" title="Previous (Shift+Enter)" disabled={!bodyFindMatches.length} onclick={() => moveBodyFind(-1)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg></button>
+							<button class="body-find-control" aria-label="Next result" title="Next (Enter)" disabled={!bodyFindMatches.length} onclick={() => moveBodyFind(1)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 10 6 6 6-6" /></svg></button>
+							<button class="body-find-control" aria-label="Close body search" title="Close (Esc)" onclick={closeBodyFind}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
 						</div>
 					{:else}
-						<button class="soft body-find-trigger" onclick={openBodyFind} title="현재 필터의 원문·번역·작성 중인 번역 검색"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>본문 검색 <kbd>Ctrl F</kbd></button>
+						<button class="soft body-find-trigger" onclick={openBodyFind} title="Search source, translations, and drafts in the current filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>Search text <kbd>Ctrl F</kbd></button>
 					{/if}
 				</div>
 			</div>
 
 			{#if !loadingUnits && !error && activeSection && activeSection.total > units.length}
 				<section class="warning-box">
-					전체 {activeSection.total.toLocaleString()}개 중 {units.length.toLocaleString()}개를 불러왔습니다.
-					조회 한도로 나머지 항목은 아직 표시되지 않습니다.
+					Loaded {units.length.toLocaleString()} of {activeSection.total.toLocaleString()}.
+					The remaining items are not shown yet because of the query limit.
 				</section>
 			{/if}
 
 			{#if aiDraftError}
 				<section class="warning-box">
-					<strong>AI 초벌 확인 필요</strong>
+					<strong>AI draft needs review</strong>
 					<p>{aiDraftError}</p>
-					<button onclick={() => (aiDraftError = "")}>닫기</button>
+					<button onclick={() => (aiDraftError = "")}>Close</button>
 				</section>
 			{/if}
 
 			{#if error}
 				<section class="error-box">
-					<strong>오류가 발생했습니다.</strong>
+					<strong>An error occurred.</strong>
 					<p>{error}</p>
-					<button onclick={retry}>다시 시도</button>
+					<button onclick={retry}>Retry</button>
 				</section>
 			{:else if loadingUnits}
 				<section class="state-card large">
-					번역 단위를 불러오는 중...
+					Loading translation units...
 				</section>
 			{:else if !units.length}
 				<section class="state-card large">
-					이 묶음에는 번역 단위가 없습니다.
+					This group has no translation units.
 				</section>
 			{:else if !filteredUnits().length}
 				<section class="state-card large">
-					선택한 조건에 맞는 항목이 없습니다.
+					No items match the selected criteria.
 				</section>
 			{:else}
 				<div class="group-stack">
@@ -2459,7 +2459,7 @@
 													event,
 													group,
 													advSectionKey(group),
-												)}>ADV 본문</button
+												)}>ADV Text</button
 										>
 									{/if}
 									<span>{group.units.length}</span>
@@ -2495,19 +2495,19 @@
 											<code>{unitCode(unit)}</code>
 										</header>
 										<div class="row">
-											<div class="row-label">원문</div>
+											<div class="row-label">Source</div>
 											<p class="original escaped">
 												<SearchText text={displayText(unit.original_text)} query={bodyFindOpen ? bodyFindTerm : ""} />
 											</p>
 										</div>
 										<div class="row current">
-											<div class="row-label">현재</div>
+											<div class="row-label">Current</div>
 											<p class="escaped">
-												<SearchText text={unit.translation_text ? displayText(unit.translation_text) : "(미번역)"} query={bodyFindOpen ? bodyFindTerm : ""} />
+												<SearchText text={unit.translation_text ? displayText(unit.translation_text) : "(untranslated)"} query={bodyFindOpen ? bodyFindTerm : ""} />
 											</p>
 										</div>
 										<div class="row">
-											<div class="row-label">번역</div>
+											<div class="row-label">Translation</div>
 											<textarea
 												bind:value={unit.draft}
 												oninput={() => {
@@ -2516,7 +2516,7 @@
 														unit.translation_text;
 													unit.error = "";
 												}}
-												placeholder="번역을 입력하세요..."
+												placeholder="Enter translation..."
 											></textarea>
 											{#if bodyFindOpen && bodyFindTerm && unit.dirty && displayText(unit.draft).toLowerCase().includes(bodyFindTerm.toLowerCase())}
 												<p class="draft-find-preview escaped"><SearchText text={displayText(unit.draft)} query={bodyFindTerm} /></p>
@@ -2524,21 +2524,21 @@
 										</div>
 										{#if canUseCodexSuggestions()}
 										<div class="row ai-suggestion">
-											<div class="row-label">AI의 제안</div>
+											<div class="row-label">AI suggestion</div>
 											<div class="suggestion-content">
 												{#if unit.ai_suggestion}
 													<div class="suggestion-heading">
-														<strong>{unit.ai_suggestion.accepted_at ? "사용한 제안" : "번역 제안"}</strong>
+														<strong>{unit.ai_suggestion.accepted_at ? "Used suggestion" : "Translation suggestion"}</strong>
 														<button class="soft suggestion-save" onclick={() => useAiSuggestion(unit)}
 															disabled={unit.saving || Boolean(unit.ai_suggestion.accepted_at) || unit.ai_suggestion.stale || unit.dirty}>
-															{unit.saving ? "저장 중..." : unit.ai_suggestion.accepted_at ? "사용됨" : "사용"}
+															{unit.saving ? "Saving..." : unit.ai_suggestion.accepted_at ? "Used" : "Use"}
 														</button>
 													</div>
 													<p class="suggestion-text">{displayText(unit.ai_suggestion.translation_text)}</p>
-													<p class="suggestion-reason"><strong>제안 이유</strong><br />{unit.ai_suggestion.reason}</p>
+													<p class="suggestion-reason"><strong>Reason</strong><br />{unit.ai_suggestion.reason}</p>
 													{#if unit.ai_suggestion.references.length}
 														<div class="suggestion-references">
-															<strong>참고 번역</strong>
+															<strong>Reference translation</strong>
 															{#each unit.ai_suggestion.references as reference}
 																<a href={suggestionReferenceUrl(reference)} target="_blank" rel="noopener noreferrer">{reference.label || reference.source_file} ↗</a>
 																<small>{displayText(reference.original_text)} → {displayText(reference.translation_text)}</small>
@@ -2546,12 +2546,12 @@
 														</div>
 													{/if}
 													{#if !unit.ai_suggestion.accepted_at && unit.ai_suggestion.stale}
-														<small class="suggestion-warning">제안 이후 내용이 변경되어 사용할 수 없습니다.</small>
+														<small class="suggestion-warning">The content changed after the suggestion, so it cannot be used.</small>
 													{:else if !unit.ai_suggestion.accepted_at && unit.dirty}
-														<small class="suggestion-warning">작성 중인 번역을 저장하거나 되돌린 후 사용해 주세요.</small>
+														<small class="suggestion-warning">Save or revert your draft translation before using this.</small>
 													{/if}
 												{:else}
-													<span class="suggestion-empty">아직 AI 제안이 없습니다.</span>
+													<span class="suggestion-empty">No AI suggestion yet.</span>
 												{/if}
 											</div>
 										</div>
@@ -2560,7 +2560,7 @@
 											<span class:dirty={unit.dirty}>
 												{unit.error ||
 													(unit.dirty
-														? "저장 필요"
+														? "Save needed"
 														: unit.status)}
 												{#if unit.translator_name}
 													<small>
@@ -2573,14 +2573,14 @@
 													class="accent"
 													onclick={() => fillCardInfo(unit)}
 													disabled={unit.saving}
-												>{unit.saving ? "채우는 중..." : "이 번역으로 나머지 항목 채우기"}</button>
+												>{unit.saving ? "Filling..." : "Fill remaining items with this translation"}</button>
 											{/if}
 											<button
 												onclick={() => saveUnit(unit)}
 												disabled={unit.saving}
 												>{unit.saving
-													? "저장 중..."
-													: "저장"}</button
+													? "Saving..."
+													: "Save"}</button
 											>
 										</footer>
 									</article>
@@ -2601,28 +2601,28 @@
 		<section class="bulk-modal">
 			<header>
 				<div>
-					<h2>일괄 번역</h2>
-					<p>원문이 완전히 같은 번역 단위만 채웁니다.</p>
+					<h2>Bulk translate</h2>
+					<p>Only translation units with identical source text are filled.</p>
 				</div>
 				<button class="soft compact-button" onclick={closeBulkFill}
-					>닫기</button
+					>Close</button
 				>
 			</header>
 
 			<label>
-				<span>원문</span>
+				<span>Source</span>
 				<textarea
 					bind:value={bulkOriginal}
 					oninput={() => (bulkPreview = null)}
-					placeholder="정확히 일치시킬 일본어 원문"
+					placeholder="Japanese source to match exactly"
 				></textarea>
 			</label>
 			<label>
-				<span>번역문</span>
+				<span>Translation</span>
 				<textarea
 					bind:value={bulkTranslation}
 					oninput={() => (bulkPreview = null)}
-					placeholder="채워 넣을 번역문"
+					placeholder="Translation to fill in"
 				></textarea>
 			</label>
 			<label class="check-line">
@@ -2631,7 +2631,7 @@
 					bind:checked={bulkOverwrite}
 					onchange={() => (bulkPreview = null)}
 				/>
-				<span>이미 번역된 항목도 덮어쓰기</span>
+				<span>Overwrite already translated items</span>
 			</label>
 
 			{#if bulkError}
@@ -2641,10 +2641,10 @@
 			{#if bulkPreview}
 				<div class="bulk-preview">
 					<strong>
-						대상 {bulkPreview.targets ?? 0}개 / {bulkPreview.mode === "format"
-							? "포맷 일치"
-							: "정확 일치"} {bulkPreview.total ?? 0}개 / 기존 번역 {bulkPreview.already_translated ??
-							0}개
+						Targets {bulkPreview.targets ?? 0} / {bulkPreview.mode === "format"
+							? "Format match"
+							: "Exact match"} {bulkPreview.total ?? 0} / Existing translations {bulkPreview.already_translated ??
+							0}
 					</strong>
 					{#if bulkPreview.samples?.length}
 						<div class="bulk-samples">
@@ -2668,7 +2668,7 @@
 							{/each}
 						</div>
 					{:else}
-						<p>변경할 항목이 없습니다.</p>
+						<p>There are no items to change.</p>
 					{/if}
 				</div>
 			{/if}
@@ -2678,12 +2678,12 @@
 					class="soft"
 					onclick={previewBulkFill}
 					disabled={bulkWorking}
-					>{bulkWorking ? "확인 중..." : "미리보기"}</button
+					>{bulkWorking ? "Checking..." : "Preview"}</button
 				>
 				<button
 					class="save-all"
 					onclick={applyBulkFill}
-					disabled={bulkWorking || !bulkPreview?.targets}>적용</button
+					disabled={bulkWorking || !bulkPreview?.targets}>Apply</button
 				>
 			</footer>
 		</section>
@@ -2692,19 +2692,19 @@
 
 {#if aiPromptPreview}
 	<div class="modal-backdrop">
-		<div class="bulk-modal ai-prompt-modal" role="dialog" aria-modal="true" aria-label="외부 AI용 프롬프트" tabindex="-1">
+		<div class="bulk-modal ai-prompt-modal" role="dialog" aria-modal="true" aria-label="Prompt for external AI" tabindex="-1">
 			<header>
 				<div>
-					<h2>외부 AI용 프롬프트</h2>
-					<p>지침과 미번역 {aiPromptTargetCount}개</p>
+					<h2>Prompt for external AI</h2>
+					<p>Guidelines and {aiPromptTargetCount} untranslated items</p>
 				</div>
-				<button class="soft compact-button" onclick={() => (aiPromptPreview = "")}>닫기</button>
+				<button class="soft compact-button" onclick={() => (aiPromptPreview = "")}>Close</button>
 			</header>
-			<textarea bind:this={aiPromptTextarea} value={aiPromptPreview} readonly aria-label="외부 AI용 프롬프트" spellcheck="false"></textarea>
+			<textarea bind:this={aiPromptTextarea} value={aiPromptPreview} readonly aria-label="Prompt for external AI" spellcheck="false"></textarea>
 			{#if aiPromptCopyHelp}<p class="ai-prompt-copy-help" role="status">{aiPromptCopyHelp}</p>{/if}
 			<footer>
-				<button class="soft" onclick={() => { aiPromptTextarea?.focus(); aiPromptTextarea?.select(); }}>전체 선택</button>
-				<button class="save-all" onclick={copyPreparedAiPrompt}>복사</button>
+				<button class="soft" onclick={() => { aiPromptTextarea?.focus(); aiPromptTextarea?.select(); }}>Select all</button>
+				<button class="save-all" onclick={copyPreparedAiPrompt}>Copy</button>
 			</footer>
 		</div>
 	</div>
@@ -2719,25 +2719,25 @@
 		<section class="recent-modal">
 			<header>
 				<div>
-					<h2>신규 미번역 데이터</h2>
-					<p>DB 임포트에서 새로 추가됐으며 자동으로 채워지지 않은 항목입니다.</p>
+					<h2>New untranslated data</h2>
+					<p>Items newly added by DB import that were not filled automatically.</p>
 				</div>
-				<button class="soft compact-button" onclick={closeNewData}>닫기</button>
+				<button class="soft compact-button" onclick={closeNewData}>Close</button>
 			</header>
 
 			<div class="recent-controls">
-				<strong>미번역 {newDataCount}개</strong>
+				<strong>{newDataCount} untranslated</strong>
 				<button class="soft" onclick={loadNewData} disabled={newDataLoading}
-					>{newDataLoading ? "불러오는 중..." : "새로고침"}</button
+					>{newDataLoading ? "Loading..." : "Refresh"}</button
 				>
 			</div>
 
 			{#if newDataError}
 				<div class="login-error">{newDataError}</div>
 			{:else if newDataLoading}
-				<div class="state-card">신규 데이터를 불러오는 중...</div>
+				<div class="state-card">Loading new data...</div>
 			{:else if !newDataItems.length}
-				<div class="state-card">새로 추가된 미번역 항목이 없습니다.</div>
+				<div class="state-card">No newly added untranslated items.</div>
 			{:else}
 				<div class="recent-list">
 					{#each newDataItems as item}
@@ -2758,7 +2758,7 @@
 										class="soft compact-button"
 										onclick={(event) => openNewDataItem(event, item)}
 										onauxclick={(event) => openNewDataItem(event, item)}
-										>번역하기</button
+										>Translate</button
 									>
 								{/if}
 							</div>
@@ -2780,19 +2780,19 @@
 		<section class="recent-modal">
 			<header>
 				<div>
-					<h2>최근 번역</h2>
-					<p>마지막 저장 기준으로 번역자와 수정 시간을 확인합니다.</p>
+					<h2>Recent translations</h2>
+					<p>Shows the translator and edit time of the last save.</p>
 				</div>
 				<button class="soft compact-button" onclick={closeRecent}
-					>닫기</button
+					>Close</button
 				>
 			</header>
 
 			<div class="recent-controls">
 				<label>
-					<span>작업자</span>
+					<span>Worker</span>
 					<select bind:value={recentTranslator} onchange={loadRecent}>
-						<option value="">전체</option>
+						<option value="">All</option>
 						{#each recentTranslators as translator}
 							<option value={translator.translator_name}>
 								{translator.translator_name} · {translator.count}
@@ -2804,16 +2804,16 @@
 					class="soft"
 					onclick={loadRecent}
 					disabled={recentLoading}
-					>{recentLoading ? "불러오는 중..." : "새로고침"}</button
+					>{recentLoading ? "Loading..." : "Refresh"}</button
 				>
 			</div>
 
 			{#if recentError}
 				<div class="login-error">{recentError}</div>
 			{:else if recentLoading}
-				<div class="state-card">최근 작업을 불러오는 중...</div>
+				<div class="state-card">Loading recent work...</div>
 			{:else if !recentItems.length}
-				<div class="state-card">표시할 최근 작업이 없습니다.</div>
+				<div class="state-card">No recent work to display.</div>
 			{:else}
 				<div class="recent-list">
 					{#each recentItems as item}
@@ -2837,7 +2837,7 @@
 										class="soft compact-button"
 										onclick={(event) => openRecentItem(event, item)}
 										onauxclick={(event) => openRecentItem(event, item)}
-										>항목 열기</button
+										>Open item</button
 									>
 								{/if}
 							</div>
@@ -2846,9 +2846,9 @@
 								<div class="recent-change">
 									<div class="recent-embed recent-embed-before">
 										<div class="recent-embed-heading">
-											<span>변경 전</span>
+											<span>Before</span>
 											{#if item.previous_translator_name}
-												<span>이전 번역자: {item.previous_translator_name}</span>
+												<span>Previous translator: {item.previous_translator_name}</span>
 											{/if}
 										</div>
 										<p class="recent-translation">
@@ -2858,7 +2858,7 @@
 										</p>
 									</div>
 									<div class="recent-embed recent-embed-after">
-										<span class="recent-embed-heading">변경 후</span>
+										<span class="recent-embed-heading">After</span>
 										<p class="recent-translation">
 											{#each item.diff.newSegments as segment}
 												{#if segment.changed}<mark class="recent-added">{displayText(segment.text)}</mark>{:else}{displayText(segment.text)}{/if}
@@ -2868,7 +2868,7 @@
 								</div>
 							{:else}
 								<div class="recent-embed recent-embed-after">
-									<span class="recent-embed-heading">번역문</span>
+									<span class="recent-embed-heading">Translation</span>
 									<p class="recent-translation">{displayText(item.translation_text)}</p>
 								</div>
 							{/if}
@@ -2922,7 +2922,7 @@
 					</div>
 				{:else}
 					<div class="guideline-loading">
-						번역 주의사항을 불러오는 중...
+						Loading translation notes...
 					</div>
 				{/if}
 			</div>
@@ -2937,37 +2937,37 @@
 				}}
 			>
 				<div>
-					<h2>작업자 입력</h2>
-					<p>닉네임과 숫자 6자리 비밀번호만 임시로 저장합니다.</p>
+					<h2>Enter worker</h2>
+					<p>Only a nickname and a 6-digit numeric password are stored temporarily.</p>
 					<p class="plain-password-warning">
-						비밀번호는 평문으로 저장됩니다. 다른 곳에서 쓰지 않는
-						단순 숫자를 사용해 주세요.
+						The password is stored in plain text. Use a simple number
+						you do not use anywhere else.
 					</p>
 				</div>
 				<label>
-					<span>닉네임</span>
+					<span>Nickname</span>
 					<input
 						bind:value={loginNickname}
 						maxlength="24"
 						autocomplete="username"
-						placeholder="예: 마키노"
+						placeholder="e.g. Makino"
 					/>
 				</label>
 				<label>
-					<span>비밀번호</span>
+					<span>Password</span>
 					<input
 						bind:value={loginPin}
 						inputmode="numeric"
 						maxlength="6"
 						autocomplete="current-password"
-						placeholder="숫자 6자리"
+						placeholder="6 digits"
 					/>
 				</label>
 				{#if loginError}
 					<div class="login-error">{loginError}</div>
 				{/if}
 				<button class="login-button" type="submit" disabled={loggingIn}
-					>{loggingIn ? "확인 중..." : "들어가기"}</button
+					>{loggingIn ? "Checking..." : "Enter"}</button
 				>
 			</form>
 		</section>

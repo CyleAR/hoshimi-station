@@ -124,7 +124,7 @@ def checkout_pullable_branch(path: Path) -> str:
         return branch
 
     default_branch = remote_default_branch(path)
-    print(f"detached HEAD 상태입니다. origin/{default_branch} 기준으로 브랜치를 체크아웃합니다.")
+    print(f"HEAD is detached. Checking out a branch based on origin/{default_branch}.")
     local_exists = subprocess.run(
         ["git", "-C", str(path), "rev-parse", "--verify", default_branch],
         cwd=ROOT,
@@ -146,28 +146,28 @@ def print_submodule_diff(path: Path, before: str, after: str) -> None:
     after_short = git_short(path, after)
     print()
     print(f"[{name}]")
-    print(f"  이전 해시: {before_short}")
-    print(f"  현재 해시: {after_short}")
+    print(f"  Previous hash: {before_short}")
+    print(f"  Current hash: {after_short}")
 
     if before == after:
-        print("  변경 없음")
+        print("  No changes")
         return
 
-    print("  새 커밋:")
+    print("  New commits:")
     log = capture(["git", "-C", str(path), "log", "--oneline", "--decorate", f"{before}..{after}"], check=False)
-    print(indent(log or "(커밋 로그 없음)", "    "))
+    print(indent(log or "(no commit log)", "    "))
 
-    print("  변경 요약:")
+    print("  Change summary:")
     stat = capture(["git", "-C", str(path), "diff", "--stat", before, after], check=False)
-    print(indent(stat or "(diff stat 없음)", "    "))
+    print(indent(stat or "(no diff stat)", "    "))
 
     changed = capture(["git", "-C", str(path), "diff", "--name-status", before, after], check=False)
     if changed:
-        print("  import/export 영향 파일:")
+        print("  Files affecting import/export:")
         for line in changed.splitlines()[:80]:
             print(f"    {line}")
         if len(changed.splitlines()) > 80:
-            print(f"    ...외 {len(changed.splitlines()) - 80}개")
+            print(f"    ...and {len(changed.splitlines()) - 80} more")
 
 
 def indent(text: str, prefix: str) -> str:
@@ -183,9 +183,9 @@ def pull_submodules(paths: list[Path] | None = None) -> bool:
         dirty = git_status(path)
         if dirty:
             print()
-            print(f"[{rel(path)}] 로컬 변경사항이 있습니다. pull 전에 확인하세요.")
+            print(f"[{rel(path)}] has local changes. Check them before pulling.")
             print(indent(dirty, "  "))
-            raise SystemExit("서브모듈에 로컬 변경사항이 있어 중단했습니다.")
+            raise SystemExit("Aborted: a submodule has local changes.")
 
     run(["git", "submodule", "update", "--init", "--recursive"])
     changed_any = False
@@ -196,11 +196,11 @@ def pull_submodules(paths: list[Path] | None = None) -> bool:
 
         before = before_hashes.get(path)
         print()
-        print(f"== {rel(path)} 최신화 ==")
+        print(f"== {rel(path)} update ==")
         if before is None:
-            print("시작 전 해시: (초기화되지 않음)")
+            print("Hash before start: (not initialized)")
         else:
-            print(f"시작 전 해시: {git_short(path, before)}")
+            print(f"Hash before start: {git_short(path, before)}")
         branch = checkout_pullable_branch(path)
         print(f"branch: {branch}")
         run(["git", "-C", str(path), "pull", "--ff-only"])
@@ -208,8 +208,8 @@ def pull_submodules(paths: list[Path] | None = None) -> bool:
         if before is None:
             print()
             print(f"[{rel(path)}]")
-            print(f"  현재 해시: {git_short(path, after)}")
-            print("  새로 초기화됨")
+            print(f"  Current hash: {git_short(path, after)}")
+            print("  Newly initialized")
             changed_any = True
         else:
             print_submodule_diff(path, before, after)
@@ -220,7 +220,7 @@ def pull_submodules(paths: list[Path] | None = None) -> bool:
 
 def import_db() -> None:
     print()
-    print("== DB import 시작 ==")
+    print("== Starting DB import ==")
     run([python(), "scripts/import_db.py", "--db", str(DB_PATH)])
 
 
@@ -234,9 +234,9 @@ def backup_db() -> Path:
     target_db = target_dir / DB_PATH.name
 
     print()
-    print("== DB 백업 시작 ==")
-    print(f"원본: {rel(DB_PATH)}")
-    print(f"백업: {rel(target_db)}")
+    print("== Starting DB backup ==")
+    print(f"Source: {rel(DB_PATH)}")
+    print(f"Backup: {rel(target_db)}")
 
     source = sqlite3.connect(DB_PATH)
     target = sqlite3.connect(target_db)
@@ -256,7 +256,7 @@ def backup_db() -> Path:
         "method": "sqlite3.Connection.backup with WAL-aware source connection",
     }
     (target_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"백업 완료: {rel(target_dir)}")
+    print(f"Backup complete: {rel(target_dir)}")
     print(f"integrity_check={integrity}")
     return target_dir
 
@@ -286,68 +286,68 @@ def checkpoint_db() -> None:
 
 def bulk_replace_translation() -> None:
     print()
-    print("== translation_text 일괄 변경 ==")
-    old = input("검색할 문자열 > ")
+    print("== Bulk replace in translation_text ==")
+    old = input("String to search for > ")
     if not old:
-        print("검색 문자열이 비어 있어 취소합니다.")
+        print("Search string is empty; cancelling.")
         return
-    new = input("바꿀 문자열 > ")
+    new = input("Replacement string > ")
     if old == new:
-        print("검색 문자열과 바꿀 문자열이 같아 취소합니다.")
+        print("Search and replacement strings are identical; cancelling.")
         return
 
     print()
-    print("== 변경 미리보기 ==")
+    print("== Change preview ==")
     preview = run(
         [python(), "scripts/replace_translation.py", old, new, "--db", str(DB_PATH), "--limit", "30"],
         check=False,
     )
     if preview.returncode != 0:
-        raise SystemExit("미리보기 실행에 실패했습니다.")
+        raise SystemExit("Preview failed.")
 
-    answer = input("위 내용을 변경하시겠습니까? [y/N] > ").strip().lower()
+    answer = input("Apply the changes above? [y/N] > ").strip().lower()
     if answer not in {"y", "yes"}:
-        print("변경을 취소했습니다.")
+        print("Change cancelled.")
         return
 
     print()
-    print("== 변경 적용 ==")
+    print("== Applying changes ==")
     run([python(), "scripts/replace_translation.py", old, new, "--db", str(DB_PATH), "--apply"])
 
 
 def cleanup_message_title_quotes() -> None:
     print()
-    print("== 문자 제목의 잘못된 작은따옴표 제거 ==")
-    print("원문이 「」로 감싸지지 않은 번역 완료 Message.name에서 바깥 작은따옴표만 제거합니다.")
-    print("미번역 항목과 원문이 「」로 감싸진 제목은 변경하지 않습니다.")
+    print("== Remove stray single quotes from message titles ==")
+    print("Removes only outer single quotes from translated Message.name entries whose source is not wrapped in 「」.")
+    print("Untranslated items and titles whose source is wrapped in 「」 are left unchanged.")
     print()
     run([python(), "scripts/cleanup_message_title_quotes.py", "--db", str(DB_PATH), "--limit", "30"])
     print()
-    answer = input("위 항목을 실제로 변경할까요? [y/N] ").strip().lower()
+    answer = input("Apply the changes above for real? [y/N] ").strip().lower()
     if answer not in {"y", "yes"}:
-        print("변경을 취소했습니다.")
+        print("Change cancelled.")
         return
     print()
-    print("== 변경 적용 ==")
+    print("== Applying changes ==")
     run([python(), "scripts/cleanup_message_title_quotes.py", "--db", str(DB_PATH), "--apply"])
 
 
 def overwrite_prefill_translations(*, confirm: bool = True) -> None:
     print()
-    print("== prefill 전체 번역 덮어쓰기 ==")
-    print("scripts/prefill_translations.json에 매칭되는 기존 번역을 모두 덮어씁니다.")
-    print("사람이 직접 고친 번역도 매칭되면 바뀌므로 먼저 DB 백업을 권장합니다.")
+    print("== Overwrite all translations from prefill ==")
+    print("This overwrites every existing translation matching scripts/prefill_translations.json.")
+    print("Hand-edited translations are overwritten too if they match, so back up the DB first.")
     print()
     if confirm:
-        answer = input("계속할까요? [y/N] > ").strip().lower()
+        answer = input("Continue? [y/N] > ").strip().lower()
         if answer not in {"y", "yes"}:
-            print("취소했습니다.")
+            print("Cancelled.")
             return
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = ROOT / "tmp" / "reports" / f"prefill_overwrite_{stamp}.tsv"
     print()
-    print("== prefill overwrite import 시작 ==")
+    print("== Starting prefill overwrite import ==")
     run(
         [
             python(),
@@ -390,18 +390,18 @@ def skill_translation_menu() -> None:
     print()
     print("== Skill auto translation ==")
     print()
-    print("1. 신규 번역 dry-run")
-    print("   - 빈 번역만 채울 후보를 리포트로 확인합니다.")
-    print("2. 신규 번역 적용")
-    print("   - 빈 번역만 자동 생성해서 DB에 씁니다.")
-    print("3. 전체 번역 dry-run")
-    print("   - 기존 번역까지 전부 정규화 후보를 리포트로 확인합니다.")
-    print("4. 전체 번역 적용")
-    print("   - 기존 번역까지 덮어써서 DB에 씁니다.")
-    print("5. 감사 리포트만 생성")
-    print("   - 현재 DB 번역의 일본어 잔존/숫자 불일치/공백 이상을 검사합니다.")
-    print("q. 취소")
-    choice = input("번호 입력 > ").strip().lower()
+    print("1. New translations dry-run")
+    print("   - Report candidates that would fill empty translations only.")
+    print("2. Apply new translations")
+    print("   - Auto-generate empty translations only and write them to the DB.")
+    print("3. Full translations dry-run")
+    print("   - Report normalization candidates including existing translations.")
+    print("4. Apply full translations")
+    print("   - Overwrite existing translations too and write them to the DB.")
+    print("5. Audit report only")
+    print("   - Check current DB translations for leftover Japanese, number mismatches and spacing issues.")
+    print("q. Cancel")
+    choice = input("Enter number > ").strip().lower()
 
     if choice == "1":
         run_skill_translation("missing", apply=False)
@@ -410,9 +410,9 @@ def skill_translation_menu() -> None:
     elif choice == "3":
         run_skill_translation("overwrite", apply=False)
     elif choice == "4":
-        answer = input("기존 번역까지 덮어씁니다. 계속할까요? [y/N] > ").strip().lower()
+        answer = input("This overwrites existing translations too. Continue? [y/N] > ").strip().lower()
         if answer not in {"y", "yes"}:
-            print("취소했습니다.")
+            print("Cancelled.")
             return
         run_skill_translation("overwrite", apply=True)
     elif choice == "5":
@@ -420,7 +420,7 @@ def skill_translation_menu() -> None:
     elif choice in {"q", "quit", "exit"}:
         return
     else:
-        raise SystemExit("1, 2, 3, 4, 5, q 중 하나를 입력하세요.")
+        raise SystemExit("Enter one of 1, 2, 3, 4, 5, q.")
 
 
 def export_output() -> None:
@@ -429,7 +429,7 @@ def export_output() -> None:
         raise SystemExit(f"Output submodule not found: {output_dir}")
 
     print()
-    print("== output submodule 최신화 ==")
+    print("== output submodule update ==")
     before = git_hash(output_dir)
     branch = checkout_pullable_branch(output_dir)
     print(f"branch: {branch}")
@@ -438,16 +438,16 @@ def export_output() -> None:
     print_submodule_diff(output_dir, before, after)
 
     print()
-    print("== DB에서 output 생성 ==")
+    print("== Generating output from DB ==")
     run([python(), "scripts/export_output.py", "--db", str(DB_PATH), "--out", str(output_dir), "--overwrite"])
 
     status = git_status(output_dir)
     if not status:
-        print("output 변경사항이 없어 push하지 않습니다.")
+        print("No output changes; not pushing.")
         return
 
     print()
-    print("== output 변경사항 ==")
+    print("== Output changes ==")
     print(indent(status, "  "))
     stat = capture(["git", "-C", str(output_dir), "diff", "--stat"], check=False)
     if stat:
@@ -462,45 +462,45 @@ def export_output() -> None:
 
 def menu() -> str:
     print()
-    print("무엇을 실행할까요?")
+    print("What would you like to run?")
     print()
-    print("1. 원본 최신화 + DB import")
-    print("   - res/adv, res/masterdb, output 서브모듈을 git pull 합니다.")
-    print("   - pull 전후 커밋 해시를 비교하고, 새 커밋/변경 파일/diff 요약을 보여줍니다.")
-    print("   - 그 다음 DB를 재구축합니다. 기존 번역은 import_db 보존 로직으로 유지됩니다.")
+    print("1. Update sources + DB import")
+    print("   - git pull the res/adv, res/masterdb and output submodules.")
+    print("   - Compare commit hashes before/after the pull and show new commits, changed files and a diff summary.")
+    print("   - Then rebuild the DB. Existing translations are preserved by import_db's preservation logic.")
     print()
-    print("2. DB 백업")
-    print("   - backups/YYYYMMDD_HHMMSS 폴더를 만들고 현재 DB를 백업합니다.")
-    print("   - SQLite backup API를 사용해서 WAL에 있는 최신 저장분도 포함합니다.")
-    print("   - 백업 성공 후 원본 DB의 WAL checkpoint를 실행합니다.")
+    print("2. DB backup")
+    print("   - Create backups/YYYYMMDD_HHMMSS and back up the current DB.")
+    print("   - Uses the SQLite backup API so the latest data in the WAL is included.")
+    print("   - After a successful backup, run a WAL checkpoint on the source DB.")
     print()
-    print("3. output 생성 + output 서브모듈 push")
-    print("   - output을 git pull 한 뒤 DB에서 Localify output을 생성합니다.")
-    print("   - 변경사항이 있으면 output 서브모듈에서 commit 후 push 합니다.")
+    print("3. Generate output + push output submodule")
+    print("   - git pull output, then generate Localify output from the DB.")
+    print("   - If there are changes, commit and push in the output submodule.")
     print()
     print("4. SQLite WAL checkpoint")
-    print("   - sqlite3 CLI 없이 Python으로 PRAGMA wal_checkpoint(TRUNCATE)를 실행합니다.")
-    print("   - data/hoshimi.sqlite3-wal 내용을 DB 본체에 반영하고 WAL 크기를 줄입니다.")
+    print("   - Run PRAGMA wal_checkpoint(TRUNCATE) from Python, no sqlite3 CLI needed.")
+    print("   - Flush data/hoshimi.sqlite3-wal into the main DB and shrink the WAL.")
     print()
-    print("5. 번역문 일괄 변경")
-    print("   - 검색할 문자열과 바꿀 문자열을 입력받아 translation_text에서 일괄 치환합니다.")
-    print("   - 먼저 검색 결과 미리보기를 보여준 뒤 확인하면 실제 변경합니다.")
+    print("5. Bulk replace translations")
+    print("   - Enter a search string and a replacement; replaces in translation_text.")
+    print("   - Shows a preview first and applies only after confirmation.")
     print()
-    print("6. prefill 전체 번역 덮어쓰기")
-    print("   - scripts/prefill_translations.json 기준으로 기존 번역까지 덮어씁니다.")
-    print("   - 변경 로그를 tmp/reports/prefill_overwrite_*.tsv에 남깁니다.")
+    print("6. Overwrite all translations from prefill")
+    print("   - Overwrite existing translations too, based on scripts/prefill_translations.json.")
+    print("   - Write a change log to tmp/reports/prefill_overwrite_*.tsv.")
     print()
     print("7. Skill auto translation")
-    print("   - 신규 번역/전체 번역/감사 리포트를 실행합니다.")
+    print("   - Run new / full translation or the audit report.")
     print()
-    print("8. 문자 제목의 잘못된 작은따옴표 제거")
-    print("   - 원문에 「」가 없는 번역 완료 문자 제목에서 바깥 작은따옴표를 제거합니다.")
-    print("   - 미리보기 후 확인하면 DB에 적용합니다.")
+    print("8. Remove stray single quotes from message titles")
+    print("   - Remove outer single quotes from translated message titles whose source has no 「」.")
+    print("   - Shows a preview, then applies to the DB after confirmation.")
     print()
     print()
-    print("q. 종료")
+    print("q. Quit")
     print()
-    return input("번호 입력 > ").strip().lower()
+    return input("Enter number > ").strip().lower()
 
 
 def main() -> None:
@@ -536,7 +536,7 @@ def main() -> None:
             import_db()
         else:
             print()
-            print("서브모듈 해시 변경이 없어 DB import를 건너뜁니다.")
+            print("No submodule hash changes; skipping DB import.")
     elif choice == "2":
         backup_db()
         checkpoint_db()
@@ -567,7 +567,7 @@ def main() -> None:
     elif choice in {"q", "quit", "exit"}:
         return
     else:
-        raise SystemExit("1, 2, 3, 4, 5, 6, 7, 8, q 중 하나를 입력하세요.")
+        raise SystemExit("Enter one of 1, 2, 3, 4, 5, 6, 7, 8, q.")
 
 
 if __name__ == "__main__":

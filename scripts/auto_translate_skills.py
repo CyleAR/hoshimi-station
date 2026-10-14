@@ -38,13 +38,13 @@ SOURCE_FILES = {
 if __package__:
     from .skill_translation_rules import (
         JP_RE, NUM_RE, compact, has_japanese, numbers, same_numbers,
-        normalize_korean_spacing, translate_rule_text, translate_status_name,
+        translate_rule_text, translate_status_name,
     )
     from .skill_translation_catalog import translate_catalog
 else:
     from skill_translation_rules import (
         JP_RE, NUM_RE, compact, has_japanese, numbers, same_numbers,
-        normalize_korean_spacing, translate_rule_text, translate_status_name,
+        translate_rule_text, translate_status_name,
     )
     from skill_translation_catalog import translate_catalog
 
@@ -409,11 +409,11 @@ def write_report(
 
 
 AUDIT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("glued compound", re.compile(r"(상승상한|저하상한|스태미나저하|스태미나상승|스태미나회복|소비스태미나|크리티컬계수|크리티컬확률|스킬성공률|상한해제|지속회복|소비 스태미나저하|상승초화|저하초화)")),
-    ("bad particle or punctuation", re.compile(r"(에게\s*,|전에게|시에\s*,|시에게|에게\s+효과|에게\s+\n|,\s*\n|^\s*,|,\s*$)")),
-    ("missing space before numeric token", re.compile(r"[\uac00-\ud7a3](?:\d+(?:\.\d+)?%?)(?:명|단계|비트|회|콤보|%|점)?")),
-    ("missing space after bracketed effect word", re.compile(r"(효과|상태|반사|양도|제거|초화|봉인|방지|제한|해제)\[")),
-    ("awkward Korean fragment", re.compile(r"(수마다|발동 전에게|발동 전에에게|대상\d+명|낮은\d+명|높은\d+명|많은\d+명|적은\d+명)")),
+    ("leftover Japanese", re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")),
+    ("doubled space", re.compile(r"[^\n ] {2,}[^\n ]")),
+    ("trailing space", re.compile(r"[ \t]+$", re.M)),
+    ("dangling comma", re.compile(r",\s*\n|^\s*,|,\s*$")),
+    ("missing space before bracket", re.compile(r"[A-Za-z]\[")),
 ]
 
 

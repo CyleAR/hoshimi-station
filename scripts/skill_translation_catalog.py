@@ -1,6 +1,6 @@
 """Category/field-specific wording rules, independent of saved DB translations.
 
-The grammar handles ordinary sentences. This catalog preserves established wording
+There is no grammar engine; this catalog supplies established wording
 that cannot be inferred from a global replacement (including whitespace). Numeric
 slots generalize a sentence across levels; literal game placeholders such as {0}
 remain literal. Skill titles are intentionally excluded.
@@ -50,7 +50,7 @@ def load_catalog() -> dict:
         for rules in fields.values():
             for source, translated in rules["templates"].items():
                 slots = SLOT.findall(source)
-                if slots != [str(i) for i in range(len(slots))] or SLOT.findall(translated) != slots:
+                if slots != [str(i) for i in range(len(slots))] or sorted(SLOT.findall(translated)) != slots:
                     raise ValueError(f"Invalid numeric slots in {path.name}: {source!r}")
             overrides = {}
             for rule in rules["record_overrides"]:

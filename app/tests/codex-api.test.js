@@ -34,17 +34,17 @@ function request(handler, query = {}, token = 'api-test-secret') {
 }
 const insert = db.prepare('INSERT INTO translation_units(unit_id, original_text, translation_text, line_no, source_file) VALUES (?, ?, ?, ?, ?)');
 insert.run('c', '三番目', '', 3, 'story.txt');
-insert.run('a', '一番目', '첫 대사', 1, 'story.txt');
+insert.run('a', '一番目', 'first line', 1, 'story.txt');
 insert.run('b', '二番目', '', 2, 'story.txt');
-insert.run('outside', '別の話', '다른 스토리', 2, 'other.txt');
-insert.run('wildcard', '100%_!', '기호', 9, 'symbols.txt');
+insert.run('outside', '別の話', 'other story', 2, 'other.txt');
+insert.run('wildcard', '100%_!', 'symbols', 9, 'symbols.txt');
 
 test('requires configured token before reading any data', async () => {
   assert.equal(request(list, {}, '').status, 401);
   assert.equal(request(guidelines, {}, '').status, 401);
   const response = request(guidelines);
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.ok((await response.json()).markdown.includes('번역'));
+  assert.ok((await response.json()).markdown.includes('translation'));
   delete process.env.CODEX_API_TOKEN;
   assert.equal(request(single, { unit_id: 'a' }).status, 503);
   process.env.CODEX_API_TOKEN = 'api-test-secret';
@@ -54,14 +54,14 @@ test('completion survives restarting traversal, reports scope progress, and earl
   t.after(() => {
     db.exec("DELETE FROM ai_reviews WHERE unit_id LIKE 'resume-%'; DELETE FROM translation_units WHERE source_file = 'resume.txt'");
   });
-  for (const id of ['resume-a', 'resume-b', 'resume-c']) insert.run(id, '原文', '번역', 1, 'resume.txt');
+  for (const id of ['resume-a', 'resume-b', 'resume-c']) insert.run(id, '原文', 'translation', 1, 'resume.txt');
   const scope = { source_file: 'resume.txt', review: 'pending', limit: '1' };
   async function next() { return (await request(list, scope).json()).units[0]; }
   async function complete(unit, extra = {}, token = 'api-test-secret') {
     return review({ request: new Request('http://localhost/api/codex/review', { method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({ unit_id: unit.unit_id, base_revision: unit.revision, base_original_text: unit.original_text,
-        base_translation_text: unit.translation_text, notes: '문맥과 용어 확인, 수정 불필요', ...extra }) }) });
+        base_translation_text: unit.translation_text, notes: 'Context and terms checked, no edit needed', ...extra }) }) });
   }
   const first = await next();
   assert.equal(first.unit_id, 'resume-a');
@@ -72,8 +72,8 @@ test('completion survives restarting traversal, reports scope progress, and earl
   const counts = (await request(progress, scope).json()).progress;
   assert.deepEqual(counts, { total: 3, reviewed: 1, unchanged: 1, suggested: 0, changed: 0, unreviewed: 2, pending: 2, percent: 33.33 });
   // Change-and-revert still changes the revision and invalidates the previous review.
-  db.prepare("UPDATE translation_units SET translation_text = '사람 수정' WHERE unit_id = 'resume-a'").run();
-  db.prepare("UPDATE translation_units SET translation_text = '번역' WHERE unit_id = 'resume-a'").run();
+  db.prepare("UPDATE translation_units SET translation_text = 'human edit' WHERE unit_id = 'resume-a'").run();
+  db.prepare("UPDATE translation_units SET translation_text = 'translation' WHERE unit_id = 'resume-a'").run();
   assert.equal((await next()).unit_id, 'resume-a');
   assert.equal((await complete(first)).status, 409);
   assert.equal((await request(progress, scope).json()).progress.changed, 1);
@@ -99,7 +99,7 @@ test('cursor traverses the corpus and filters literal/exact searches without lea
   } while (cursor);
   assert.deepEqual(ids, ['a', 'b', 'c', 'outside', 'wildcard']);
   assert.deepEqual((await request(list, { q: '%_!' }).json()).units.map((unit) => unit.unit_id), ['wildcard']);
-  assert.deepEqual((await request(list, { q: '첫 대사', match: 'exact' }).json()).units.map((unit) => unit.unit_id), ['a']);
+  assert.deepEqual((await request(list, { q: 'first line', match: 'exact' }).json()).units.map((unit) => unit.unit_id), ['a']);
   assert.deepEqual((await request(list, { status: 'untranslated', source_file: 'story.txt' }).json()).units.map((unit) => unit.unit_id), ['b', 'c']);
 });
 test('context follows file lines despite insertion order and excludes other stories', async () => {
@@ -110,10 +110,10 @@ test('context follows file lines despite insertion order and excludes other stor
   assert.equal(request(single, { unit_id: 'missing' }).status, 404);
 });
 test('fresh/stale proposal filters reflect human edits and reject malformed query input', async () => {
-  db.prepare("INSERT INTO ai_suggestions(unit_id, translation_text, reason, base_revision, base_original_text, base_translation_text, created_at) VALUES ('b', '제안', '이유', 0, '二番目', '', 'id')").run();
+  db.prepare("INSERT INTO ai_suggestions(unit_id, translation_text, reason, base_revision, base_original_text, base_translation_text, created_at) VALUES ('b', 'suggestion', 'reason', 0, '二番目', '', 'id')").run();
   assert.deepEqual((await request(list, { suggestion: 'fresh' }).json()).units.map((unit) => unit.unit_id), ['b']);
   assert.ok(!(await request(list, { suggestion: 'missing' }).json()).units.some((unit) => unit.unit_id === 'b'));
-  db.prepare("UPDATE translation_units SET translation_text = '사람 번역' WHERE unit_id = 'b'").run();
+  db.prepare("UPDATE translation_units SET translation_text = 'human translation' WHERE unit_id = 'b'").run();
   assert.deepEqual((await request(list, { suggestion: 'stale' }).json()).units.map((unit) => unit.unit_id), ['b']);
   assert.ok((await request(list, { suggestion: 'missing' }).json()).units.some((unit) => unit.unit_id === 'b'));
   for (const query of [{ limit: '0' }, { limit: 'NaN' }, { cursor: 'garbage' }, { status: 'bad' }, { q: '' }, { match: 'bad' }]) assert.equal(request(list, query).status, 400);

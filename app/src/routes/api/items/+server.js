@@ -209,8 +209,8 @@ function searchItem(q) {
 	return {
 		type: 'search',
 		id: q.trim(),
-		label: `검색 결과: ${q.trim()}`,
-		subtitle: 'ID / 원문 / 번역 / 파일 / 필드',
+		label: `Search results: ${q.trim()}`,
+		subtitle: 'ID / source / translation / file / field',
 		total: row.total ?? 0,
 		done: row.done ?? 0
 	};
@@ -228,7 +228,7 @@ export function GET({ url }) {
 		const advCategories = categoryItems('adv', q).map((item) => ({
 			...item,
 			label: `ADV ${item.id.replace('adv/', '')}`,
-			subtitle: 'ADV 본문 카테고리'
+			subtitle: 'ADV text category'
 		}));
 		const groups = entityItems(['group'], '', 50);
 		return json({ items: [...storyEntities, ...advCategories], groups });

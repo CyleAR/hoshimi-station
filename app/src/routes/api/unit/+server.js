@@ -8,11 +8,11 @@ export async function POST({ request }) {
 	const pin = String(body.pin ?? '').trim();
 
 	if (!unitId) return json({ error: 'unit_id is required' }, { status: 400 });
-	if (!nickname) return json({ error: '닉네임을 입력해 주세요.' }, { status: 401 });
-	if (!/^\d{6}$/.test(pin)) return json({ error: '6자리 숫자 비밀번호를 입력해 주세요.' }, { status: 401 });
+	if (!nickname) return json({ error: 'Enter a nickname.' }, { status: 401 });
+	if (!/^\d{6}$/.test(pin)) return json({ error: 'Enter a 6-digit numeric PIN.' }, { status: 401 });
 
 	const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
-	if (!user) return json({ error: '닉네임 또는 비밀번호가 맞지 않습니다.' }, { status: 401 });
+	if (!user) return json({ error: 'Nickname or PIN is incorrect.' }, { status: 401 });
 	const expectedRevision = body.expected_revision;
 	if (expectedRevision !== undefined && !Number.isInteger(expectedRevision)) return json({ error: 'invalid revision' }, { status: 400 });
 
@@ -32,7 +32,7 @@ export async function POST({ request }) {
 
 	if (result.changes === 0) {
 		const exists = get('SELECT unit_id FROM translation_units WHERE unit_id = $id', { $id: unitId });
-		return json({ error: exists ? '다른 작업자가 내용을 변경했습니다. 항목을 다시 열어 최신 내용을 확인해 주세요.' : 'unit not found' }, { status: exists ? 409 : 404 });
+		return json({ error: exists ? 'Another worker changed this item. Reopen it to see the latest content.' : 'unit not found' }, { status: exists ? 409 : 404 });
 	}
 	run("UPDATE users SET last_seen_at = datetime('now') WHERE nickname = $nickname", { $nickname: nickname });
 	return json({ ok: true, status, translator_name: translationText.trim() ? nickname : '', revision: get('SELECT revision FROM translation_units WHERE unit_id = $id', { $id: unitId }).revision });

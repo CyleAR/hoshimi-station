@@ -1,88 +1,88 @@
 import { all, get, json } from '$lib/server/db.js';
 
 const sectionMeta = {
-	excursion_places: ['EX', '외출 장소'],
-	excursion_reactions: ['EX', '외출 반응'],
-	adv_excursion: ['EX', '외출 ADV'],
-	direct: ['◈', '기본 프로필/정보'],
-	members: ['👤', '소속 멤버'],
-	cards: ['★', '소속 카드'],
-	card_skills: ['⚡', '카드 스킬'],
-	skills: ['⚡', '스킬'],
-	skill_efficacies: ['⚙', '스킬 효과'],
-	costumes: ['▣', '의상'],
-	hair: ['◇', '헤어'],
-	accessories: ['◌', '액세서리'],
-	goods: ['▦', '굿즈'],
-	home_actions: ['⌂', '홈 액션'],
-	evolution: ['✦', '개화 대사'],
-	stories: ['📖', '연결 스토리'],
-	birthday_stories: ['🎂', '생일 선택지'],
-	adv: ['▤', 'ADV 본문'],
-	adv_places: ['⌖', 'ADV 장소'],
-	common_messages: ['✉', '공통 문자'],
-	birthday_messages: ['🎂', '생일 문자'],
-	common_home_talks: ['⌂', '공통 홈 대화'],
-	common_telephones: ['☎', '공통 전화'],
-	call_patterns: ['☀', '접속 대사'],
-	card_messages: ['✉', '카드 문자'],
-	card_home_dialogues: ['⌂', '접속·카드 홈 대화'],
-	card_home_talks: ['⌂', '카드 홈 대화'],
-	card_telephones: ['☎', '카드 전화'],
-	group_messages: ['☷', '그룹 문자'],
-	group_message_titles: ['✎', '소속 문자 제목'],
-	series_message_titles: ['✎', '시리즈 문자 제목'],
-	group_telephones: ['☏', '그룹 통화'],
-	linked_messages: ['💬', '연결 문자'],
-	linked_telephones: ['☏', '연결 전화'],
-	conditions: ['?', '조건 설명'],
-	category: ['#', '카테고리']
+	excursion_places: ['EX', 'Outing Locations'],
+	excursion_reactions: ['EX', 'Outing Reactions'],
+	adv_excursion: ['EX', 'Outing ADV'],
+	direct: ['◈', 'Basic Profile / Info'],
+	members: ['👤', 'Members'],
+	cards: ['★', 'Cards'],
+	card_skills: ['⚡', 'Card Skills'],
+	skills: ['⚡', 'Skills'],
+	skill_efficacies: ['⚙', 'Skill Effects'],
+	costumes: ['▣', 'Costumes'],
+	hair: ['◇', 'Hair'],
+	accessories: ['◌', 'Accessories'],
+	goods: ['▦', 'Goods'],
+	home_actions: ['⌂', 'Home Actions'],
+	evolution: ['✦', 'Blooming Lines'],
+	stories: ['📖', 'Linked Stories'],
+	birthday_stories: ['🎂', 'Birthday Choices'],
+	adv: ['▤', 'ADV Text'],
+	adv_places: ['⌖', 'ADV Locations'],
+	common_messages: ['✉', 'Common Messages'],
+	birthday_messages: ['🎂', 'Birthday Messages'],
+	common_home_talks: ['⌂', 'Common Home Talks'],
+	common_telephones: ['☎', 'Common Phone Calls'],
+	call_patterns: ['☀', 'Login Lines'],
+	card_messages: ['✉', 'Card Messages'],
+	card_home_dialogues: ['⌂', 'Login / Card Home Talks'],
+	card_home_talks: ['⌂', 'Card Home Talks'],
+	card_telephones: ['☎', 'Card Phone Calls'],
+	group_messages: ['☷', 'Group Messages'],
+	group_message_titles: ['✎', 'Member Message Titles'],
+	series_message_titles: ['✎', 'Series Message Titles'],
+	group_telephones: ['☏', 'Group Calls'],
+	linked_messages: ['💬', 'Linked Messages'],
+	linked_telephones: ['☏', 'Linked Phone Calls'],
+	conditions: ['?', 'Condition Descriptions'],
+	category: ['#', 'Category']
 };
 
 const sectionOverrides = {
-	excursion_places: ['EX', '외출 장소'],
-	excursion_reactions: ['EX', '외출 반응'],
-	adv_excursion: ['EX', '외출 ADV'],
-	direct: ['▣', '기본 정보'],
-	members: ['👥', '소속 멤버'],
-	cards: ['★', '소속 카드'],
-	card_skills: ['⚡', '카드 스킬'],
-	skills: ['⚡', '스킬'],
-	skill_efficacies: ['⚙', '스킬 효과'],
-	costumes: ['▣', '의상'],
-	hair: ['◇', '헤어'],
-	accessories: ['◌', '액세서리'],
-	goods: ['▦', '굿즈'],
-	home_actions: ['🏠', '홈 액션'],
-	evolution: ['✦', '개화 대사'],
-	stories: ['📖', '연결 스토리'],
-	birthday_stories: ['🎂', '생일 선택지'],
-	adv: ['📜', 'ADV 본문'],
-	adv_places: ['⌖', 'ADV 장소'],
-	adv_card: ['📜', '카드 ADV'],
-	adv_bond: ['💬', '교류 ADV'],
-	adv_hbd: ['🎂', '생일 ADV'],
-	adv_love: ['♡', '모시코이 ADV'],
-	adv_userhbd: ['🎁', '유저 생일 ADV'],
-	adv_group: ['📜', '그룹 ADV'],
-	common_messages: ['💬', '공통 문자'],
-	birthday_messages: ['🎂', '생일 문자'],
-	common_home_talks: ['🏠', '공통 홈 대사'],
-	common_telephones: ['☎', '공통 전화'],
-	call_patterns: ['📣', '접속 대사'],
-	card_messages: ['💬', '카드 문자'],
-	card_home_dialogues: ['🏠', '접속·카드 홈 대사'],
-	card_home_talks: ['🏠', '카드 홈 대사'],
-	card_telephones: ['☎', '카드 전화'],
-	group_messages: ['💬', '그룹 문자'],
-	group_message_titles: ['✎', '소속 문자 제목'],
-	series_message_titles: ['✎', '시리즈 문자 제목'],
-	group_telephones: ['☎', '그룹 통화'],
-	linked_messages: ['💬', '연결 문자'],
-	linked_telephones: ['☏', '연결 전화'],
-	conditions: ['?', '조건 설명'],
-	search: ['🔍', '검색 결과'],
-	category: ['#', '카테고리']
+	excursion_places: ['EX', 'Outing Locations'],
+	excursion_reactions: ['EX', 'Outing Reactions'],
+	adv_excursion: ['EX', 'Outing ADV'],
+	direct: ['▣', 'Basic Info'],
+	members: ['👥', 'Members'],
+	cards: ['★', 'Cards'],
+	card_skills: ['⚡', 'Card Skills'],
+	skills: ['⚡', 'Skills'],
+	skill_efficacies: ['⚙', 'Skill Effects'],
+	costumes: ['▣', 'Costumes'],
+	hair: ['◇', 'Hair'],
+	accessories: ['◌', 'Accessories'],
+	goods: ['▦', 'Goods'],
+	home_actions: ['🏠', 'Home Actions'],
+	evolution: ['✦', 'Blooming Lines'],
+	stories: ['📖', 'Linked Stories'],
+	birthday_stories: ['🎂', 'Birthday Choices'],
+	adv: ['📜', 'ADV Text'],
+	adv_places: ['⌖', 'ADV Locations'],
+	adv_card: ['📜', 'Card ADV'],
+	adv_bond: ['💬', 'Bond ADV'],
+	adv_hbd: ['🎂', 'Birthday ADV'],
+	adv_love: ['♡', 'Moshikoi ADV'],
+	adv_userhbd: ['🎁', 'User Birthday ADV'],
+	adv_group: ['📜', 'Group ADV'],
+	common_messages: ['💬', 'Common Messages'],
+	birthday_messages: ['🎂', 'Birthday Messages'],
+	common_home_talks: ['🏠', 'Common Home Talks'],
+	common_telephones: ['☎', 'Common Phone Calls'],
+	call_patterns: ['📣', 'Login Lines'],
+	card_messages: ['💬', 'Card Messages'],
+	card_home_dialogues: ['🏠', 'Login / Card Home Talks'],
+	card_home_talks: ['🏠', 'Card Home Talks'],
+	card_telephones: ['☎', 'Card Phone Calls'],
+	group_messages: ['💬', 'Group Messages'],
+	group_message_titles: ['✎', 'Member Message Titles'],
+	series_message_titles: ['✎', 'Series Message Titles'],
+	group_telephones: ['☎', 'Group Calls'],
+	linked_messages: ['💬', 'Linked Messages'],
+	linked_telephones: ['☏', 'Linked Phone Calls'],
+	conditions: ['?', 'Condition Descriptions'],
+	search: ['🔍', 'Search Results'],
+	category: ['#', 'Category']
 };
 
 const MAX_SEARCH_LENGTH = 80;
@@ -445,11 +445,11 @@ function linksFor(type, id) {
 		       			LIMIT 1
 		       		),
 		       		CASE
-		       			WHEN l.to_id LIKE '%_01_01.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '관람차 (01_01)'
-		       			WHEN l.to_id LIKE '%_01_02.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '해안 (01_02)'
-		       			WHEN l.to_id LIKE '%_01_03.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '수영장 (01_03)'
-		       			WHEN l.to_id LIKE '%_01_04.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '쇼핑 (01_04)'
-		       			WHEN l.to_id LIKE '%_01_05.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN '외출 종료 (01_05)'
+		       			WHEN l.to_id LIKE '%_01_01.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN 'Ferris Wheel (01_01)'
+		       			WHEN l.to_id LIKE '%_01_02.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN 'Coast (01_02)'
+		       			WHEN l.to_id LIKE '%_01_03.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN 'Pool (01_03)'
+		       			WHEN l.to_id LIKE '%_01_04.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN 'Shopping (01_04)'
+		       			WHEN l.to_id LIKE '%_01_05.txt' AND l.to_id LIKE 'adv_event_excursion_%' THEN 'Outing End (01_05)'
 		       			ELSE NULL
 		       		END
 		       	)
@@ -518,11 +518,11 @@ function linksFor(type, id) {
 		       			LIMIT 1
 		       		),
 		       		CASE
-		       			WHEN l.from_id LIKE '%_01_01.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '관람차 (01_01)'
-		       			WHEN l.from_id LIKE '%_01_02.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '해안 (01_02)'
-		       			WHEN l.from_id LIKE '%_01_03.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '수영장 (01_03)'
-		       			WHEN l.from_id LIKE '%_01_04.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '쇼핑 (01_04)'
-		       			WHEN l.from_id LIKE '%_01_05.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN '외출 종료 (01_05)'
+		       			WHEN l.from_id LIKE '%_01_01.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN 'Ferris Wheel (01_01)'
+		       			WHEN l.from_id LIKE '%_01_02.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN 'Coast (01_02)'
+		       			WHEN l.from_id LIKE '%_01_03.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN 'Pool (01_03)'
+		       			WHEN l.from_id LIKE '%_01_04.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN 'Shopping (01_04)'
+		       			WHEN l.from_id LIKE '%_01_05.txt' AND l.from_id LIKE 'adv_event_excursion_%' THEN 'Outing End (01_05)'
 		       			ELSE NULL
 		       		END
 		       	)
@@ -795,7 +795,7 @@ export function GET({ url }) {
 	if (type === 'search') {
 		const searchId = normalizeSearch(id);
 		return json({
-			entity: { type, id: searchId, label: `검색 결과: ${searchId}`, subtitle: 'ID / 원문 / 번역 / 파일 / 필드' },
+			entity: { type, id: searchId, label: `Search results: ${searchId}`, subtitle: 'ID / Source / Translation / File / Field' },
 			sections: [section('search', searchableUnitWhere('translation_units'), { $q: like(searchId) })],
 			links: []
 		});

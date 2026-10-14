@@ -1,21 +1,21 @@
 {
-  "name": {
-    "phrases": {
-      "Aスキルチャンス譲渡": "A스킬 찬스 양도",
-      "クリティカル率上昇": "크리티컬 확률 상승",
-      "スキル成功率上昇": "스킬 성공률 상승",
-      "スキル成功率上昇上限開放": "스킬 성공률 상승 상한 해제",
-      "スキル成功率上昇超化": "스킬 성공률 상승 초화",
-      "スタミナ消費増加": "스태미나 소비 증가",
-      "ダンス低下の強化": "댄스 저하 강화",
-      "ビジュアル低下の強化": "비주얼 저하 강화",
-      "ボーカル低下の強化": "보컬 저하 강화",
-      "低下効果反射": "저하 효과 반사",
-      "低下効果防止": "저하 효과 방지",
-      "強化効果が多い程の強化効果数上限開放": "[강화 효과가 많을수록]의 강화 효과 수 상한 해제",
-      "強化効果段階数制限": "강화 효과 단계 수 제한"
-    },
-    "templates": {},
-    "record_overrides": []
-  }
+ "name": {
+  "phrases": {
+   "Aスキルチャンス譲渡": "A-Skill Chance Transfer",
+   "クリティカル率上昇": "Critical Rate Up",
+   "スキル成功率上昇": "Skill Success Rate Up",
+   "スキル成功率上昇上限開放": "Skill Success Rate Up Cap Release",
+   "スキル成功率上昇超化": "Skill Success Rate Up Overdrive",
+   "スタミナ消費増加": "Stamina Consumption Up",
+   "ダンス低下の強化": "Dance Down Enhancement",
+   "ビジュアル低下の強化": "Visual Down Enhancement",
+   "ボーカル低下の強化": "Vocal Down Enhancement",
+   "低下効果反射": "Debuff Reflection",
+   "低下効果防止": "Debuff Prevention",
+   "強化効果が多い程の強化効果数上限開放": "Buff Count Cap Release (More Buffs = Higher Cap)",
+   "強化効果段階数制限": "Buff Stage Limit"
+  },
+  "templates": {},
+  "record_overrides": []
+ }
 }

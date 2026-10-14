@@ -2,7 +2,7 @@ import { get, getDb } from '$lib/server/db.js';
 
 export function attachSuggestionsForUser(units, request) {
 	const pin = request?.headers.get('x-ai-suggestion-pin') ?? '';
-	const allowed = /^\d{6}$/.test(pin) && get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: '사일', $pin: pin });
+	const allowed = /^\d{6}$/.test(pin) && get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: 'admin', $pin: pin });
 	return allowed ? attachSuggestions(units) : units.map((unit) => ({ ...unit, ai_suggestion: null }));
 }
 
@@ -42,13 +42,13 @@ export function acceptSuggestion(unitId, nickname, expectedCreatedAt) {
 	try {
 		const suggestion = get('SELECT * FROM ai_suggestions WHERE unit_id = $id', { $id: unitId });
 		if (!suggestion || suggestion.accepted_at || suggestion.created_at !== expectedCreatedAt) {
-			throw new Error('제안이 변경되었거나 이미 사용되었습니다. 항목을 다시 열어 주세요.');
+			throw new Error('The suggestion was changed or already used. Reopen the item.');
 		}
 		const result = db.prepare(`UPDATE translation_units
 			SET translation_text = ?, status = 'translated', translator_name = ?, updated_at = datetime('now')
 			WHERE unit_id = ? AND revision = ? AND original_text = ? AND translation_text = ?`)
 			.run(suggestion.translation_text, nickname, unitId, suggestion.base_revision, suggestion.base_original_text, suggestion.base_translation_text);
-		if (!result.changes) throw new Error('제안 이후 원문이나 번역이 변경되었습니다. 최신 내용을 확인해 주세요.');
+		if (!result.changes) throw new Error('The suggestion is outdated: the source or translation changed. Check the latest content.');
 		db.prepare("UPDATE ai_suggestions SET accepted_at = datetime('now'), accepted_by = ? WHERE unit_id = ?").run(nickname, unitId);
 		db.prepare("UPDATE users SET last_seen_at = datetime('now') WHERE nickname = ?").run(nickname);
 		const unit = get('SELECT * FROM translation_units WHERE unit_id = $id', { $id: unitId });

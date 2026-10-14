@@ -8,29 +8,29 @@ export async function POST({ request }) {
 	const denied = requireCodexToken(request);
 	if (denied) return denied;
 	let body;
-	try { body = await request.json(); } catch { return json({ error: 'JSON 형식이 필요합니다.' }, { status: 400 }); }
+	try { body = await request.json(); } catch { return json({ error: 'A JSON body is required.' }, { status: 400 }); }
 	if (!body || typeof body.unit_id !== 'string' || typeof body.translation_text !== 'string' || !body.translation_text.trim()
 		|| typeof body.reason !== 'string' || !body.reason.trim() || !Number.isInteger(body.base_revision)
 		|| typeof body.base_original_text !== 'string' || typeof body.base_translation_text !== 'string'
 		|| body.translation_text.length > 20000 || body.reason.length > 20000
 		|| (body.reference_unit_ids !== undefined && (!Array.isArray(body.reference_unit_ids) || body.reference_unit_ids.length > 20 || body.reference_unit_ids.some((id) => typeof id !== 'string')))) {
-		return json({ error: '원문·번역·버전 스냅샷, 제안문, 이유와 유효한 참고 항목 목록이 필요합니다.' }, { status: 400 });
+		return json({ error: 'Source, translation, and version snapshots, the suggested text, a reason, and a valid list of reference items are required.' }, { status: 400 });
 	}
 	const db = getDb();
 	db.exec('BEGIN IMMEDIATE');
 	try {
 		const unit = get('SELECT * FROM translation_units WHERE unit_id = $id', { $id: body.unit_id });
-		if (!unit) { db.exec('ROLLBACK'); return json({ error: '항목을 찾을 수 없습니다.' }, { status: 404 }); }
+		if (!unit) { db.exec('ROLLBACK'); return json({ error: 'Item not found.' }, { status: 404 }); }
 		if (unit.revision !== body.base_revision || unit.original_text !== body.base_original_text || unit.translation_text !== body.base_translation_text) {
 			db.exec('ROLLBACK');
-			return json({ error: '항목이 변경되었습니다. 다시 읽고 제안해 주세요.' }, { status: 409 });
+			return json({ error: 'The item has changed. Please re-read it and suggest again.' }, { status: 409 });
 		}
 		const missing = [...new Set(unit.original_text.match(/\{[A-Za-z0-9_]+\}/g) ?? [])].filter((tag) => !body.translation_text.includes(tag));
-		if (missing.length) { db.exec('ROLLBACK'); return json({ error: `placeholder 누락: ${missing.join(', ')}` }, { status: 400 }); }
+		if (missing.length) { db.exec('ROLLBACK'); return json({ error: `Missing placeholders: ${missing.join(', ')}` }, { status: 400 }); }
 		const references = [...new Set(body.reference_unit_ids ?? [])];
 		if (references.some((id) => !get('SELECT unit_id FROM translation_units WHERE unit_id = $id', { $id: id }))) {
 			db.exec('ROLLBACK');
-			return json({ error: '참고 항목을 찾을 수 없습니다.' }, { status: 400 });
+			return json({ error: 'Reference item not found.' }, { status: 400 });
 		}
 		// UUID suffix makes replacements distinguishable even within one millisecond.
 		const createdAt = `${new Date().toISOString()}/${randomUUID()}`;

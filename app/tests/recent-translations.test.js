@@ -148,13 +148,13 @@ test('a different original cannot use a stale comparison', async () => {
 
 test('short and long comparisons preserve exact text including Unicode and line breaks', () => {
  for (const [before, after] of [
-  ['안녕, 좋은 하루', '안녕하세요, 좋은 밤'],
-  ['같은 문장', '같은 문장'],
-  ['', '추가'],
-  ['삭제', ''],
-  ['가'.repeat(500) + '\n이전', '가'.repeat(500) + '\n이후'],
-  ['𠮷'.repeat(500) + '끝', '𠮷'.repeat(500) + '새 끝'],
-  ['가'.repeat(500), '가'.repeat(500)],
+  ['Hello, have a good day', 'Hello, have a good night'],
+  ['same sentence', 'same sentence'],
+  ['', 'added'],
+  ['removed', ''],
+  ['a'.repeat(500) + '\nbefore', 'a'.repeat(500) + '\nafter'],
+  ['𠮷'.repeat(500) + 'end', '𠮷'.repeat(500) + 'new end'],
+  ['a'.repeat(500), 'a'.repeat(500)],
  ]) {
   const diff = translationDiff(before, after);
   assert.equal(diff.oldSegments.map((part) => part.text).join(''), before);

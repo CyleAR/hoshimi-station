@@ -1,89 +1,69 @@
-# 번역 주의사항
+# Translation Notes
 
-## 최우선 원칙
+## Top-priority principles
 
-- 네오위즈 한섭 번역이 이미 들어간 항목은 우선 그 번역 기조를 따릅니다.
-- 같은 문장, 카드명, 스킬명, 스토리 제목, 메시지, 홈 대사는 여러 곳에서 반복될 수 있으므로 연결 항목을 같이 확인합니다.
+- The authoritative sources are `agency-adv/GLOSSARY.md`, `glossary/names.json` and `glossary/terms.json`. Follow existing translations for the same term.
+- The official English release is poor quality. Use it only as a hint to disambiguate a term; never copy it verbatim.
+- The same sentence, card name, skill name, story title, message, or home line can repeat in several places, so check linked entries together.
 
-## 제어 코드와 줄바꿈
+## Control codes and line breaks
 
-- `\n`은 게임 안에서 실제 줄바꿈으로 출력되는 제어 코드입니다.
-- `\n`이라고 써두면 씹히니까 기본적으로 엔터로 줄바꿈해주세요.
-- 원문에 있는 `{user}, {threshold}` 같은 placeholder는 지우거나 번역하지 않습니다.
-- 원문에 있는 placeholder가 번역문에도 들어가야 합니다.
-- 유저 닉네임이나 아이템, 아이돌 이름 뒤에 조사가 붙는 경우, `[은/는] [이/가] [을/를] [와/과] [아/야] [으/로]=[으로/로] [이/랑]=[이랑/랑] [이/라]=[이라/라] [이/다]=[이다/다]` 를 써 두면 한패 앱에서 자동으로 변환시켜줍니다.
-- ex) 닉네임이 "마네쟈" 일 때: `{user}[은/는]` 유능한 매니저구나 => `마네쟈는` 유능한 매니저구나
-- `{user}[와/과]` 함께한 나날 => `마네쟈와` 함께한 나날
-- `{user}[이/랑]` 같이 간 곳 => `마네쟈랑` 같이 간 곳
-- `{user}[이/다]~`, 안녕~ => `마네쟈다~` 안녕
+- `\n` is a control code that becomes a real line break in game. Write real line breaks (Enter) instead of the literal `\n`; the app converts them.
+- Never delete or translate placeholders such as `{user}` and `{threshold}`.
+- Every placeholder in the source must appear in the translation the same number of times.
+- English has no particles, so the Korean auto-particle markers do not apply. Leave `{user}` as it stands.
 
-## `{user}` 처리
+## `{user}` handling
 
-- `{user}くん`, `{user}君`은 한국어에서 보통 `{user}`로 처리합니다.
-- `{user}さん`은 한국어에서 `{user} 씨`로 처리합니다.
-- 메이가 `{user}`를 부를 때는 호칭표 예외에 따라 `{user} 오빠`로 번역합니다.
+- `{user}くん`, `{user}君`, `{user}さん` -> `{user}`.
+- The player is the Manager / Producer.
 
-## 말줄임표와 기호
+## Ellipses and symbols
 
-- 점 세 개는 `...` 대신 가능하면 말줄임표 특수문자 `…` 표기를 사용합니다
-- 원문의 `…`는 2개마다 1개로 줄입니다(예: `……` → `…`, `…………` → `……`).
-- 원문 `――`는 그대로 `――`로 유지합니다
-- 장음부호 원문 `ー`는 캐릭터의 대사나 문자에선 `~`로 바꿔 처리합니다 (`問題でーす` → `문제입니다~`)
-- `♪`, `♡`, `!`, `?`, 같은 기호는 문맥에 맞게 유지하지만 한글로 다시 입력합니다. (일본어 원문은 전각임)
-- 스토리에서 `（）`로 묶인 부분은 회색 말풍선으로 나타나게 되니까 한글폰트 ()로 안바꿔도 됩니다만 바꿔도 한패 앱이 알아서 처리합니다.
-- 낫표 (『』 / 「」 )는 따옴표("" / '')로 바꿉니다. [한글 따옴표 규정 참고](https://namu.wiki/w/%EB%94%B0%EC%98%B4%ED%91%9C#toc)
+- `……` -> `...`
+- Mid-sentence `――` -> `--`. Narration lines that start with `――` keep the leading `――`.
+- Drawled `ー` in dialogue: render naturally (stretched vowel or `~`).
+- `♪`, `♡`, `!`, `?` are kept as appropriate; re-enter full-width forms as ASCII `!` and `?`. `！？` -> `?!`.
+- Lines wrapped in （…） show as gray bubbles; keep the full-width parentheses.
+- 「」 and 『』 -> double quotes `"`; nested quotes use single quotes `'`.
 
-## 호칭 규칙
+## Honorifics
 
-- 일본어 존댓말이면 한국어도 기본적으로 존댓말로 번역합니다.
-- `~さん`은 기본적으로 `~씨`로 옮깁니다.
-- `~ちゃん`은 대상이 같거나 어린 경우 이름만, 대상이 나이가 많은 경우 `이름 언니`를 기본으로 합니다.
-- `マネージャーさん`은 `매니저 님`으로 옮깁니다.
-- 아이/코코로가 아오이/리오를 부르는 경우는 `언니` 호칭을 우선합니다.
-- 마찬가지로 트리엘에서도 스미레가 유우/루이를 부를 때 `언니` 호칭 우선합니다.
-- 유우는 루이보다 어리지만 `루이 언니`가 아니라 `루이`라고 부릅니다.
-- 아오이는 리오보다 어리지만 `리오 언니`가 아니라 `리오`라고 부릅니다.
-- 코코로는 아이보다 어리지만 `아이 언니`가 아니라 `아이`라고 부릅니다.
-- 호칭은 문맥, 나이, 관계에 따라 달라질 수 있으므로 애매하면 연결된 스토리/메시지를 확인합니다.
+- Honorifics are romanized and kept (-san, -chan, -kun, -sama). Do not convert them to Mr./Ms. or older-sister terms.
+- `マネージャーさん` -> `Manager`.
+- Check linked stories/messages when the form of address is ambiguous.
 
-## 캐릭터 나이
+## Character ages
 
-호칭 판단 시 아래 나이표를 참고합니다.
+Use this table when judging register and address.
 
-- 24살: miho
-- 22살: 칸자키 리오, fran, 매니저(마키노 코헤이,user), 나가세 마나(향년 19살)
-- 20살: 사에키 하루코, kana
-- 18살: 시라이시 사키, 이치노세 레이
-- 17살: 나가세 코토노, 이부키 나기사, 텐도 루이, 시라이시 치사, 카와사키 사쿠라, 이가와 아오이
-- 16살: 코미야마 아이, 스즈무라 유우, 효도 시즈쿠, 하야사카 메이
-- 15살: 오쿠야마 스미레, 나루미야 스즈
-- 14살: 아카자키 코코로
+- 24: miho
+- 22: Rio Kanzaki, fran, Manager (Makino Kohei, user), Mana Nagase (19 at time of death)
+- 20: Haruko Saeki, kana
+- 18: Saki Shiraishi, Rei Ichinose
+- 17: Kotono Nagase, Nagisa Ibuki, Rui Tendo, Chisa Shiraishi, Sakura Kawasaki, Aoi Igawa
+- 16: Ai Komiyama, Yu Suzumura, Shizuku Hyodo, Mei Hayasaka
+- 15: Sumire Okuyama, Suzu Narumiya
+- 14: Kokoro Akazaki
 
-## 캐릭터 말투
+## Character voices
 
-- 스즈의 `~ですわ` 계열은 귀족 영애스러운 말투를 살려 `~랍니다`, `~답니다`, `~사와요` 계열을 우선합니다.
-- 스즈가 다른 캐릭터를 부를 때는 일본어 원문 호칭을 가급적 따릅니다. 존칭이 없으면 이름만 부르는 느낌을 살립니다.
-- kana는 까칠하고 비꼬는 말투를 살립니다. 평소 반말, 비꼴 때 존댓말처럼 문맥에 따른 뉘앙스를 봅니다.
-- 유우의 교토 사투리는 경상도 사투리 느낌으로 옮깁니다.
+- Sumire: bright, polite, ex-child-actress. Her dialect is gentle rural plain English. Never use Scots or Scots-like words.
+- Suzu: ojou-sama; refined, noble-lady diction. When she addresses others, follow the source's form of address.
+- kana: sarcastic and sharp; casual, with polite register for sarcasm.
+- Yu: Kansai-flavored teasing, rendered as playful English, not a regional dialect.
 
-## 고유명사와 표기
+## Proper nouns
 
-- 한국어로 딱 맞는 표현이 없거나 의역이 애매하면 일본어 발음을 한국어로 표기합니다.
-- 카타카나 단어는 가급적 독음 표기를 우선합니다.
+- Use the glossary spelling. Names are in Western order (given name first).
+- If nothing is established, romanize the Japanese reading.
 
-## 그룹명 약어
+## Group and company names
 
-- 기본적으로 앞쪽을 우선하고 문맥이나 화자에 따라 줄임말로 표기합니다 (이름 풀버전 번역 우선)
-- `月スト`는 `달의 템페스트` 또는 `달템`으로 표기합니다.
-- `サニピ`는 `서니 피스` 또는 `서니피`로 표기합니다.
-- `トリエル`은 `트리니티엘` 또는 `트리엘`로 표기합니다.
-- `TRINITYAiLE`, `LizNoir`, `ⅢX`는 원문 표기를 유지합니다.
-- `リズノワ`는 `리즈누아르` 또는 `리즈놀`로 표기합니다.
-- `スリクス`는 `쓰리엑스` 또는 `쓰릭스`로 표기합니다.
-- `どりきゅん`는 `도리큥` 으로 표기합니다.
+- Hoshimi Pro. / Hoshimi Pros / Hoshimi Productions; Sunny Peace (SunnyP); Tsuki no Tempest (Tsukisto); TriAile (formal: TRINITYAiLE); LizNoir; IIIX.
 
-## 저장 전 확인
+## Before saving
 
-- 원문의 제어코드와 placeholder가 번역문에 남아 있는지 확인합니다.
-- 카드 스토리 번역 시 카드명, 스킬명, 메시지, 홈 대사, Story/MasterDB 제목도 함께 확인합니다.
-- 기존 번역과 같은 표현인지 확인합니다.
+- Check that control codes and placeholders from the source are still present.
+- For card stories, also check the card name, skill names, messages, home lines, and Story/MasterDB titles.
+- Check that wording matches existing translations.

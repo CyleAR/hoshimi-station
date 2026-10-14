@@ -49,7 +49,7 @@ function missingPlaceholders(original, translated) {
 }
 
 function readTranslationText(item) {
-	const keys = ['translation_text', 'translated_text', 'translatedText', 'translation', 'target_text', 'targetText', 'korean', 'ko', 'result', 'draft', 'text'];
+	const keys = ['translation_text', 'translated_text', 'translatedText', 'translation', 'target_text', 'targetText', 'english', 'en', 'result', 'draft', 'text'];
 	for (const key of keys) {
 		const value = item?.[key];
 		if (typeof value === 'string') return value;
@@ -67,12 +67,12 @@ function sanitizeEndingPunctuation(original, translated) {
 	let trans = String(translated ?? '').trim();
 	if (!orig || !trans) return trans;
 
-	// 원문 끝에 마침표(. or 。)가 없는데 번역문 끝에 마침표(.)가 붙어 있다면 제거 (말줄임표 제외)
+	// If the source has no trailing period (. or 。) but the translation ends with one, remove it (ellipses excluded)
 	if (!/[.。]$/.test(orig) && trans.endsWith('.') && !trans.endsWith('..') && !trans.endsWith('….')) {
 		trans = trans.slice(0, -1).trim();
 	}
 
-	// 닫는 따옴표/괄호 직전에 마침표가 들어간 경우 (예: "대사." -> "대사")
+	// Period right before a closing quote/bracket (e.g. "Line." -> "Line")
 	const quoteMatch = trans.match(/\.([」』"')\]）])$/);
 	if (quoteMatch) {
 		const closingChar = quoteMatch[1];
@@ -166,8 +166,8 @@ async function callJson(url, body) {
 	} catch (err) {
 		const isTimeout = err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.name === 'HeadersTimeoutError';
 		const message = isTimeout
-			? 'AI 응답 대기 시간이 초과되었습니다 (15분 타임아웃).'
-			: `AI 서버 연결 실패: ${err.message || String(err)}`;
+			? 'The AI response timed out (15 minute timeout).'
+			: `Failed to connect to the AI server: ${err.message || String(err)}`;
 		return {
 			response: { ok: false, status: isTimeout ? 504 : 502 },
 			raw: message,
@@ -308,7 +308,7 @@ async function completeAiJob(jobId, { model, prompt, reasoningEffort, rows, usag
 		if (!Array.isArray(parsed)) throw new Error('AI response is not a JSON array.');
 		const sourceEchoes = parsed.filter(isSourceEcho).length;
 		if (sourceEchoes >= Math.max(3, Math.ceil(parsed.length * 0.5))) {
-			throw new Error('AI가 번역 대신 원문 데이터를 반환했습니다. 다시 실행하거나 요청 개수를 줄여 주세요.');
+			throw new Error('The AI returned the source data instead of a translation. Run it again or reduce the number of requested rows.');
 		}
 
 		const byId = new Map(rows.map((row) => [String(row.unit_id), row]));
@@ -351,7 +351,7 @@ export function GET({ url }) {
 	pruneAiJobs();
 	const jobId = String(url.searchParams.get('job_id') ?? '');
 	const job = aiJobs.get(jobId);
-	if (!job) return json({ error: 'AI 작업을 찾을 수 없습니다. 다시 실행해 주세요.' }, { status: 404 });
+	if (!job) return json({ error: 'AI job not found. Please run it again.' }, { status: 404 });
 	if (job.status === 'processing') return json({ ok: true, status: 'processing' });
 	aiJobs.delete(jobId);
 	return json(job.result);
@@ -378,7 +378,7 @@ export async function POST({ request }) {
 		const isAdmin = verifyAdmin(nickname, pin);
 		if (!isAdmin) {
 			const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
-			if (!user) return json({ error: '닉네임 또는 비밀번호가 맞지 않습니다.' }, { status: 401 });
+			if (!user) return json({ error: 'Nickname or password is incorrect.' }, { status: 401 });
 		}
 		if (!unitIds.length) return json({ error: 'unit_ids is required' }, { status: 400 });
 		if (unitIds.length > MAX_UNITS) return json({ error: `You can request up to ${MAX_UNITS} units at a time.` }, { status: 400 });
@@ -407,12 +407,12 @@ export async function POST({ request }) {
 			}));
 
 		const prompt = [
-			'You are preparing first-draft Korean translations for a Japanese game localization tool.',
-			'Write natural, clear, and grammatically complete Korean sentences with rich semantic context (Fluent Korean).',
-			'Avoid machine-translation artifacts: do not drop particles or verb endings, avoid excessive "~의", and write complete sentences with proper predicate endings.',
+			'You are preparing first-draft English translations for a Japanese game localization tool.',
+			'Write natural, fluent, grammatically complete English that reads like an original game script.',
+			'Avoid machine-translation artifacts: avoid literal word-for-word renderings, awkward possessive chains, and stiff phrasing; keep each character\'s voice.',
 			'Return ONLY a JSON array. Each item must be {"unit_id":"...","translation_text":"..."} with no markdown.',
 			'Translate every row whose needs_translation is true. Do not omit target rows and do not leave translation_text empty.',
-			'Rows whose needs_translation is false contain approved Korean translations for context. Use them as style and terminology references, but do not return them.',
+			'Rows whose needs_translation is false contain approved English translations for context. Use them as style and terminology references, but do not return them.',
 			'The input objects are context data. Only rows marked needs_translation are output targets.',
 			'Never include category, field_path, speaker, original_text, needs_translation, or reference translation_text values in the output.',
 			'Preserve placeholders exactly, including {user}. Preserve literal \\n when it appears in source text.',
@@ -427,7 +427,7 @@ export async function POST({ request }) {
 			'- Do not return rows whose needs_translation is false.',
 			'- Use exactly these keys: unit_id, translation_text.',
 			'- unit_id must be copied exactly from the input.',
-			'- translation_text must be a non-empty Korean first-draft translation string.',
+			'- translation_text must be a non-empty English first-draft translation string.',
 			'- Never return null, empty string, an object, or an untranslated Japanese copy as translation_text.'
 		].join('\n');
 
@@ -436,23 +436,23 @@ export async function POST({ request }) {
 			const referenceRows = payload.filter((row) => !row.needs_translation);
 			const externalPrompt = [
 				[
-					'다음 일본어 게임 문구를 자연스럽고 유려한 한국어로 번역해 주세요.',
-					'아래 번역 지침 및 자연스러운 한국어 문장 지침(Fluent Korean)을 준수해 주세요.',
-					'기존 번역이 함께 제공된 경우 용어와 말투를 맞추는 참고 자료로만 사용해 주세요.'
+					'Translate the following Japanese game text into natural, fluent English.',
+					'Follow the translation guidelines below and keep the English natural and fluent.',
+					'If existing translations are provided, use them only as a reference for terminology and tone.'
 				].join('\n'),
-				`AI 번역 지침:\n${guidelines}`,
+				`AI translation guidelines:\n${guidelines}`,
 				...(referenceRows.length
-					? [`기존 번역 참고:\n${referenceRows
+					? [`Existing translations for reference:\n${referenceRows
 						.map(
 							(row, index) =>
-								`[참고 ${index + 1}] ${row.speaker ? `화자: ${row.speaker}\n` : ''}원문: ${row.original_text}\n번역: ${row.translation_text}`
+								`[Ref ${index + 1}] ${row.speaker ? `Speaker: ${row.speaker}\n` : ''}Source: ${row.original_text}\nTranslation: ${row.translation_text}`
 						)
 						.join('\n\n')}`]
 					: []),
-				`번역할 내용:\n${targetRows
+				`Text to translate:\n${targetRows
 					.map(
 						(row, index) =>
-							`[${index + 1}]${row.speaker ? ` 화자: ${row.speaker}` : ''}\n${row.original_text}`
+							`[${index + 1}]${row.speaker ? ` Speaker: ${row.speaker}` : ''}\n${row.original_text}`
 					)
 					.join('\n\n')}`
 			].join('\n\n');
@@ -470,7 +470,7 @@ export async function POST({ request }) {
 		if (usage && !usage.allowed) {
 			return json(
 				{
-					error: `오늘 AI 초벌 요청 ${DAILY_REQUEST_LIMIT}회를 모두 사용했습니다.`,
+					error: `You have used all ${DAILY_REQUEST_LIMIT} AI draft requests for today.`,
 					usage
 				},
 				{ status: 429 }

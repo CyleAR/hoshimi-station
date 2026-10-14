@@ -1,58 +1,42 @@
 # HoshimiStation Translator
 
-`res/masterdb`와 `res/adv/resource`에서 일본어 원문을 추출해 SQLite DB에 넣고, SvelteKit 웹 UI에서 번역한 뒤 `output` 폴더로 다시 내보내는 번역 관리 도구입니다.
+Extracts Japanese source text from `res/masterdb` and `res/adv/resource` into SQLite, lets you translate it in a SvelteKit UI, and exports the result to the `output` folder.
 
-## 폴더 구조
+## Folder structure
 
-- `app/`: SvelteKit 번역 UI
-- `scripts/`: DB import, 한섭 데이터 prefill, export, 일괄 치환 스크립트
-- `data/hoshimi.sqlite3`: 번역 작업용 SQLite DB
-- `res/`: 원본 MasterDB/ADV 리소스 서브모듈
-- `output/`: export 결과 서브모듈
+- `app/` — SvelteKit web app (translation UI and API)
+- `scripts/` — Python tools (import, prefill, export, bulk replace)
+- `data/hoshimi.sqlite3` — working database
+- `res/` — source resources (git submodule)
+- `output/` — exported translations (git submodule)
 
-## 설치
+## Install
 
-처음 한 번만 루트에서 의존성을 설치합니다.
-
-```powershell
+```bash
 npm --prefix app install
 ```
 
-## 웹 UI 실행
+## Web UI
 
-개발 서버:
-
-```powershell
-npm run dev
+```bash
+npm run dev     # http://127.0.0.1:5174
+npm run serve   # build + preview, use this if the Vite dev server hits a module issue
 ```
 
-기본 주소는 `http://127.0.0.1:5174`입니다.
+## Server deployment
 
-Vite dev 서버에서 모듈 로딩 문제가 나면 빌드 후 preview 모드로 실행합니다.
-
-```powershell
-npm run serve
-```
-
-## 서버 배포
-
-SvelteKit은 Node adapter로 빌드됩니다. 기본 운영 포트는 `3042`이고, 기본 바인딩은 로컬 프록시용 `127.0.0.1`입니다.
+The app uses the Node adapter and listens on port 3042 (bound to 127.0.0.1 by default).
 
 ```bash
 npm --prefix app install
 npm run build
 npm run start
+HOST=0.0.0.0 PORT=3042 npm run start   # expose on all interfaces
 ```
 
-외부에서 직접 열어야 하면 실행 전에 `HOST=0.0.0.0`을 지정합니다.
-
-```bash
-HOST=0.0.0.0 PORT=3042 npm run start
-```
-
-Nginx/Caddy 같은 리버스 프록시를 쓴다면 앱은 `127.0.0.1:3042`에 두고, 도메인과 HTTPS는 프록시에서 처리하면 됩니다. SQLite DB를 저장하는 `data/hoshimi.sqlite3`에는 Node 프로세스의 쓰기 권한이 필요합니다. DB 경로를 직접 지정해야 하면 `DB_PATH=/path/to/hoshimi.sqlite3` 환경 변수를 사용할 수 있습니다.
-
-PM2로 관리하면 `ecosystem.config.cjs` 기준으로 `0.0.0.0:3042`에 바인딩됩니다. LAN IP로 직접 접속하거나, Nginx/Caddy에서 `127.0.0.1:3042` 또는 `localhost:3042`로 프록시할 수 있습니다.
+- Put nginx or Caddy in front and proxy to `127.0.0.1:3042`.
+- The process needs write permission on the database. Override its location with `DB_PATH=/path/to/hoshimi.sqlite3`.
+- PM2:
 
 ```bash
 npm run build
@@ -60,124 +44,72 @@ pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-## DB import
+This binds `0.0.0.0:3042`.
 
-원본 `res/masterdb`와 `res/adv/resource`를 읽어서 `data/hoshimi.sqlite3`를 재구축합니다.
+## Database import
 
-```powershell
+```bash
 npm run import-db
-```
-
-기존 번역은 `unit_id`와 원문이 같은 경우 유지됩니다. 새 원문 파일이 추가되어도 기존 번역을 날리는 용도가 아닙니다.
-
-직접 DB 경로를 지정하려면:
-
-```powershell
 python scripts/import_db.py --db data/hoshimi.sqlite3
 ```
 
-## 최근 작업 API
+The database is rebuilt on each import. Existing translations are kept when the `unit_id` and the source text are unchanged.
 
-외부 서비스에서 최근 작업을 조회하려면 서버 환경변수 `RECENT_WORK_API_TOKEN`에 긴 임의 문자열을 설정하고 사이트 프로세스를 재시작합니다. 토큰은 브라우저 코드에 넣지 말고 외부 서비스의 서버에서만 보관하세요.
+## Recent-work API
 
-`GET /api/recent-work`는 번역된 현재 항목을 최신순으로, `GET /api/recent-work?view=changes`는 기록된 번역 수정 내역을 최신순으로 돌려줍니다. `Authorization: Bearer <토큰>` 헤더가 필요합니다. `limit`은 1~200(기본 100), `translator`로 번역자 필터가 가능하며, 응답의 `next_cursor`를 다음 요청의 `cursor`에 전달하면 전체를 순회할 수 있습니다. `next_cursor`가 `null`이면 마지막 페이지입니다.
+Set `RECENT_WORK_API_TOKEN` in the server environment (keep it server-side only).
 
-응답에는 원문, 번역문, 수정 전 번역문, 이전·현재 번역자와 항목 출처 정보가 포함됩니다. 이전 번역자 기록은 이 버전 적용 후의 수정부터 확실히 남습니다. 기존 수정 이력은 기록만으로 복원할 수 있는 경우에만 이전 번역자명이 표시되며, 최초 번역과 이력 기록 이전의 작업은 `view=changes`에 없습니다. 이 기능 때문에 DB를 다시 임포트할 필요는 없습니다.
+- `GET /api/recent-work` — translated units, newest first.
+- `GET /api/recent-work?view=changes` — recorded edit history.
+- Auth header: `Authorization: Bearer <token>`.
+- `limit` 1–200 (default 100); `translator` filters by translator.
+- Paging: pass `next_cursor` back as `cursor`; `null` means last page.
+- Each row has the source, translation, previous translation, previous/current translator, and unit origin.
 
-## 한섭 데이터 prefill
+The previous translator is only reliable for edits made after this version shipped. First translations and edits from before history tracking do not appear in `view=changes`. No re-import is needed.
 
-`json-kor`와 `adv-kor`에 있는 번역 데이터를 1차 번역으로 DB에 채웁니다.
+## Prefill from official English (hint only)
 
-```powershell
-npm run prefill-kor
+```bash
+npm run prefill-en
+python scripts/prefill_en.py [--overwrite|--dry-run]
 ```
 
-기본 동작은 비어 있는 번역만 채웁니다. 이미 들어간 번역까지 덮어쓰려면:
+Official English is low quality and is never treated as a source of truth (see the translation policy). It is used only as a disambiguation hint and for name canonicalization. By default only empty units are filled.
 
-```powershell
-python scripts/prefill_kor.py --overwrite
+`scripts/prefill_translations.json` holds pattern templates:
+
+- `{0}`, `{1}` capture digits (half- or full-width).
+- `{chr}` is the character's first name and `{chr_full}` the full name, both resolved from the `PREFILL_CHARACTER_NAMES` table in `scripts/import_db.py` and expanded per character ID. This prevents one-character false matches and keeps both placeholders on the same character.
+- `{threshold}` and `{user}` are kept literally.
+- Group names (サニーピース, 月のテンペスト, TRINITYAiLE, LizNoir, ⅢX) are registered in the same table.
+
+## Output export
+
+```bash
+npm run export-output   # includes --overwrite; regenerates version.txt with a timestamp
+python scripts/export_output.py --out tmp/export-test [--overwrite]
 ```
 
-실제로 쓰지 않고 몇 개가 들어갈지만 확인하려면:
+## Bulk replace
 
-```powershell
-python scripts/prefill_kor.py --dry-run
+```bash
+python scripts/replace_translation.py "old" "new" [--apply] [--limit N]
 ```
 
-## `prefill_translations.json` 템플릿
+Dry run by default. Example: `python scripts/replace_translation.py "Yuu-chan" "Yu-chan" --apply`.
 
-`scripts/prefill_translations.json`의 원문 키에는 다음 placeholder를 사용할 수 있습니다.
-
-- `{0}`, `{1}` ...: 반각·전각 숫자를 캡처해 번역문의 같은 번호에 삽입합니다.
-- `{chr}`: 캐릭터 이름(`firstName`)을 한국어 이름으로 치환합니다.
-- `{chr_full}`: 캐릭터 풀네임(`name`)을 한국어 풀네임으로 치환합니다.
-- `{chr}[와/과]`, `{chr}[은/는]`, `{chr}[을/를]`, `{chr}[이/가]`: 캐릭터 표에 명시된 받침 여부에 따라 조사를 확정합니다.
-- `{threshold}`, `{user}` 등 그 밖의 중괄호 표기는 기존처럼 리터럴로 취급합니다.
-
-`{chr}`와 `{chr_full}`은 임의 문자열을 캡처하지 않습니다. `scripts/import_db.py`의
-`PREFILL_CHARACTER_NAMES` 표를 캐릭터 ID 단위로 확장하므로 한 글자 이름의 오탐을 막고,
-한 템플릿에 두 placeholder가 함께 있어도 같은 캐릭터의 이름을 사용합니다.
-조사는 placeholder 바로 뒤에 붙였을 때만 `import_db.py`에서 처리합니다. 이름과 풀네임의 받침 여부는
-`PREFILL_CHARACTER_NAMES` tuple에 각각 하드코딩되어 있습니다. `fran`, `kana`, `miho`는 이름과
-풀네임 모두 같은 로마자 문자열을 사용하며, 조사 기준은 각각 받침 있음·없음·없음입니다.
-`サニーピース`, `月のテンペスト`, `TRINITYAiLE`, `LizNoir`, `ⅢX`도 반복되는 그룹 문구를
-공유하기 위해 같은 표에 이름·풀네임이 동일한 항목으로 등록되어 `{chr}`로 확장됩니다.
-
-## output export
-
-DB에 저장된 번역을 `output` 폴더 구조로 내보냅니다.
-
-```powershell
-npm run export-output
-```
-
-현재 npm 스크립트는 `--overwrite`가 포함되어 있어 기존 `output` 내용을 덮어씁니다. `version.txt`도 export 시점의 timestamp로 새로 생성됩니다.
-
-다른 폴더로 테스트 export 하려면:
-
-```powershell
-python scripts/export_output.py --out tmp/export-test
-```
-
-기존 폴더를 덮어쓰려면:
-
-```powershell
-python scripts/export_output.py --out tmp/export-test --overwrite
-```
-
-## 번역문 일괄 치환
-
-DB 안의 `translation_text`에서 특정 한국어 문구를 찾아 한 번에 바꿉니다.
-
-먼저 dry-run으로 대상 확인:
-
-```powershell
-python scripts/replace_translation.py "도리큔" "도리큥"
-```
-
-실제로 적용:
-
-```powershell
-python scripts/replace_translation.py "도리큔" "도리큥" --apply
-```
-
-샘플 출력 개수를 늘리려면:
-
-```powershell
-python scripts/replace_translation.py "도리큔" "도리큥" --limit 30
-```
-
-## 일반 작업 순서
+## Typical workflow
 
 1. `npm run import-db`
-2. 필요하면 `npm run prefill-kor`
-3. `npm run dev` 또는 `npm run serve`
-4. 웹 UI에서 번역/저장
-5. 문구 일괄 수정이 필요하면 `replace_translation.py`
+2. `npm run prefill-en` (if needed)
+3. `npm run dev` or `npm run serve`
+4. Translate and save in the UI
+5. `replace_translation.py` for bulk fixes
 6. `npm run export-output`
 
-## 주의
+## Cautions
 
-- `res`와 `output`은 서브모듈이므로 일반 생성물처럼 삭제하거나 ignore하지 않습니다.
-- `data/hoshimi.sqlite3`는 작업 DB라 용량이 클 수 있습니다.
-- `adv-kor`와 `json-kor`는 prefill용 임시 데이터입니다. prefill이 끝난 뒤에는 없어도 됩니다.
+- `res/` and `output/` are submodules; do not delete or ignore them.
+- `data/hoshimi.sqlite3` can get large.
+- Prefill source directories are temporary data.

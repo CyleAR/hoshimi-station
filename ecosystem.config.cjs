@@ -14,7 +14,7 @@ module.exports = {
 				DB_PATH: `${__dirname}/data/hoshimi.sqlite3`,
 				GUIDELINES_PATH: `${__dirname}/docs/translation-guidelines.md`,
 				AI_GUIDELINES_PATH: `${__dirname}/docs/ai-guidelines.txt`,
-				ADMIN_NICKNAMES: '사일',
+				ADMIN_NICKNAMES: 'admin',
 				HYPER_API_KEY: process.env.HYPER_API_KEY || 'sk-hyper-76642269-01d5-47e1-898b-3e216285d3ed',
 				HYPER_BASE_URL: process.env.HYPER_BASE_URL || 'https://hyper.charm.land/v1',
 				HYPER_MODEL: process.env.HYPER_MODEL || 'deepseek-v4-flash-0731',

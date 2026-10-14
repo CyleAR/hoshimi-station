@@ -5,7 +5,7 @@ export async function POST({ request }) {
 	const nickname = String(body.nickname ?? '').trim().slice(0, 24);
 	const pin = String(body.pin ?? '').trim();
 	const cardId = String(body.card_id ?? '').trim();
-	const rawTitle = String(body.raw_title ?? '').trim(); // e.g. "빛나는 무대 위에서 나가세 마나"
+	const rawTitle = String(body.raw_title ?? '').trim(); // e.g. "On the Shining Stage Nagase Mana"
 
 	if (!nickname) return json({ error: 'nickname is required' }, { status: 401 });
 	if (!/^\d{6}$/.test(pin)) return json({ error: 'pin must be 6 digits' }, { status: 401 });
@@ -18,35 +18,72 @@ export async function POST({ request }) {
 	// 1. Get Character Name linked to this card
 	// First get the character ID
 	const linkRow = get(`SELECT from_id FROM links WHERE from_type = 'character' AND to_type = 'card' AND to_id = $cardId LIMIT 1`, { $cardId: cardId });
-	if (!linkRow) return json({ error: '해당 카드와 연결된 캐릭터를 찾을 수 없습니다.' }, { status: 400 });
+	if (!linkRow) return json({ error: 'No character linked to this card was found.' }, { status: 400 });
 
 	const charId = linkRow.from_id;
 	
 	const characterNames = {
-		'char-ai': '코미야마 아이', 'char-aoi': '이가와 아오이', 'char-cca': '호토 코코아',
-		'char-chk': '타카미 치카', 'char-chn': '카후우 치노', 'char-chs': '시라이시 치사',
-		'char-cinnamo': '시나모롤', 'char-gyo': '울먹이', 'char-haruhi': '스즈미야 하루히',
-		'char-hrk': '사에키 하루코', 'char-itsuki': '코이즈미 이츠키', 'char-kitty': '헬로키티',
-		'char-kkr': '아카자키 코코로', 'char-koh': '마키노 코헤이', 'char-konazusa': '나카노 아즈사',
-		'char-konmio': '아키야마 미오', 'char-konmugi': '코토부키 츠무기', 'char-konritsu': '타이나카 리츠',
-		'char-konyui': '히라사와 유이', 'char-ktn': '나가세 코토노', 'char-kuromi': '쿠로미',
-		'char-kyon': '쿈', 'char-kyui': '코테가와 유이', 'char-lala': '라라 사타린 데빌룩',
-		'char-mei': '하야사카 메이', 'char-melody': '마이멜로디', 'char-mikuru': '아사히나 미쿠루',
-		'char-mku': '하츠네 미쿠', 'char-mna': '나가세 마나', 'char-mng': '나가세 마나',
-		'char-momo': '모모 베리아 데빌룩', 'char-ngs': '이부키 나기사', 'char-rei': '이치노세 레이',
-		'char-rik': '사쿠라우치 리코', 'char-rio': '칸자키 리오', 'char-rui': '텐도 루이',
-		'char-ski': '시라이시 사키', 'char-skr': '카와사키 사쿠라', 'char-smr': '오쿠야마 스미레',
-		'char-stm': '하시모토 사토미', 'char-stm1': '하시모토 사토미', 'char-stm2': '하시모토 사토미',
-		'char-stm3': '하시모토 사토미', 'char-stm4': '하시모토 사토미', 'char-stm5': '하시모토 사토미',
-		'char-suz': '나루미야 스즈', 'char-szk': '효도 시즈쿠', 'char-vns': 'VENUS 사무국',
-		'char-yami': '금빛 어둠', 'char-ymk': '스노우 미쿠', 'char-yo': '와타나베 요우',
-		'char-yu': '스즈무라 유우', 'char-yuki': '나가토 유키',
-		'char-kan': 'kana', 'char-mhk': 'miho', 'char-kor': 'fran'
+		'char-ai': 'Komiyama Ai',
+		'char-aoi': 'Igawa Aoi',
+		'char-cca': 'Hoto Cocoa',
+		'char-chk': 'Takami Chika',
+		'char-chn': 'Kafuu Chino',
+		'char-chs': 'Shiraishi Chisa',
+		'char-cinnamo': 'Cinnamoroll',
+		'char-gyo': 'Gyo',
+		'char-haruhi': 'Suzumiya Haruhi',
+		'char-hrk': 'Saeki Haruko',
+		'char-itsuki': 'Koizumi Itsuki',
+		'char-kitty': 'Hello Kitty',
+		'char-kkr': 'Akazaki Kokoro',
+		'char-koh': 'Makino Kohei',
+		'char-konazusa': 'Nakano Azusa',
+		'char-konmio': 'Akiyama Mio',
+		'char-konmugi': 'Kotobuki Tsumugi',
+		'char-konritsu': 'Tainaka Ritsu',
+		'char-konyui': 'Hirasawa Yui',
+		'char-ktn': 'Nagase Kotono',
+		'char-kuromi': 'Kuromi',
+		'char-kyon': 'Kyon',
+		'char-kyui': 'Kotegawa Yui',
+		'char-lala': 'Lala Satalin Deviluke',
+		'char-mei': 'Hayasaka Mei',
+		'char-melody': 'My Melody',
+		'char-mikuru': 'Asahina Mikuru',
+		'char-mku': 'Hatsune Miku',
+		'char-mna': 'Nagase Mana',
+		'char-mng': 'Nagase Mana',
+		'char-momo': 'Momo Velia Deviluke',
+		'char-ngs': 'Ibuki Nagisa',
+		'char-rei': 'Ichinose Rei',
+		'char-rik': 'Sakurauchi Riko',
+		'char-rio': 'Kanzaki Rio',
+		'char-rui': 'Tendo Rui',
+		'char-ski': 'Shiraishi Saki',
+		'char-skr': 'Kawasaki Sakura',
+		'char-smr': 'Okuyama Sumire',
+		'char-stm': 'Hashimoto Satomi',
+		'char-stm1': 'Hashimoto Satomi',
+		'char-stm2': 'Hashimoto Satomi',
+		'char-stm3': 'Hashimoto Satomi',
+		'char-stm4': 'Hashimoto Satomi',
+		'char-stm5': 'Hashimoto Satomi',
+		'char-suz': 'Narumiya Suzu',
+		'char-szk': 'Hyodo Shizuku',
+		'char-vns': 'VENUS Office',
+		'char-yami': 'Golden Darkness',
+		'char-ymk': 'Snow Miku',
+		'char-yo': 'Watanabe You',
+		'char-yu': 'Suzumura Yu',
+		'char-yuki': 'Nagato Yuki',
+		'char-kan': 'kana',
+		'char-mhk': 'miho',
+		'char-kor': 'fran'
 	};
 
 	const chr = characterNames[charId];
 	if (!chr) {
-		return json({ error: '해당 캐릭터의 이름을 찾을 수 없습니다.' }, { status: 400 });
+		return json({ error: 'Character name not found.' }, { status: 400 });
 	}
 
 	// 2. Extract Title by removing Character Name from the end
@@ -71,15 +108,15 @@ export async function POST({ request }) {
 	}
 
 	if (!title) {
-		return json({ error: '카드 제목을 추출할 수 없습니다.' }, { status: 400 });
+		return json({ error: 'Could not extract the card title.' }, { status: 400 });
 	}
 
 	// 3. Prepare the generated texts
-	const homeTalkCondition = `${title} ${chr}\n스토리 3화 시청`;
+	const homeTalkCondition = `${title} ${chr}\nWatch Story Episode 3`;
 	const messageName = `'${title}'`;
-	const goods1 = `캔뱃지 ${chr} '${title}'`;
-	const goods2 = `카드 스탠드 ${chr} '${title}'`;
-	const goods3 = `미니 캐릭터 스탠드 ${chr} '${title}'`;
+	const goods1 = `Can Badge ${chr} '${title}'`;
+	const goods2 = `Card Stand ${chr} '${title}'`;
+	const goods3 = `Mini Character Stand ${chr} '${title}'`;
 
 	// 4. Update the DB
 	const db = getDb();
@@ -97,7 +134,7 @@ export async function POST({ request }) {
 
 	db.exec('BEGIN');
 	try {
-		// (A) 홈 대사 제목 & 표시 조건
+		// (A) Home talk title & display condition
 		// Find units in HomeTalk for this card
 		const homeTalks = db.prepare(`
 			SELECT tu.unit_id, tu.field_path
@@ -114,7 +151,7 @@ export async function POST({ request }) {
 			}
 		}
 
-		// (B) 문자 이름 & 전화 이름
+		// (B) Message name & phone name
 		const messagesAndPhones = db.prepare(`
 			SELECT tu.unit_id, tu.scope_type, tu.field_path
 			FROM links l
@@ -123,7 +160,7 @@ export async function POST({ request }) {
 			  AND l.to_type IN ('message', 'telephone', 'message_thread', 'message_group')
 		`).all({ $cardId: cardId });
 
-		// We need to match what the game actually uses. Usually "문자 이름" is the title of message or message_thread.
+		// We need to match what the game actually uses. Usually the message name is the title of message or message_thread.
 		// We'll update 'title' or 'name' fields for these.
 		for (const mp of messagesAndPhones) {
 			if (['title', 'name'].includes(mp.field_path)) {
@@ -132,8 +169,8 @@ export async function POST({ request }) {
 			}
 		}
 
-		// (C) 굿즈 이름 3개
-		// Showcase toys linked to the card. Wait, how do we distinguish 캔뱃지, 카드 스탠드, 미니 캐릭터 스탠드?
+		// (C) Three goods names
+		// Showcase toys linked to the card. Wait, how do we distinguish can badge, card stand, mini character stand?
 		// We can look at the original_text.
 		const goods = db.prepare(`
 			SELECT tu.unit_id, tu.original_text
@@ -143,11 +180,11 @@ export async function POST({ request }) {
 		`).all({ $cardId: cardId });
 
 		for (const g of goods) {
-			if (g.original_text.includes('缶バッジ') || g.original_text.includes('캔뱃지')) {
+			if (g.original_text.includes('缶バッジ')) {
 				updatedCount += updateQuery.run({ $text: goods1, $nickname: nickname, $unitId: g.unit_id }).changes;
-			} else if (g.original_text.includes('カードスタンド') || g.original_text.includes('카드 스탠드')) {
+			} else if (g.original_text.includes('カードスタンド')) {
 				updatedCount += updateQuery.run({ $text: goods2, $nickname: nickname, $unitId: g.unit_id }).changes;
-			} else if (g.original_text.includes('ミニキャラスタンド') || g.original_text.includes('미니 캐릭터 스탠드')) {
+			} else if (g.original_text.includes('ミニキャラスタンド')) {
 				updatedCount += updateQuery.run({ $text: goods3, $nickname: nickname, $unitId: g.unit_id }).changes;
 			}
 		}

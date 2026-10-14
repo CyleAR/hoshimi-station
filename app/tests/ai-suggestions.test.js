@@ -10,7 +10,7 @@ const dbUrl = dataUrl(readFileSync(new URL('../src/lib/server/db.js', import.met
 	.replace('new DatabaseSync(dbPath)', "new DatabaseSync(':memory:')"));
 const { getDb } = await import(dbUrl);
 const db = getDb();
-db.exec("CREATE TABLE entities(entity_type TEXT, entity_id TEXT, label TEXT); INSERT INTO users VALUES ('human', '123456', '', ''); INSERT INTO users VALUES ('사일', '654321', '', '')");
+db.exec("CREATE TABLE entities(entity_type TEXT, entity_id TEXT, label TEXT); INSERT INTO users VALUES ('human', '123456', '', ''); INSERT INTO users VALUES ('admin', '654321', '', '')");
 const suggestionsUrl = dataUrl(readFileSync(new URL('../src/lib/server/ai-suggestions.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 const { attachSuggestions, attachSuggestionsForUser } = await import(suggestionsUrl);
 const authUrl = dataUrl(readFileSync(new URL('../src/lib/server/codex-auth.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
@@ -31,11 +31,11 @@ function post(handler, body, token = '') {
 function unit(id) { return db.prepare('SELECT * FROM translation_units WHERE unit_id = ?').get(id); }
 async function propose(id, extra = {}) {
 	const current = unit(id);
-	return post(submit, { unit_id: id, translation_text: '제안문', reason: '다른 스토리의 말투와 통일', base_revision: current.revision, base_original_text: current.original_text, base_translation_text: current.translation_text, ...extra }, 'test-token');
+	return post(submit, { unit_id: id, translation_text: 'suggestion text', reason: 'consistent with tone in other stories', base_revision: current.revision, base_original_text: current.original_text, base_translation_text: current.translation_text, ...extra }, 'test-token');
 }
 function seed(id) { db.prepare('INSERT INTO translation_units(unit_id) VALUES (?)').run(id); }
 async function use(id, createdAt, extra = {}) {
-	return post(accept, { unit_id: id, created_at: createdAt, nickname: '사일', pin: '654321', ...extra });
+	return post(accept, { unit_id: id, created_at: createdAt, nickname: 'admin', pin: '654321', ...extra });
 }
 
 test('proposal stays separate, resolves references, and is saved once under the accepting human', async () => {
@@ -47,8 +47,8 @@ test('proposal stays separate, resolves references, and is saved once under the 
 	assert.equal(item.ai_suggestion.references[0].unit_id, 'reference');
 	assert.equal(item.ai_suggestion.stale, false);
 	assert.equal((await use('target', item.ai_suggestion.created_at)).status, 200);
-	assert.equal(unit('target').translation_text, '제안문');
-	assert.equal(unit('target').translator_name, '사일');
+	assert.equal(unit('target').translation_text, 'suggestion text');
+	assert.equal(unit('target').translator_name, 'admin');
 	assert.equal(unit('target').revision, 1);
 	assert.equal((await use('target', item.ai_suggestion.created_at)).status, 409);
 });
@@ -71,14 +71,14 @@ test('authentication, references, placeholders, and source snapshots are validat
 	assert.equal(db.prepare("SELECT COUNT(*) AS count FROM ai_reviews WHERE unit_id = 'validation'").get().count, 0);
 	db.prepare("UPDATE translation_units SET original_text = '{user}' WHERE unit_id = 'validation'").run();
 	assert.equal((await propose('validation')).status, 400);
-	assert.equal((await propose('validation', { translation_text: '{user} 제안' })).status, 200);
+	assert.equal((await propose('validation', { translation_text: '{user} suggestion' })).status, 200);
 	const suggestion = attachSuggestions([unit('validation')])[0].ai_suggestion;
 	assert.equal((await use('validation', suggestion.created_at, { pin: '000000' })).status, 401);
 	assert.equal(unit('validation').translation_text, '');
 });
 
 
-test('only authenticated 사일 can read and accept Codex proposals', async () => {
+test('only authenticated admin can read and accept Codex proposals', async () => {
  seed('private'); await propose('private');
  const target = unit('private');
  const request = (pin) => new Request('http://localhost/api/units', { headers: pin ? { 'x-ai-suggestion-pin': pin } : {} });

@@ -9,7 +9,7 @@
     "start": "npm --prefix app run start",
     "manage": "python scripts/manage.py",
     "import-db": "python scripts/import_db.py",
-    "prefill-kor": "python scripts/prefill_kor.py",
+    "prefill-en": "python scripts/prefill_en.py",
     "export-output": "python scripts/export_output.py --overwrite"
   }
 }

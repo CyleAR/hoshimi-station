@@ -14,12 +14,12 @@ export async function POST({ request }) {
 	const nickname = cleanNickname(body.nickname);
 	const pin = cleanPin(body.pin);
 
-	if (!nickname) return json({ error: '닉네임을 입력해 주세요.' }, { status: 400 });
-	if (!/^\d{6}$/.test(pin)) return json({ error: '비밀번호는 숫자 6자리로 입력해 주세요.' }, { status: 400 });
+	if (!nickname) return json({ error: 'Enter a nickname.' }, { status: 400 });
+	if (!/^\d{6}$/.test(pin)) return json({ error: 'The PIN must be 6 digits.' }, { status: 400 });
 
 	const existing = get('SELECT nickname, pin FROM users WHERE nickname = $nickname', { $nickname: nickname });
 	if (existing && existing.pin !== pin) {
-		return json({ error: '이미 있는 닉네임입니다. 비밀번호를 확인해 주세요.' }, { status: 401 });
+		return json({ error: 'That nickname already exists. Check your PIN.' }, { status: 401 });
 	}
 
 	if (existing) {

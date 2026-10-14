@@ -1,75 +1,49 @@
-# 카드별 번역·검토 지침 — MCP
+# Card translation review guide (Codex / MCP)
 
-## 1. 자료 수집
+Workflow for reviewing one card's English text through the MCP tools.
 
-`translation_guidelines`를 읽고, 지정된 카드의 다음 자료를 수집한다.
+## 1. Collect the card material
 
-- 카드 ID·이름·캐릭터, 기본 문구, 스킬명
-- 에피소드 순서·제목·시나리오 파일, 전체 대사와 기존 번역, 화자·선택지·분기
-- 관련 메시지·홈 대화·호출 문구·홈 액션
-- 각 항목의 `unit_id`, 출처, `field_path`, `revision`, 제안·검토 상태
+- Call `translation_guidelines` first.
+- Gather: card id/name/character, skill names, episodes (order, title, scenario), story lines with speakers and choices, messages, home talk, call lines, home actions.
+- Use `list_translation_units` with `status=all`, `review=all`, and cursor paging; read by episode and `line_no`.
+- Use `get_translation_context` only for neighboring lines.
 
-`list_translation_units`에 확인된 범위 필터와 `status=all`, `review=all`을 사용하고, `next_cursor`로 끝까지 조회한다. 본문은 `unit_id`순이 아니라 에피소드·`line_no`순으로 읽는다. `get_translation_context`는 주변 확인용이며 전체 스토리 수집을 대신하지 않는다.
+## 2. Processing order
 
-카드 → 스토리 → 시나리오의 간접 연결과 짧은 버전도 확인한다. 홈 액션은 보상 의상·조건 등 카드와의 연결 근거가 있는 항목만 포함한다. 카드 관계는 자동 수집되지 않으므로 출처·검색·사이트 연결 정보를 확인하고, 같은 `unit_id`는 중복 처리하지 않는다.
+1. Card name
+2. Story body
+3. Episode titles
+4. Descriptions and acquire messages
+5. Messages, home talk, actions
 
-## 2. 처리 순서
+Suggest only for untranslated units or clear errors, not taste.
 
-기존 번역도 함께 읽는다. 미번역과 명확한 의미 오류·누락·호칭·용어·인용 불일치를 제안하되, 취향 차이만으로 수정하지 않는다.
+Title length: there is no per-line character limit for English titles. Follow the title formats in the guidelines (`<Name> Episode N <subtitle>`, sentence case, no trailing period).
 
-1. **카드명:** 기존 표기를 우선 사용하고, 미번역이면 테마·고유명사를 확인해 정한다. 본문과 큰 의미 충돌이 있으면 수정한다.
-2. **스토리 본문:** 전체 흐름, 화자·관계·감정·분기를 확인한다. 짧은 버전과 표현을 맞추고, 제목·설명에 인용되는 대사의 `unit_id`를 기록한다.
-3. **에피소드 제목:** 바탕이 된 본문 표현을 사용한다. 축약·변형은 핵심 표현을 유지하고, 대응 대사가 없으면 전체 맥락으로 판단한다. ADV 제목과 기본 정보 제목은 각각 처리한다.
-4. **설명·획득 메시지:** 대응 장면을 찾아 직접 인용은 본문과 맞추고, 변형된 문구는 원문의 차이를 반영한다. 줄바꿈 차이만으로 표현을 바꾸지 않는다.
-5. **메시지·홈 대화·홈 액션:** 본문의 사건·약속·관계를 반영한다. 답장 선택지·분기 응답, 매니저·선택·호출 문구, 의상·조건까지 확인한다.
+## 3. Recall / quote check
 
-기본 정보의 Story/MasterDB 제목은 **한 줄에 공백 제외 최대 6글자**, **마지막 줄을 제외한 줄 끝에 공백 한 개**를 넣는다. ADV 제목에는 이 제한을 일괄 적용하지 않는다. 실제 줄바꿈을 JSON으로 나타낸 예:
+Use `search_translations` with `match=exact`, then `contains`, to find repeated phrases and keep them consistent. Compare context, cite related units in `reference_unit_ids`, and do not widen the scope of the review.
 
-```json
-"사쿠라식, \n은하 최고의 \n신부"
-```
+## 4. Submitting
 
-## 3. 회상·인용 확인
-
-1. `search_translations`의 `match=exact`로 원문을 검색한다.
-2. 없으면 특징적인 구절을 `match=contains`로 검색한다. 공백·줄바꿈·문장부호 차이는 짧은 구절로 나눠 찾는다.
-3. 후보의 주변·전체 대사로 화자·사건·문맥을 비교한다. 같은 원문이라는 이유만으로 번역을 재사용하지 않는다.
-4. 적절한 출처 번역을 기준으로 맞추고, 변형된 부분은 원문대로 반영한다. 근거 `unit_id`를 `reference_unit_ids`에 넣는다.
-
-채택 전 제안을 참고하면 `reason`에 잠정 기준임을 적는다. 출처 불명·번역 충돌은 확인 대상으로 남기고, 참고한 다른 스토리 전체로 작업 범위를 확대하지 않는다. 검색용 문자열 가공은 저장할 원문·번역에 적용하지 않는다.
-
-## 4. 제출
-
-| 판단 | MCP 처리 |
+| Situation | Action |
 | --- | --- |
-| 미번역 또는 수정 필요 | `submit_ai_suggestion` |
-| 기존 번역 검토 후 수정 불필요 | `mark_translation_reviewed` |
-| 유효한 대기 제안 있음 | 새 근거가 없으면 보존 |
-| 자료 부족·판단 보류 | 미완료로 기록 |
+| Clear error or untranslated | `submit_ai_suggestion` |
+| Fine as is | `mark_translation_reviewed` |
+| Fresh pending suggestion exists | Leave it alone |
+| Cannot finish | Leave the unit incomplete |
 
-제출 직전 `get_translation_unit`으로 다시 읽고, 원문·번역·버전이 바뀌었으면 재검토한다. `unit_id`와 함께 응답의 `revision`, `original_text`, `translation_text`를 각각 `base_revision`, `base_original_text`, `base_translation_text`로 전달한다.
+Re-read the unit with `get_translation_unit` before submitting and pass `base_revision`, `base_original_text`, and `base_translation_text`. Write `reason` / `notes` in English. Keep sentence units, placeholders, control codes, and real line breaks intact.
 
-- 제안: `translation_text`에는 번역문만, 한국어 `reason`에는 판단 근거, `reference_unit_ids`에는 참고 항목 ID를 넣는다.
-- 수정 불필요: 한국어 `notes`에 실제 검토 근거를 적는다. 미번역·보류 항목은 완료 처리하지 않는다.
-- 현재 번역을 직접 수정하거나 제안을 자동 채택하지 않는다. 새 제안은 이전 제안을 교체한다.
+## 5. Conflicts and resuming
 
-문장 단위와 `unit_id`를 보존한다. placeholder의 종류·개수, 제어 코드·태그·고유 ID를 유지하고, 실제 줄바꿈과 필요한 줄 끝 공백을 저장한다. 제출 전에 누락·호칭·용어·인용 대응을 검수한다.
+On `409`, re-read the unit and retry. To resume, re-read page one of `review=pending`; never reuse an old cursor.
 
-## 5. 충돌과 재개
+## 6. Guidelines reminder
 
-- 409는 최신 항목을 다시 읽고 검토한다. 연결 오류는 저장 여부를 조회한 뒤 재시도한다.
-- 자료 수집은 커서로 순회하고, `review=pending`을 처리하며 기록할 때는 첫 페이지를 다시 조회한다.
-- 카드별 대상 목록과 단계 순서로 재개한다. 보류 항목만 반복하지 말고 다른 대상도 처리한다.
-- 사람이 번역을 바꾸면 재검토한다. 기준 본문이 바뀌면 관련 제목·설명도 확인한다. 다른 항목이나 지침의 변경은 완료 기록에 자동 반영되지 않는다.
-- `get_review_progress`는 조회 범위의 진행률이다. 여러 범위에 걸친 카드 전체 상태는 대상 목록과 대조한다.
+See `translation-guidelines.md`. Quick reminders: `。` becomes `.`, `！？` become `!?`, `「」『』` become straight double quotes, `……` becomes `...`.
 
-## 6. 번역 가이드라인
+## 7. Work log and report
 
-- `translation-guildelines.md` 파일에 정의된 번역 가이드라인을 참고하여 번역한다.
-- 문장 끝에 。이 없는데 .을 넣는 실수나, ！？을 ?!로 교정하지 않거나,『』,「」를 따옴표로 교정하지 않는 등 실수를 범하지 마라.
-
-## 7. 작업 기록
-
-필요한 경우에만 카드별 html파일에 대상 `unit_id`·연결 근거, 원문과 번역문, 본문과 파생 문구의 대응 관계, 처리·보류 상태, 다음 작업을 남긴다.
-
-결과 보고는 신규 제안·수정 제안·수정 불필요·보류 건수를 구분한다. 미처리나 미해결 사항이 있으면 미완료로 표시하고, **AI 검토 완료와 사람 반영 대기**를 구분한다.
+Keep a per-card HTML work log. Report counts of new, modified, no-change, and held units, and how many are AI-reviewed versus awaiting a human.

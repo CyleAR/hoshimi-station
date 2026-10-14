@@ -3,7 +3,7 @@ import { json } from '$lib/server/db.js';
 
 export function requireCodexToken(request) {
 	const secret = process.env.CODEX_API_TOKEN;
-	if (!secret) return json({ error: 'Codex API가 설정되지 않았습니다.' }, { status: 503 });
+	if (!secret) return json({ error: 'Codex API is not configured.' }, { status: 503 });
 	const token = /^Bearer (.+)$/i.exec(request.headers.get('authorization') ?? '')?.[1] ?? '';
 	const supplied = Buffer.from(token);
 	const expected = Buffer.from(secret);
