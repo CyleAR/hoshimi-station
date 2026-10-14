@@ -12,3 +12,18 @@ services:
       - "127.0.0.1:3042:3042"
     volumes:
       - ./data:/data
+    # Hardening: the app only writes to /data (SQLite) and /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 256
+    # Bound container log growth (json-file default is unlimited).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,5 +1,4 @@
 import { DatabaseSync } from 'node:sqlite';
-import { dev } from '$app/environment';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -117,9 +116,10 @@ export function getDb() {
 	if (!db) {
 		db = new DatabaseSync(dbPath);
 		db.exec('PRAGMA query_only = OFF');
-		if (dev) {
-			db.exec('PRAGMA busy_timeout = 5000');
-		}
+		db.exec('PRAGMA busy_timeout = 5000');
+		// Bound disk use: cap the WAL file left behind after checkpoints.
+		db.exec('PRAGMA journal_size_limit = 67108864');
+		db.exec('PRAGMA wal_autocheckpoint = 1000');
 		migrate(db);
 	}
 	return db;
