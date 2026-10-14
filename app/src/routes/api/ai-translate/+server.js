@@ -127,16 +127,46 @@ function parseJsonText(text) {
 	}
 }
 
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
+
+// Gemini free tier is used when only GEMINI_API_KEY is set. Any OpenAI-compatible
+// endpoint (including a LiteLLM proxy) works through OPENAI_BASE_URL/KEY/MODEL.
+function useGemini() {
+	return !process.env.HYPER_API_KEY && !process.env.OPENAI_API_KEY && Boolean(process.env.GEMINI_API_KEY);
+}
+
 function aiBaseUrl() {
-	return String(process.env.HYPER_BASE_URL || process.env.OPENAI_BASE_URL || 'https://hyper.charm.land/v1').replace(/\/+$/, '');
+	const fallback = useGemini() ? GEMINI_BASE_URL : 'https://hyper.charm.land/v1';
+	return String(process.env.HYPER_BASE_URL || process.env.OPENAI_BASE_URL || fallback).replace(/\/+$/, '');
 }
 
 function aiApiKey() {
-	return String(process.env.HYPER_API_KEY || process.env.OPENAI_API_KEY || '').trim();
+	return String(process.env.HYPER_API_KEY || process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
 }
 
 function aiModel() {
-	return String(process.env.HYPER_MODEL || process.env.OPENAI_MODEL || 'deepseek-v4-flash-0731').trim();
+	const fallback = useGemini() ? GEMINI_DEFAULT_MODEL : 'deepseek-v4-flash-0731';
+	return String(process.env.HYPER_MODEL || process.env.OPENAI_MODEL || fallback).trim();
+}
+
+// Requests per minute allowed upstream; 0 disables the limiter (e.g. LiteLLM limits it).
+// Defaults to 10 for Gemini free tier, unlimited otherwise.
+function aiRpm() {
+	const raw = process.env.AI_RPM;
+	if (raw !== undefined && raw !== '') return Math.max(0, Number(raw) || 0);
+	return useGemini() ? 10 : 0;
+}
+
+let nextAiSlot = 0;
+async function waitForAiSlot() {
+	const rpm = aiRpm();
+	if (!rpm) return;
+	const interval = Math.ceil(60000 / rpm);
+	const now = Date.now();
+	const start = Math.max(now, nextAiSlot);
+	nextAiSlot = start + interval;
+	if (start > now) await new Promise((resolve) => setTimeout(resolve, start - now));
 }
 
 function aiReasoningEffort() {
@@ -221,14 +251,31 @@ async function requestAi(model, prompt, reasoningEffort) {
 
 	const failures = [];
 	for (const attempt of attempts) {
-		const { response, raw, data } = await callJson(attempt.url, attempt.body);
-		console.info(`[ai-translate] ${attempt.name} status=${response.status} bytes=${raw.length}`);
-		if (response.ok) return { data, attempt: attempt.name };
-		failures.push({
-			attempt: attempt.name,
-			status: response.status,
-			error: data?.error ?? data
-		});
+		let retried = false;
+		for (;;) {
+			await waitForAiSlot();
+			const { response, raw, data } = await callJson(attempt.url, attempt.body);
+			console.info(`[ai-translate] ${attempt.name} status=${response.status} bytes=${raw.length}`);
+			if (response.ok) return { data, attempt: attempt.name };
+			failures.push({
+				attempt: attempt.name,
+				status: response.status,
+				error: data?.error ?? data
+			});
+			// Rate limit / auth / server errors are not payload-format problems:
+			// trying the other formats would only burn more quota.
+			if (response.status === 429 && !retried) {
+				retried = true;
+				const retryAfter = Number(response.headers?.get?.('retry-after'));
+				const waitMs = Math.min(60000, Math.max(5000, (Number.isFinite(retryAfter) ? retryAfter : 0) * 1000));
+				await new Promise((resolve) => setTimeout(resolve, waitMs));
+				continue;
+			}
+			if ([401, 403, 429].includes(response.status) || response.status >= 500) {
+				return { failures, stop: true };
+			}
+			break;
+		}
 	}
 	return { failures };
 }
@@ -294,7 +341,9 @@ async function completeAiJob(jobId, { model, prompt, reasoningEffort, rows, usag
 				createdAt: Date.now(),
 				status: 'complete',
 				result: {
-					error: 'AI upstream rejected every supported payload format.',
+					error: aiResult.stop
+						? `The AI provider refused the request (HTTP ${aiResult.failures.at(-1)?.status}). If this is 429, the rate limit was hit; try again shortly.`
+						: 'AI upstream rejected every supported payload format.',
 					upstream_url: upstreamUrl,
 					failures: aiResult.failures,
 					usage
@@ -464,7 +513,7 @@ export async function POST({ request }) {
 			});
 		}
 
-		if (!apiKey) return json({ error: 'AI API Key is not set. (Set HYPER_API_KEY or OPENAI_API_KEY)' }, { status: 500 });
+		if (!apiKey) return json({ error: 'AI API Key is not set. (Set GEMINI_API_KEY, HYPER_API_KEY or OPENAI_API_KEY)' }, { status: 500 });
 
 		const usage = isAdmin ? null : consumeDailyRequest(nickname);
 		if (usage && !usage.allowed) {
