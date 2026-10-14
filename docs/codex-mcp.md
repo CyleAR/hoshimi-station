@@ -6,7 +6,7 @@ A token-authenticated HTTP API plus a local STDIO MCP server (`mcp/server.mjs`) 
 
 1. Set `CODEX_API_TOKEN` in the site's server environment.
 2. `npm install --prefix mcp` (Node >= 22.13).
-3. Copy `mcp/env.example` to `mcp/.env` and set `HOSHIMI_SITE_URL` and `CODEX_API_TOKEN`.
+3. Copy `mcp/env.example` to `mcp/.env` and set `HOSHIMI_SITE_URL` and `CODEX_API_TOKEN`. If the site is behind Cloudflare Access, also set `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` (a Service Token allowed by a Service Auth policy); they are sent as `CF-Access-Client-Id`/`CF-Access-Client-Secret` headers alongside the bearer token. Set both or neither.
 4. Add the server to your Codex config using `mcp/codex-config.example.toml` (server name `hoshimi_station`, command `node mcp/server.mjs`).
 
 ## Tools

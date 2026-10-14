@@ -10,7 +10,7 @@ test('real stdio MCP handshake, tools, API forwarding, validation and conflict r
   const site = createHttpServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     let raw = ''; for await (const chunk of req) raw += chunk;
-    requests.push({ path: url.pathname, query: Object.fromEntries(url.searchParams), auth: req.headers.authorization, body: raw ? JSON.parse(raw) : undefined });
+    requests.push({ path: url.pathname, query: Object.fromEntries(url.searchParams), auth: req.headers.authorization, cfId: req.headers['cf-access-client-id'], cfSecret: req.headers['cf-access-client-secret'], body: raw ? JSON.parse(raw) : undefined });
     res.setHeader('content-type', 'application/json');
     if (req.headers.authorization !== 'Bearer test-secret') { res.statusCode = 401; res.end(JSON.stringify({ error: 'unauthorized' })); return; }
     if (url.pathname === '/api/ai-suggestions') { res.statusCode = 409; res.end(JSON.stringify({ error: 'The item has changed.' })); return; }
@@ -21,7 +21,7 @@ test('real stdio MCP handshake, tools, API forwarding, validation and conflict r
   const env = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined));
   const transport = new StdioClientTransport({ command: process.execPath,
     args: [fileURLToPath(new URL('../server.mjs', import.meta.url))],
-    env: { ...env, HOSHIMI_SITE_URL: `http://127.0.0.1:${site.address().port}`, CODEX_API_TOKEN: 'test-secret' }
+    env: { ...env, HOSHIMI_SITE_URL: `http://127.0.0.1:${site.address().port}`, CODEX_API_TOKEN: 'test-secret', CF_ACCESS_CLIENT_ID: 'cf-id.access', CF_ACCESS_CLIENT_SECRET: 'cf-secret' }
   });
   const client = new Client({ name: 'hoshimi-test', version: '1.0.0' });
   await client.connect(transport);
@@ -48,5 +48,7 @@ test('real stdio MCP handshake, tools, API forwarding, validation and conflict r
   assert.equal(conflict.isError, true);
   assert.equal(conflict.structuredContent.status, 409);
   assert.deepEqual(requests.at(-1).body, body);
+  assert.deepEqual([requests.at(-1).cfId, requests.at(-1).cfSecret], ['cf-id.access', 'cf-secret']);
   assert.ok(!JSON.stringify(conflict).includes('test-secret'));
+  assert.ok(!JSON.stringify(conflict).includes('cf-secret'));
 });
