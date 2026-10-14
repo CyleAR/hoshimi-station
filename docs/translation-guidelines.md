@@ -129,7 +129,7 @@ Keep each character's voice consistent across lines.
 
 | Character | Voice |
 |---|---|
-| Kouhei Makino (Manager/MC, `{user}`) | earnest, supportive and grounded; calm, respectful reliability, never imposing decisions or stealing the spotlight. |
+| Kouhei Makino (Manager) | earnest, supportive and grounded; calm, respectful reliability, never imposing decisions or stealing the spotlight. |
 | Kotono Nagase | disciplined, proud and emotionally reserved; strict and polite, but easily stammers or gets flustered when praised or teased. |
 | Nagisa Ibuki | warm, deeply affectionate and perceptive; gentle, excitable, caring tone, often fixating romantically on friendships and memories. |
 | Saki Shiraishi | diligent, polite honor student and caretaker; methodical and practical, earnest and analytical, awkward around spontaneous or casual topics. |
