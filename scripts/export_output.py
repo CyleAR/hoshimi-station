@@ -333,27 +333,28 @@ ADV_REFERENCE_DIR: Path | None = None
 TEXT_ATTRS = ("text", "name", "title", "place")
 
 
-def adopt_reference_line(line: str, reference: str) -> str:
-    """Keep the shipped line's non-text data and carry over our translated values."""
+ADV_REVIEW: list[dict[str, Any]] = []
+
+
+def adopt_reference_line(line: str, reference: str, output_name: str = "", line_no: int = 0) -> str:
+    """Return the shipped line; log our differing translated values for later manual review."""
     match, ref_match = TAG_RE.match(line), TAG_RE.match(reference)
-    if not match or not ref_match or match.group("tag") != ref_match.group("tag"):
-        return reference
-    tag = match.group("tag")
-    if tag == "choicegroup":
-        ours, theirs = list(CHOICE_RE.finditer(line)), list(CHOICE_RE.finditer(reference))
-        if len(ours) != len(theirs):
-            return reference
-        for index in range(len(theirs) - 1, -1, -1):
-            value = ours[index].group("value")
-            reference = reference[: theirs[index].start("value")] + value + reference[theirs[index].end("value") :]
-        return reference
-    if tag not in {"message", "narration", "title"}:
-        return reference
-    attrs = parse_attrs(line)
-    ref_attrs = parse_attrs(reference)
-    for attr in TEXT_ATTRS:
-        if attr in attrs and attr in ref_attrs and attrs[attr] != ref_attrs[attr]:
-            reference = replace_attr(reference, attr, attrs[attr])
+    if match and ref_match and match.group("tag") == ref_match.group("tag"):
+        if match.group("tag") == "choicegroup":
+            ours = [m.group("value") for m in CHOICE_RE.finditer(line)]
+            theirs = [m.group("value") for m in CHOICE_RE.finditer(reference)]
+            pairs = [("choice", o, t) for o, t in zip(ours, theirs) if o != t] if len(ours) == len(theirs) else []
+        else:
+            attrs, ref_attrs = parse_attrs(line), parse_attrs(reference)
+            pairs = [
+                (attr, attrs[attr], ref_attrs[attr])
+                for attr in TEXT_ATTRS
+                if attr in attrs and attr in ref_attrs and attrs[attr] != ref_attrs[attr]
+            ]
+        for field, ours_value, shipped_value in pairs:
+            ADV_REVIEW.append(
+                {"file": output_name, "line": line_no, "field": field, "ours": ours_value, "shipped": shipped_value}
+            )
     return reference
 
 
@@ -366,7 +367,10 @@ def apply_adv_reference(output_name: str, lines: list[str]) -> list[str]:
     ref_lines = ref_path.read_bytes().decode("utf-8").split("\n")
     if len(ref_lines) != len(lines):
         return lines
-    return [adopt_reference_line(line, ref) if line != ref else line for line, ref in zip(lines, ref_lines)]
+    return [
+        adopt_reference_line(line, ref, output_name, number) if line != ref else line
+        for number, (line, ref) in enumerate(zip(lines, ref_lines), start=1)
+    ]
 
 
 def parse_attrs(line: str) -> dict[str, str]:
@@ -578,6 +582,11 @@ def main() -> None:
         write_metadata(out_dir)
         master_count = export_masterdb(conn, out_dir, args.format_reference, args.shipped_keys_only)
         adv_count = export_adv(conn, out_dir)
+        if ADV_REFERENCE_DIR is not None:
+            (out_dir / "adv-review.json").write_text(
+                json.dumps(ADV_REVIEW, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+            print(f"{len(ADV_REVIEW)} adv values differ from shipped; see {out_dir / 'adv-review.json'}")
         localization_total, localization_translated = export_localization(conn, out_dir)
     finally:
         conn.close()
