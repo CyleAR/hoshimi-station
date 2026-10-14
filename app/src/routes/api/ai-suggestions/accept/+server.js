@@ -1,4 +1,5 @@
 import { get, json } from '$lib/server/db.js';
+import { isAdminNickname } from '$lib/server/admin.js';
 import { acceptSuggestion } from '$lib/server/ai-suggestions.js';
 
 export async function POST({ request }) {
@@ -10,7 +11,7 @@ export async function POST({ request }) {
 	if (!nickname || !/^\d{6}$/.test(pin) || !get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin })) {
 		return json({ error: 'Nickname or PIN is incorrect.' }, { status: 401 });
 	}
-	if (nickname !== 'admin') return json({ error: 'AI suggestions are only available to the admin account.' }, { status: 403 });
+	if (!isAdminNickname(nickname)) return json({ error: 'AI suggestions are only available to the admin account.' }, { status: 403 });
 	try {
 		return json({ ok: true, unit: acceptSuggestion(body.unit_id, nickname, body.created_at) });
 	} catch (error) {

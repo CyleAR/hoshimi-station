@@ -25,3 +25,8 @@ export function verifyAdmin(nickname, pin) {
 		})
 	);
 }
+
+export function verifyAdminPin(pin) {
+	if (!/^\d{6}$/.test(String(pin ?? ''))) return false;
+	return [...adminNames()].some((name) => verifyAdmin(name, pin));
+}

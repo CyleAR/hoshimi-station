@@ -1,8 +1,9 @@
 import { get, getDb } from '$lib/server/db.js';
+import { verifyAdminPin } from '$lib/server/admin.js';
 
 export function attachSuggestionsForUser(units, request) {
 	const pin = request?.headers.get('x-ai-suggestion-pin') ?? '';
-	const allowed = /^\d{6}$/.test(pin) && get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: 'admin', $pin: pin });
+	const allowed = verifyAdminPin(pin);
 	return allowed ? attachSuggestions(units) : units.map((unit) => ({ ...unit, ai_suggestion: null }));
 }
 

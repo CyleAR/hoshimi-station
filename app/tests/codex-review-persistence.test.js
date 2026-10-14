@@ -38,7 +38,8 @@ test('review records survive a database reopen and migration imports only curren
     const secondDbUrl = dataUrl(dbSource) + '#restart';
     db = (await import(secondDbUrl)).getDb();
     const secondReviewsUrl = dataUrl(read('../src/lib/server/codex-reviews.js').replace("'$lib/server/db.js'", JSON.stringify(secondDbUrl)));
-    const suggestionsUrl = dataUrl(read('../src/lib/server/ai-suggestions.js').replace("'$lib/server/db.js'", JSON.stringify(secondDbUrl)));
+    const adminUrl = dataUrl(read('../src/lib/server/admin.js').replace("'$lib/server/db.js'", JSON.stringify(secondDbUrl)));
+    const suggestionsUrl = dataUrl(read('../src/lib/server/ai-suggestions.js').replace("'$lib/server/db.js'", JSON.stringify(secondDbUrl)).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)));
     const unitsUrl = dataUrl(read('../src/lib/server/codex-units.js')
       .replace("'$lib/server/db.js'", JSON.stringify(secondDbUrl))
       .replace("'$lib/server/codex-reviews.js'", JSON.stringify(secondReviewsUrl))

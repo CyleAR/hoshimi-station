@@ -11,19 +11,21 @@ const dbUrl = dataUrl(readFileSync(new URL('../src/lib/server/db.js', import.met
 const { getDb } = await import(dbUrl);
 const db = getDb();
 db.exec("CREATE TABLE entities(entity_type TEXT, entity_id TEXT, label TEXT); INSERT INTO users VALUES ('human', '123456', '', ''); INSERT INTO users VALUES ('admin', '654321', '', '')");
-const suggestionsUrl = dataUrl(readFileSync(new URL('../src/lib/server/ai-suggestions.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
+const adminUrl = dataUrl(readFileSync(new URL('../src/lib/server/admin.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
+const suggestionsUrl = dataUrl(readFileSync(new URL('../src/lib/server/ai-suggestions.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)));
 const { attachSuggestions, attachSuggestionsForUser } = await import(suggestionsUrl);
 const authUrl = dataUrl(readFileSync(new URL('../src/lib/server/codex-auth.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 const reviewsUrl = dataUrl(readFileSync(new URL('../src/lib/server/codex-reviews.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 async function endpoint(name) {
 	return import(dataUrl(readFileSync(new URL(`../src/routes/api/${name}/+server.js`, import.meta.url), 'utf8')
-		.replace("'$lib/server/db.js'", JSON.stringify(dbUrl)).replace("'$lib/server/ai-suggestions.js'", JSON.stringify(suggestionsUrl)).replace("'$lib/server/codex-auth.js'", JSON.stringify(authUrl)).replace("'$lib/server/codex-reviews.js'", JSON.stringify(reviewsUrl))));
+		.replace("'$lib/server/db.js'", JSON.stringify(dbUrl)).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)).replace("'$lib/server/ai-suggestions.js'", JSON.stringify(suggestionsUrl)).replace("'$lib/server/codex-auth.js'", JSON.stringify(authUrl)).replace("'$lib/server/codex-reviews.js'", JSON.stringify(reviewsUrl))));
 }
 const submit = (await endpoint('ai-suggestions')).POST;
 const accept = (await endpoint('ai-suggestions/accept')).POST;
 const save = (await endpoint('unit')).POST;
 const priorToken = process.env.CODEX_API_TOKEN;
 process.env.CODEX_API_TOKEN = 'test-token';
+process.env.ADMIN_NICKNAMES = 'admin';
 after(() => { db.close(); if (priorToken === undefined) delete process.env.CODEX_API_TOKEN; else process.env.CODEX_API_TOKEN = priorToken; });
 function post(handler, body, token = '') {
 	return handler({ request: new Request('http://localhost/api', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) }) });
