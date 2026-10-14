@@ -222,6 +222,19 @@ def master_key_order(reference_dir: Path | None, category: str, data: dict[str, 
     return ordered
 
 
+def master_reference(reference_dir: Path | None, category: str) -> dict[str, Any]:
+    if reference_dir is not None:
+        ref = reference_dir / f"{category}.json"
+        if ref.is_file():
+            try:
+                loaded = json.loads(ref.read_text(encoding="utf-8"))
+            except ValueError:
+                return {}
+            if isinstance(loaded, dict):
+                return loaded
+    return {}
+
+
 def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path | None = None) -> int:
     master_dir = out_dir / "local-files" / "masterTrans"
     master_dir.mkdir(parents=True, exist_ok=True)
@@ -245,6 +258,8 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path
         if not rows:
             continue
         path_map, key_map = build_export_maps(category)
+        reference = master_reference(reference_dir, category)
+        ref_data = reference.get("data", {})
         data: dict[str, str] = {}
         for record_id, field_path, translation in rows:
             if category == "Story" and record_id in story_duplicates:
@@ -256,8 +271,13 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path
                 for duplicate_id in story_copies.get(record_id, []):
                     duplicate_export_path = path_map.get((duplicate_id, field_path), export_path)
                     duplicate_export_key = key_map.get(duplicate_id, duplicate_id)
-                    data[f"{duplicate_export_key}|{duplicate_export_path}"] = translation
-        payload = {"rule": output_rule_paths(IPR_RULES[category]), "data": master_key_order(reference_dir, category, data)}
+                    duplicate_key = f"{duplicate_export_key}|{duplicate_export_path}"
+                    data[duplicate_key] = ref_data.get(duplicate_key, translation)
+        rule_paths = output_rule_paths(IPR_RULES[category])
+        ref_rule = reference.get("rule")
+        if isinstance(ref_rule, list) and sorted(ref_rule) == sorted(rule_paths):
+            rule_paths = list(ref_rule)
+        payload = {"rule": rule_paths, "data": master_key_order(reference_dir, category, data)}
         (master_dir / f"{category}.json").write_bytes(jsonfmt.render(payload, master_format(reference_dir, category)))
         total += len(data)
     return total
