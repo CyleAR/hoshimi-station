@@ -1,5 +1,6 @@
 import { all, get, json } from '$lib/server/db.js';
 
+import { verifyUser } from '$lib/server/pin.js';
 export async function POST({ request }) {
 	const body = await request.json();
 	const nickname = String(body.nickname ?? '').trim().slice(0, 24);
@@ -9,10 +10,7 @@ export async function POST({ request }) {
 		? Math.max(1, Math.min(Math.trunc(requestedLimit), 500))
 		: 300;
 
-	const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', {
-		$nickname: nickname,
-		$pin: pin
-	});
+	const user = verifyUser(nickname, pin);
 	if (!user) return json({ error: 'nickname or pin is invalid' }, { status: 401 });
 
 	const count = get(`

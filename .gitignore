@@ -58,3 +58,6 @@ next-env.d.ts
 /app/node_modules/
 /mcp/node_modules/
 /app/output/
+
+# local PM2 config (copy from ecosystem.config.example.cjs)
+/ecosystem.config.cjs

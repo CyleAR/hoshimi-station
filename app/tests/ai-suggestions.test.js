@@ -11,7 +11,8 @@ const dbUrl = dataUrl(readFileSync(new URL('../src/lib/server/db.js', import.met
 const { getDb } = await import(dbUrl);
 const db = getDb();
 db.exec("CREATE TABLE entities(entity_type TEXT, entity_id TEXT, label TEXT); INSERT INTO users VALUES ('human', '123456', '', ''); INSERT INTO users VALUES ('admin', '654321', '', '')");
-const adminUrl = dataUrl(readFileSync(new URL('../src/lib/server/admin.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
+const pinUrl = dataUrl(readFileSync(new URL('../src/lib/server/pin.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
+const adminUrl = dataUrl(readFileSync(new URL('../src/lib/server/admin.js', import.meta.url), 'utf8').replace("'$lib/server/pin.js'", JSON.stringify(pinUrl)));
 const gateUrl = dataUrl(readFileSync(new URL('../src/lib/server/gate.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 const suggestionsUrl = dataUrl(readFileSync(new URL('../src/lib/server/ai-suggestions.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)).replace("'$lib/server/gate.js'", JSON.stringify(gateUrl)));
 const { attachSuggestions, attachSuggestionsForUser } = await import(suggestionsUrl);
@@ -19,7 +20,7 @@ const authUrl = dataUrl(readFileSync(new URL('../src/lib/server/codex-auth.js', 
 const reviewsUrl = dataUrl(readFileSync(new URL('../src/lib/server/codex-reviews.js', import.meta.url), 'utf8').replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 async function endpoint(name) {
 	return import(dataUrl(readFileSync(new URL(`../src/routes/api/${name}/+server.js`, import.meta.url), 'utf8')
-		.replace("'$lib/server/db.js'", JSON.stringify(dbUrl)).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)).replace("'$lib/server/gate.js'", JSON.stringify(gateUrl)).replace("'$lib/server/ai-suggestions.js'", JSON.stringify(suggestionsUrl)).replace("'$lib/server/codex-auth.js'", JSON.stringify(authUrl)).replace("'$lib/server/codex-reviews.js'", JSON.stringify(reviewsUrl))));
+		.replace("'$lib/server/db.js'", JSON.stringify(dbUrl)).replace("'$lib/server/pin.js'", JSON.stringify(pinUrl)).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)).replace("'$lib/server/gate.js'", JSON.stringify(gateUrl)).replace("'$lib/server/ai-suggestions.js'", JSON.stringify(suggestionsUrl)).replace("'$lib/server/codex-auth.js'", JSON.stringify(authUrl)).replace("'$lib/server/codex-reviews.js'", JSON.stringify(reviewsUrl))));
 }
 const submit = (await endpoint('ai-suggestions')).POST;
 const accept = (await endpoint('ai-suggestions/accept')).POST;

@@ -14,16 +14,19 @@ module.exports = {
 				DB_PATH: `${__dirname}/data/hoshimi.sqlite3`,
 				GUIDELINES_PATH: `${__dirname}/docs/translation-guidelines.md`,
 				AI_GUIDELINES_PATH: `${__dirname}/docs/ai-guidelines.txt`,
-				ADMIN_NICKNAMES: 'admin',
-				HYPER_API_KEY: process.env.HYPER_API_KEY || 'sk-hyper-76642269-01d5-47e1-898b-3e216285d3ed',
+				ADMIN_NICKNAMES: process.env.ADMIN_NICKNAMES || '',
+				HYPER_API_KEY: process.env.HYPER_API_KEY || '',
 				HYPER_BASE_URL: process.env.HYPER_BASE_URL || 'https://hyper.charm.land/v1',
 				HYPER_MODEL: process.env.HYPER_MODEL || 'deepseek-v4-flash-0731',
 				HYPER_REASONING_EFFORT: process.env.HYPER_REASONING_EFFORT || '',
 				OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
 				OPENAI_BASE_URL: process.env.OPENAI_BASE_URL || '',
 				OPENAI_MODEL: process.env.OPENAI_MODEL || '',
+				GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+				AI_RPM: process.env.AI_RPM || '',
+				CODEX_API_TOKEN: process.env.CODEX_API_TOKEN || '',
 				OPENAI_REASONING_EFFORT: process.env.OPENAI_REASONING_EFFORT || '',
-				HOST: '0.0.0.0',
+				HOST: process.env.HOST || '127.0.0.1',
 				PORT: 3042
 			}
 		}

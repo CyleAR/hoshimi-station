@@ -1,5 +1,6 @@
 import { all, get, json } from '$lib/server/db.js';
-import { listRecentWork } from '$lib/server/recent-work.js';
+
+import { verifyUser } from '$lib/server/pin.js';import { listRecentWork } from '$lib/server/recent-work.js';
 
 function cleanLimit(value) {
 	const limit = Number(value ?? 100);
@@ -14,10 +15,7 @@ export async function POST({ request }) {
 	const filterTranslator = String(body.translator_name ?? '').trim().slice(0, 24);
 	const limit = cleanLimit(body.limit);
 
-	const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', {
-		$nickname: nickname,
-		$pin: pin
-	});
+	const user = verifyUser(nickname, pin);
 	if (!user) {
 		return json({ error: 'nickname or pin is invalid' }, { status: 401 });
 	}

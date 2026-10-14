@@ -1,4 +1,4 @@
-import { get } from '$lib/server/db.js';
+import { verifyUser } from '$lib/server/pin.js';
 
 function adminNames() {
 	return new Set(
@@ -18,12 +18,7 @@ export function verifyAdmin(nickname, pin) {
 	const cleanPin = String(pin ?? '').trim();
 	if (!cleanNickname || !/^\d{6}$/.test(cleanPin)) return false;
 	if (!isAdminNickname(cleanNickname)) return false;
-	return Boolean(
-		get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', {
-			$nickname: cleanNickname,
-			$pin: cleanPin
-		})
-	);
+	return Boolean(verifyUser(cleanNickname, cleanPin));
 }
 
 export function verifyAdminPin(pin) {

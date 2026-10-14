@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+
+import { verifyUser } from '$lib/server/pin.js';import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { Agent } from 'undici';
 import { verifyAdmin } from '$lib/server/admin.js';
@@ -426,7 +427,7 @@ export async function POST({ request }) {
 
 		const isAdmin = verifyAdmin(nickname, pin);
 		if (!isAdmin) {
-			const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
+			const user = verifyUser(nickname, pin);
 			if (!user) return json({ error: 'Nickname or password is incorrect.' }, { status: 401 });
 		}
 		if (!unitIds.length) return json({ error: 'unit_ids is required' }, { status: 400 });

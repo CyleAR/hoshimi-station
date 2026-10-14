@@ -36,6 +36,8 @@ const recentWorkUrl = dataUrl(readFileSync(new URL('../src/lib/server/recent-wor
  .replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 const gateUrl = dataUrl(readFileSync(new URL('../src/lib/server/gate.js', import.meta.url), 'utf8')
  .replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
+const pinUrl = dataUrl(readFileSync(new URL('../src/lib/server/pin.js', import.meta.url), 'utf8')
+ .replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 for (const nickname of ['alice', 'bob']) {
  db.prepare("INSERT INTO users VALUES (?, '123456', '', '')").run(nickname);
 }
@@ -43,7 +45,8 @@ async function endpoint(route) {
  const source = readFileSync(new URL(`../src/routes/api/${route}/+server.js`, import.meta.url), 'utf8')
   .replace("'$lib/server/db.js'", JSON.stringify(dbUrl))
   .replace("'$lib/server/recent-work.js'", JSON.stringify(recentWorkUrl))
-  .replace("'$lib/server/gate.js'", JSON.stringify(gateUrl));
+  .replace("'$lib/server/gate.js'", JSON.stringify(gateUrl))
+  .replace("'$lib/server/pin.js'", JSON.stringify(pinUrl));
  return await import(dataUrl(source));
 }
 const recent = (await endpoint('admin/recent')).POST;

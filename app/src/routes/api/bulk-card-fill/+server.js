@@ -1,5 +1,6 @@
 import { get, getDb, json } from '$lib/server/db.js';
-import { validateForUnitId } from '$lib/server/gate.js';
+
+import { verifyUser } from '$lib/server/pin.js';import { validateForUnitId } from '$lib/server/gate.js';
 
 export async function POST({ request }) {
 	const body = await request.json();
@@ -13,7 +14,7 @@ export async function POST({ request }) {
 	if (!cardId) return json({ error: 'card_id is required' }, { status: 400 });
 	if (!rawTitle) return json({ error: 'raw_title is required' }, { status: 400 });
 
-	const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
+	const user = verifyUser(nickname, pin);
 	if (!user) return json({ error: 'nickname or pin is invalid' }, { status: 401 });
 
 	// 1. Get Character Name linked to this card

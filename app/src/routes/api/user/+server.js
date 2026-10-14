@@ -1,5 +1,6 @@
 import { get, json, run } from '$lib/server/db.js';
 import { isAdminNickname } from '$lib/server/admin.js';
+import { hashPin, verifyUser } from '$lib/server/pin.js';
 
 function cleanNickname(value) {
 	return String(value ?? '').trim().slice(0, 24);
@@ -18,7 +19,7 @@ export async function POST({ request }) {
 	if (!/^\d{6}$/.test(pin)) return json({ error: 'The PIN must be 6 digits.' }, { status: 400 });
 
 	const existing = get('SELECT nickname, pin FROM users WHERE nickname = $nickname', { $nickname: nickname });
-	if (existing && existing.pin !== pin) {
+	if (existing && !verifyUser(nickname, pin)) {
 		return json({ error: 'That nickname already exists. Check your PIN.' }, { status: 401 });
 	}
 
@@ -30,7 +31,7 @@ export async function POST({ request }) {
 			INSERT INTO users(nickname, pin, created_at, last_seen_at)
 			VALUES($nickname, $pin, datetime('now'), datetime('now'))
 			`,
-			{ $nickname: nickname, $pin: pin }
+			{ $nickname: nickname, $pin: hashPin(pin) }
 		);
 	}
 

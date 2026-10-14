@@ -1,5 +1,6 @@
 import { all, get, getDb, json, run } from '$lib/server/db.js';
-import { validateForUnitId, gateMessage } from '$lib/server/gate.js';
+
+import { verifyUser } from '$lib/server/pin.js';import { validateForUnitId, gateMessage } from '$lib/server/gate.js';
 
 function cleanText(value) {
 	return String(value ?? '');
@@ -89,7 +90,7 @@ export async function POST({ request }) {
 	if (!nickname) return json({ error: 'nickname is required' }, { status: 401 });
 	if (!/^\d{6}$/.test(pin)) return json({ error: 'pin must be 6 digits' }, { status: 401 });
 
-	const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
+	const user = verifyUser(nickname, pin);
 	if (!user) return json({ error: 'nickname or pin is invalid' }, { status: 401 });
 
 	const isFormat = hasFormatPlaceholder(originalText);

@@ -1,4 +1,5 @@
 import { get, json, run } from '$lib/server/db.js';
+import { verifyUser } from '$lib/server/pin.js';
 import { validateForUnitId, gateMessage } from '$lib/server/gate.js';
 
 export async function POST({ request }) {
@@ -12,7 +13,7 @@ export async function POST({ request }) {
 	if (!nickname) return json({ error: 'Enter a nickname.' }, { status: 401 });
 	if (!/^\d{6}$/.test(pin)) return json({ error: 'Enter a 6-digit numeric PIN.' }, { status: 401 });
 
-	const user = get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin });
+	const user = verifyUser(nickname, pin);
 	if (!user) return json({ error: 'Nickname or PIN is incorrect.' }, { status: 401 });
 	const expectedRevision = body.expected_revision;
 	if (expectedRevision !== undefined && !Number.isInteger(expectedRevision)) return json({ error: 'invalid revision' }, { status: 400 });
