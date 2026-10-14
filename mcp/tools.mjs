@@ -46,7 +46,7 @@ export function createServer({ baseUrl, token, fetchImpl = fetch }) {
     inputSchema: filters, annotations: readAnnotations
   }, (args) => api('api/codex/units', { query: args }));
   server.registerTool('search_translations', {
-    description: 'Search original Japanese and Korean translations across all stories. Use exact for repeated dialogue and contains for terminology or phrases. Results are references, not necessarily approved translations; assess their context and authorship.',
+    description: 'Search original Japanese text and English translations across all stories. Use exact for repeated dialogue and contains for terminology or phrases. Results are references, not necessarily approved translations; assess their context and authorship.',
     inputSchema: { q: z.string().min(1).max(2000), match: z.enum(['contains', 'exact']).optional(), ...filters }, annotations: readAnnotations
   }, (args) => api('api/codex/units', { query: args }));
   server.registerTool('get_translation_unit', {
@@ -58,7 +58,7 @@ export function createServer({ baseUrl, token, fetchImpl = fetch }) {
     inputSchema: { unit_id: z.string().min(1).max(2000), radius: z.number().int().min(0).max(20).optional() }, annotations: readAnnotations
   }, (args) => api('api/codex/context', { query: args }));
   server.registerTool('translation_guidelines', {
-    description: 'Read the live translation guidelines before drafting or reviewing Korean game localization.', inputSchema: {}, annotations: readAnnotations
+    description: 'Read the live translation guidelines before drafting or reviewing English game localization.', inputSchema: {}, annotations: readAnnotations
   }, () => api('api/codex/guidelines'));
   const { review, suggestion, limit, cursor, ...corpusFilters } = filters;
   server.registerTool('get_review_progress', {
@@ -72,7 +72,7 @@ export function createServer({ baseUrl, token, fetchImpl = fetch }) {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   }, (args) => api('api/codex/review', { body: args }));
   server.registerTool('submit_ai_suggestion', {
-    description: 'Save an AI proposal and mark this version reviewed in one transaction. Replaces the previous proposal, never the actual translation. Provide Korean translation, reason, optional reference IDs and the exact reviewed snapshot. A stale snapshot returns 409 without recording completion.',
+    description: 'Save an AI proposal and mark this version reviewed in one transaction. Replaces the previous proposal, never the actual translation. Provide the English translation, reason, optional reference IDs and the exact reviewed snapshot. A stale snapshot returns 409 without recording completion.',
     inputSchema: {
       unit_id: z.string().min(1).max(2000), translation_text: z.string().min(1).max(20000), reason: z.string().min(1).max(20000),
       base_revision: z.number().int().nonnegative(), base_original_text: z.string(), base_translation_text: z.string(),
