@@ -2,7 +2,7 @@
 
 ## Top-priority principles
 
-- The authoritative sources are `agency-adv/GLOSSARY.md`, `glossary/names.json` and `glossary/terms.json`. Follow existing translations for the same term.
+- The authoritative sources are `GLOSSARY.md` (in this folder). Follow existing translations for the same term.
 - The official English release is poor quality. Use it only as a hint to disambiguate a term; never copy it verbatim.
 - The same sentence, card name, skill name, story title, message, or home line can repeat in several places, so check linked entries together.
 - Quality bar: natural, faithful, in-character English. Keep bubbles tight (one UI line where possible).
@@ -17,7 +17,7 @@ Breaking these corrupts the game or fails the save.
 - Full-width （ ） are kept only when the source line is entirely wrapped in （…） (gray bubble). Never add them elsewhere.
 - Narration lines (`――` at the start) keep the leading `――` (two U+2015 dashes) exactly, followed by English. Mid-sentence `――` becomes `--`.
 - No trailing spaces.
-- Never translate a speaker name into the dialogue. Speaker names come from `glossary/names.json`.
+- Never translate a speaker name into the dialogue. Speaker names follow the character list in `GLOSSARY.md`.
 
 ## Control codes and line breaks
 
