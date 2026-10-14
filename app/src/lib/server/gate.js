@@ -4,6 +4,7 @@
 import { get } from '$lib/server/db.js';
 
 const CJK = /[぀-ヺー-ヿ㐀-䶿一-鿿ｦ-ﾟ]/;
+const HANGUL = /[ᄀ-ᇿ㄰-㆏ꥠ-꥿가-힯ힰ-퟿ﾠ-ﾾ]/;
 const BANNED = ['[', ']', ' name=', ' clip=', ' hide=', ' thumbnial='];
 const SCOTS = /\b(ye|ken|birl|braw|chuffed|lass)\b/i;
 const TOKENS = [/\{[^}]*\}/g, /<\/?[A-Za-z][^>]*>/g, /\[[^\]]*\]/g];
@@ -22,6 +23,7 @@ function checkAdv(unit, en) {
 	const errors = [];
 	const warnings = [];
 	if (CJK.test(en)) errors.push('Japanese characters remain');
+	if (HANGUL.test(en)) errors.push('Korean characters remain');
 	for (const b of BANNED) if (en.includes(b)) errors.push(`forbidden sequence "${b}"`);
 	if (count(jp, '{user}') !== count(en, '{user}')) errors.push('{user} count differs from the source');
 	if (count(jp, '\\n') > count(en, '\\n')) errors.push('literal \\n line breaks were lost');
@@ -42,6 +44,7 @@ function checkMaster(unit, en) {
 	const errors = [];
 	const warnings = [];
 	if (CJK.test(en)) errors.push('Japanese characters remain');
+	if (HANGUL.test(en)) errors.push('Korean characters remain');
 	// The shipped data already has token drift in the source; only demand a match when the source is self-consistent.
 	if (JSON.stringify(tokens(jp)) !== JSON.stringify(tokens(en))) errors.push('placeholders/tags/brackets differ from the source');
 	if (count(jp, '\n') !== count(en, '\n')) warnings.push('line-break count differs from the source');

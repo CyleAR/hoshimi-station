@@ -23,7 +23,7 @@ test('valid candidates pass; clearing is allowed', () => {
 test('broken candidates are rejected', () => {
 	for (const [id, bad] of [
 		['a1', 'おはよう {user}\\nok'], ['a1', 'Hi\\nok'], ['a1', 'Hi {user}'], ['a1', 'Hi {user}\\nok '],
-		['a1', 'Hi [x] {user}\\nok'], ['a1', 'Ye ken {user}\\nok'], ['a2', 'A quiet morning.'], ['m1', 'Badge for {0}'], ['m1', 'バッジ <b>{0}</b>']
+		['a1', 'Hi [x] {user}\\nok'], ['a1', 'Ye ken {user}\\nok'], ['a2', 'A quiet morning.'], ['m1', 'Badge for {0}'], ['m1', 'バッジ <b>{0}</b>'], ['a1', '정말 {user}\\nok'], ['a1', 'ㅡㅡ {user}\\nok'], ['m1', 'Badge 55만원 <b>{0}</b>']
 	]) assert.equal(validateForUnitId(id, bad).ok, false, `${id}: ${bad}`);
 });
 test('Gate 4 rejects an official copy and reports skipped without reference', () => {
