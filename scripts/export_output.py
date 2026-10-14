@@ -592,6 +592,13 @@ def main() -> None:
         master_count = export_masterdb(conn, out_dir, args.format_reference, args.shipped_keys_only)
         adv_count = export_adv(conn, out_dir)
         if ADV_REFERENCE_DIR is not None:
+            adv_out = out_dir / "local-files" / "resource" / "adv"
+            copied = 0
+            for ref_file in sorted(ADV_REFERENCE_DIR.glob("*.txt")):
+                if not (adv_out / ref_file.name).exists():
+                    (adv_out / ref_file.name).write_bytes(ref_file.read_bytes())
+                    copied += 1
+            print(f"{copied} shipped adv files copied (not exported from DB)")
             (out_dir / "adv-review.json").write_text(
                 json.dumps(ADV_REVIEW, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
