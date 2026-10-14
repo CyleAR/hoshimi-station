@@ -516,7 +516,7 @@ def export_adv(conn: sqlite3.Connection, out_dir: Path) -> int:
     return exported
 
 
-def export_localization(conn: sqlite3.Connection, out_dir: Path) -> tuple[int, int]:
+def export_localization(conn: sqlite3.Connection, out_dir: Path, shipped_path: Path | None = None) -> tuple[int, int]:
     if not LOCALIZATION_PATH.exists():
         return 0, 0
     source = json.loads(LOCALIZATION_PATH.read_text(encoding="utf-8"))
@@ -539,6 +539,13 @@ def export_localization(conn: sqlite3.Connection, out_dir: Path) -> tuple[int, i
         str(key): translations.get(str(key), "")
         for key in source
     }
+    if shipped_path and shipped_path.exists():
+        # Shipped wins: keep its key order and values, append DB-only keys.
+        shipped = json.loads(shipped_path.read_text(encoding="utf-8"))
+        merged = {str(k): v for k, v in shipped.items()}
+        for key, value in payload.items():
+            merged.setdefault(key, value)
+        payload = merged
     path = out_dir / "local-files" / "localization.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -603,7 +610,7 @@ def main() -> None:
                 json.dumps(ADV_REVIEW, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
             print(f"{len(ADV_REVIEW)} adv values differ from shipped; see {out_dir / 'adv-review.json'}")
-        localization_total, localization_translated = export_localization(conn, out_dir)
+        localization_total, localization_translated = export_localization(conn, out_dir, args.format_reference.parent / "localization.json" if args.format_reference else None)
     finally:
         conn.close()
     print(
