@@ -83,13 +83,13 @@ Breaking these corrupts the game or fails the save.
 
 | JP | EN | JP | EN |
 | --- | --- | --- | --- |
-| 奥山すみれ | Sumire Okuyama | 長瀬琴乃 | Kotono Nagase |
-| 伊吹渚 | Nagisa Ibuki | 白石沙季 | Saki Shiraishi |
-| 成宮すず | Suzu Narumiya | 早坂芽衣 | Mei Hayasaka |
-| 川咲さくら | Sakura Kawasaki | 兵藤雫 | Shizuku Hyodo |
-| 白石千紗 | Chisa Shiraishi | 一ノ瀬怜 | Rei Ichinose |
-| 佐伯遙子 | Haruko Saeki | 天動瑠依 | Rui Tendo |
-| 鈴村優 | Yu Suzumura | 神崎莉央 | Rio Kanzaki |
+| 長瀬琴乃 | Kotono Nagase | 伊吹渚 | Nagisa Ibuki |
+| 白石沙季 | Saki Shiraishi | 成宮すず | Suzu Narumiya |
+| 早坂芽衣 | Mei Hayasaka | 川咲さくら | Sakura Kawasaki |
+| 兵藤雫 | Shizuku Hyodo | 白石千紗 | Chisa Shiraishi |
+| 一ノ瀬怜 | Rei Ichinose | 佐伯遙子 | Haruko Saeki |
+| 天動瑠依 | Rui Tendo | 鈴村優 | Yu Suzumura |
+| 奥山すみれ | Sumire Okuyama | 神崎莉央 | Rio Kanzaki |
 | 井川葵 | Aoi Igawa | 小美山愛 | Ai Komiyama |
 | 赤崎こころ | Kokoro Akazaki | 長瀬麻奈 | Mana Nagase |
 
