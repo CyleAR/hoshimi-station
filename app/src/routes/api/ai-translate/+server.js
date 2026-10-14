@@ -191,12 +191,27 @@ function aiReasoningEffort() {
 	return String(process.env.HYPER_REASONING_EFFORT || process.env.OPENAI_REASONING_EFFORT || '').trim();
 }
 
+// Extra request headers: AI_EXTRA_HEADERS (JSON object) plus the session header opencode.ai requires.
+const aiSessionId = randomUUID();
+function aiExtraHeaders(url) {
+	const headers = {};
+	if (/^https?:\/\/([^/]*\.)?opencode\.ai\//i.test(url)) headers['x-opencode-session'] = aiSessionId;
+	try {
+		const extra = JSON.parse(process.env.AI_EXTRA_HEADERS || '{}');
+		for (const [key, value] of Object.entries(extra)) headers[key] = String(value);
+	} catch {
+		console.warn('[ai-translate] AI_EXTRA_HEADERS is not valid JSON; ignored');
+	}
+	return headers;
+}
+
 async function callJson(url, body) {
 	const apiKey = aiApiKey();
 	try {
 		const response = await fetch(url, {
 			method: 'POST',
 			headers: {
+				...aiExtraHeaders(url),
 				authorization: `Bearer ${apiKey}`,
 				'content-type': 'application/json'
 			},
