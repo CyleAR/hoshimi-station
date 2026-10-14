@@ -1,6 +1,6 @@
 Translate Japanese game text into natural, readable English following the rules below. Context, character relationships, and consistency of address and voice take priority over literal translation.
 
-Source of truth: this guideline, agency-adv/GLOSSARY.md, glossary/names.json and glossary/terms.json. The official English release is poor quality: it may be consulted only as a hint to disambiguate a term, and must never be copied verbatim.
+Source of truth: this guideline, docs/GLOSSARY.md (names, groups, places, fixed terms). The official English release is poor quality: it may be consulted only as a hint to disambiguate a term, and must never be copied verbatim.
 
 [1. Output and preservation]
 
@@ -68,10 +68,10 @@ Source of truth: this guideline, agency-adv/GLOSSARY.md, glossary/names.json and
 
 [8. Proper nouns]
 
-- If an established translation exists (glossary, names.json, terms.json), use exactly that spelling.
+- If an established translation exists (docs/GLOSSARY.md), use exactly that spelling.
 - Names are Western order: given name first (Sumire Okuyama).
 - Where nothing is established, romanize the Japanese reading.
-- Pinned place uids in glossary/terms.json are prefilled and must not be changed.
+- Place labels listed in docs/GLOSSARY.md are prefilled and must not be changed.
 
 [9. Group and company names]
 
