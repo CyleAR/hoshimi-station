@@ -207,6 +207,21 @@ def master_format(reference_dir: Path | None, category: str):
     return DEFAULT_MASTER_FORMAT
 
 
+def master_key_order(reference_dir: Path | None, category: str, data: dict[str, str]) -> dict[str, str]:
+    """Order keys like the shipped reference file; keys it lacks follow, sorted."""
+    ref_keys: list[str] = []
+    if reference_dir is not None:
+        ref = reference_dir / f"{category}.json"
+        if ref.is_file():
+            try:
+                ref_keys = list(json.loads(ref.read_text(encoding="utf-8")).get("data", {}))
+            except (ValueError, AttributeError):
+                ref_keys = []
+    ordered = {key: data[key] for key in ref_keys if key in data}
+    ordered.update(sorted((k, v) for k, v in data.items() if k not in ordered))
+    return ordered
+
+
 def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path | None = None) -> int:
     master_dir = out_dir / "local-files" / "masterTrans"
     master_dir.mkdir(parents=True, exist_ok=True)
@@ -242,7 +257,7 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path
                     duplicate_export_path = path_map.get((duplicate_id, field_path), export_path)
                     duplicate_export_key = key_map.get(duplicate_id, duplicate_id)
                     data[f"{duplicate_export_key}|{duplicate_export_path}"] = translation
-        payload = {"rule": output_rule_paths(IPR_RULES[category]), "data": data}
+        payload = {"rule": output_rule_paths(IPR_RULES[category]), "data": master_key_order(reference_dir, category, data)}
         (master_dir / f"{category}.json").write_bytes(jsonfmt.render(payload, master_format(reference_dir, category)))
         total += len(data)
     return total
@@ -378,7 +393,7 @@ def write_adv_file(
         lines[idx - 1] = line
     if not applied:
         return 0
-    (adv_dir / (output_file or source_file)).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (adv_dir / (output_file or source_file)).write_bytes("\n".join(lines).encode("utf-8"))
     return applied
 
 
