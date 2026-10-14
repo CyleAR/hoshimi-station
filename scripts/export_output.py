@@ -235,7 +235,12 @@ def master_reference(reference_dir: Path | None, category: str) -> dict[str, Any
     return {}
 
 
-def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path | None = None) -> int:
+def export_masterdb(
+    conn: sqlite3.Connection,
+    out_dir: Path,
+    reference_dir: Path | None = None,
+    shipped_keys_only: bool = False,
+) -> int:
     master_dir = out_dir / "local-files" / "masterTrans"
     master_dir.mkdir(parents=True, exist_ok=True)
     total = 0
@@ -273,6 +278,8 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path
                     duplicate_export_key = key_map.get(duplicate_id, duplicate_id)
                     duplicate_key = f"{duplicate_export_key}|{duplicate_export_path}"
                     data[duplicate_key] = ref_data.get(duplicate_key, translation)
+        if shipped_keys_only and ref_data:
+            data = {key: value for key, value in data.items() if key in ref_data}
         rule_paths = output_rule_paths(IPR_RULES[category])
         ref_rule = reference.get("rule")
         if isinstance(ref_rule, list) and sorted(ref_rule) == sorted(rule_paths):
@@ -512,6 +519,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--format-reference", type=Path, default=None, help="Shipped masterTrans dir whose per-file JSON byte format is preserved.")
+    parser.add_argument("--shipped-keys-only", action="store_true", help="With --format-reference, drop masterTrans keys absent from the shipped file.")
     args = parser.parse_args()
 
     out_dir = args.out.resolve()
@@ -524,7 +532,7 @@ def main() -> None:
     conn.row_factory = sqlite3.Row
     try:
         write_metadata(out_dir)
-        master_count = export_masterdb(conn, out_dir, args.format_reference)
+        master_count = export_masterdb(conn, out_dir, args.format_reference, args.shipped_keys_only)
         adv_count = export_adv(conn, out_dir)
         localization_total, localization_translated = export_localization(conn, out_dir)
     finally:
