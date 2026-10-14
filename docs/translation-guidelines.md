@@ -5,10 +5,23 @@
 - The authoritative sources are `agency-adv/GLOSSARY.md`, `glossary/names.json` and `glossary/terms.json`. Follow existing translations for the same term.
 - The official English release is poor quality. Use it only as a hint to disambiguate a term; never copy it verbatim.
 - The same sentence, card name, skill name, story title, message, or home line can repeat in several places, so check linked entries together.
+- Quality bar: natural, faithful, in-character English. Keep bubbles tight (one UI line where possible).
+
+## Hard format rules (enforced by the quality gate)
+
+Breaking these corrupts the game or fails the save.
+
+- No Japanese kana or kanji may remain in the translation.
+- Never introduce these sequences: `[`, `]`, ` name=`, ` clip=`, ` hide=`, ` thumbnial=`.
+- `{user}` is kept exactly, with the same count as the source.
+- Full-width （ ） are kept only when the source line is entirely wrapped in （…） (gray bubble). Never add them elsewhere.
+- Narration lines (`――` at the start) keep the leading `――` (two U+2015 dashes) exactly, followed by English. Mid-sentence `――` becomes `--`.
+- No trailing spaces.
+- Never translate a speaker name into the dialogue. Speaker names come from `glossary/names.json`.
 
 ## Control codes and line breaks
 
-- `\n` is a control code that becomes a real line break in game. Write real line breaks (Enter) instead of the literal `\n`; the app converts them.
+- `\n` is a control code that becomes a real line break in game. Write real line breaks (Enter) instead of the literal `\n`; the app converts them. Keep the same number of line breaks as the source, placed at a sensible point in the English.
 - Never delete or translate placeholders such as `{user}` and `{threshold}`.
 - Every placeholder in the source must appear in the translation the same number of times.
 - English has no particles, so the Korean auto-particle markers do not apply. Leave `{user}` as it stands.
@@ -16,22 +29,86 @@
 ## `{user}` handling
 
 - `{user}くん`, `{user}君`, `{user}さん` -> `{user}`.
-- The player is the Manager / Producer.
+- The player is the Manager / Producer. `マネージャーさん` -> `Manager`.
 
-## Ellipses and symbols
+## Punctuation map
 
-- `……` -> `...`
-- Mid-sentence `――` -> `--`. Narration lines that start with `――` keep the leading `――`.
+| Japanese | English |
+| --- | --- |
+| 、 | `,` |
+| 。 | `.` |
+| ！ | `!` |
+| ？ | `?` |
+| ！？ | `?!` |
+| ： | `:` |
+| ； | `;` |
+| ～ / 〜 | `~` |
+| …… / … | `...` |
+| 「」 / 『』 | `"` (nested quotes use `'single'`) |
+| full-width space | one ASCII space |
+
+- Use ASCII quotes and apostrophes. Convert full-width letters and digits to ASCII.
+- Keep `♪` and `♡`.
 - Drawled `ー` in dialogue: render naturally (stretched vowel or `~`).
-- `♪`, `♡`, `!`, `?` are kept as appropriate; re-enter full-width forms as ASCII `!` and `?`. `！？` -> `?!`.
-- Lines wrapped in （…） show as gray bubbles; keep the full-width parentheses.
-- 「」 and 『』 -> double quotes `"`; nested quotes use single quotes `'`.
+- 26時 style times: `26:00`. 万円 amounts: `¥10,000` style.
+- Lyrics: light poetic license is fine, but keep the line-break count.
 
 ## Honorifics
 
 - Honorifics are romanized and kept (-san, -chan, -kun, -sama). Do not convert them to Mr./Ms. or older-sister terms.
-- `マネージャーさん` -> `Manager`.
+- First names between close peers; `Lastname-san` where the Japanese uses family name + さん.
 - Check linked stories/messages when the form of address is ambiguous.
+
+## Story titles, places and choices
+
+- Card / bond story titles: `<EN name> Episode N <subtitle>`, e.g. `Sumire Okuyama Episode 1 In Front of the Vending Machine`.
+- Main story titles: `<Arc> Chapter C Episode E <subtitle>`.
+- Group story titles: `<Group> Chapter N Episode M <subtitle>`.
+- Titles use sentence case with no trailing period.
+- Place lines: join the full-width-space-separated segments with ` - `, e.g. `星見プロ　東京事務所廊下　昼` -> `Hoshimi Pro. Tokyo Office Hallway - Day`.
+- Choices: a short imperative with no period, e.g. `Buy it` / `Apologize`.
+
+### Place vocabulary
+
+| JP | EN | JP | EN |
+| --- | --- | --- | --- |
+| 星見プロ | Hoshimi Pro. | 東京寮 | Tokyo Dorm |
+| 東京事務所 | Tokyo Office | スタジオ | Studio |
+| 屋上 | Rooftop | 通学路 | Road to School |
+| 海 / ビーチ | Beach | 海岸通り | Seaside Promenade |
+| 温泉 | Hot Springs | オフィス | Office |
+| 廊下 | Hallway | 夜 / 昼 / 朝 / 夕方 | Night / Day / Morning / Evening |
+
+## Character names (JP -> EN, Western order)
+
+| JP | EN | JP | EN |
+| --- | --- | --- | --- |
+| 奥山すみれ | Sumire Okuyama | 長瀬琴乃 | Kotono Nagase |
+| 伊吹渚 | Nagisa Ibuki | 白石沙季 | Saki Shiraishi |
+| 成宮すず | Suzu Narumiya | 早坂芽衣 | Mei Hayasaka |
+| 川咲さくら | Sakura Kawasaki | 兵藤雫 | Shizuku Hyodo |
+| 白石千紗 | Chisa Shiraishi | 一ノ瀬怜 | Rei Ichinose |
+| 佐伯遙子 | Haruko Saeki | 天動瑠依 | Rui Tendo |
+| 鈴村優 | Yu Suzumura | 神崎莉央 | Rio Kanzaki |
+| 井川葵 | Aoi Igawa | 小美山愛 | Ai Komiyama |
+| 赤崎こころ | Kokoro Akazaki | 長瀬麻奈 | Mana Nagase |
+
+- kana, miho and fran stay as-is.
+- If nothing is established for a name, romanize the Japanese reading.
+
+### Generic speaker labels
+
+- 一同 = Everyone · 司会者 = Host · ナレーション = Narration · ？？？ = ??? · 犯人役の男性 = Man as the Culprit · 医者 = Doctor · 男子生徒 = Male Student · お客さん = Customer.
+
+## Group and company names
+
+- 星見プロダクション = `Hoshimi Productions` (formal); short form `Hoshimi Pro.` (never `Hoshimi Prod`); plural short form `Hoshimi Pros`.
+- サニーピース = `Sunny Peace`; short form サニピー / サニピ = `SunnyP`.
+- 月のテンペスト = `Tsuki no Tempest`; short form 月スト = `Tsukisto`.
+- トリエル = `TriAile` (formal: `TRINITYAiLE`).
+- リズノワ = `LizNoir` (one word).
+- スリクス / ⅢX = `IIIX` (never Slix, Srikus or Sleek).
+- Pick the long or short form according to what the Japanese line uses.
 
 ## Character ages
 
@@ -48,19 +125,24 @@ Use this table when judging register and address.
 
 ## Character voices
 
-- Sumire: bright, polite, ex-child-actress. Her dialect is gentle rural plain English. Never use Scots or Scots-like words.
-- Suzu: ojou-sama; refined, noble-lady diction. When she addresses others, follow the source's form of address.
+Fuller profiles are in `agency-adv/characterinfo.txt`.
+
+- Sumire: bright, polite former child actress; cute, bouncy and deferential.
+- {user} (Makino): earnest, grounded, supportive.
+- Kokoro: bratty, performatively cute teaser.
+- Yu: smooth Kansai-flavored teasing, rendered as playful English, not a regional dialect.
+- Suzu: ojou-sama; theatrical, refined noble-lady diction. When she addresses others, follow the source's form of address.
+- Mei: breezy, run-on, cat-lady chatter.
+- Kotono: disciplined and polite; stammers when praised.
+- Chisa: shy and timid, with quiet courage.
 - kana: sarcastic and sharp; casual, with polite register for sarcasm.
-- Yu: Kansai-flavored teasing, rendered as playful English, not a regional dialect.
 
-## Proper nouns
+### Sumire's dialect
 
-- Use the glossary spelling. Names are in Western order (given name first).
-- If nothing is established, romanize the Japanese reading.
+Sumire is from Yamagata. Render her rural gentleness as soft, warm, plain English, never Scots or any other region-locked slang.
 
-## Group and company names
-
-- Hoshimi Pro. / Hoshimi Pros / Hoshimi Productions; Sunny Peace (SunnyP); Tsuki no Tempest (Tsukisto); TriAile (formal: TRINITYAiLE); LizNoir; IIIX.
+- Never use: `ye`, `ken`, `birl`, `braw`, `chuffed`, `lass`, `wee` (as dialect), `dinna`, `aint`, `laddie`, `bonnie`.
+- Examples: `もう~！びっくりしちゃった~！` -> `Oh! You gave me such a fright!`; the manager's echo `ちゃ？` -> `Hm?` or `A fright?`; `それ、すごく恥ずかしいよ~！` -> `That's so embarrassing!`.
 
 ## Before saving
 
