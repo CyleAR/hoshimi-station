@@ -59,11 +59,31 @@ Source of truth: this guideline, docs/GLOSSARY.md (names, groups, places, fixed 
 
 [7. Character voices]
 
-- Sumire: bright, polite, ex-child-actress. Her dialect is gentle rural plain English. NEVER use Scots or Scots-like words (ye, ken, birl, braw, chuffed, lass, wee, dinna, aint, laddie, bonnie).
-- Suzu: ojou-sama; elegant, noble-lady diction ("-wa" speech as refined English, not caricature).
-- kana: sarcastic and sharp; casual, with polite register for sarcasm.
-- Yu: Kansai-flavored teasing, rendered as playful, light-hearted English, not a regional English dialect.
-- Kokoro: bratty. Mei: breezy. Kotono: disciplined. Chisa: shy.
+Keep each character's voice consistent across lines.
+
+- Kouhei Makino (Manager/MC, `{user}`): earnest, supportive and grounded; calm, respectful reliability, never imposing decisions or stealing the spotlight.
+- Kotono Nagase: disciplined, proud and emotionally reserved; strict and polite, but easily stammers or gets flustered when praised or teased.
+- Nagisa Ibuki: warm, deeply affectionate and perceptive; gentle, excitable, caring tone, often fixating romantically on friendships and memories.
+- Saki Shiraishi: diligent, polite honor student and caretaker; methodical and practical, earnest and analytical, awkward around spontaneous or casual topics.
+- Suzu Narumiya: haughty, theatrical ojou-sama; flamboyant aristocratic phrasing (desu wa, gokigenyou) rendered as refined noble-lady diction, yet crumbles into childish panic and poutiness when teased or ignored. When she addresses others, follow the source's form of address.
+- Mei Hayasaka: spontaneous, high-energy and affectionately transparent; breezy, playful, run-on style full of informal warmth, cat sounds and immediate honesty.
+- Sakura Kawasaki: cheerful, intuitive and radiant; infectious, sunny excitement, heart worn openly on her sleeve, prioritizes shared joy.
+- Shizuku Hyodo: soft-spoken, hesitant and melancholic at a glance; quiet and reserved, but rapidly becomes passionate, knowledgeable and intense about idols or special interests.
+- Chisa Shiraishi: shy, timid and soft-spoken; stammers and second-guesses herself, yet shows earnest courage, quiet resolve and a surprising love for horror.
+- Rei Ichinose: stoic, formal, strictly composed traditional dancer; sharp technical discipline and dignified restraint, cutely flustered when praised personally.
+- Haruko Saeki: reassuring, gentle, mature big-sister figure; seasoned warmth, self-deprecating humor about her age/veteran status, persistent kindness.
+- Rui Tendo: decisive, aloof and proudly uncompromising; concise, commanding, regal declarations, abruptly flustered and defensive when expressing private affection.
+- Yu Suzumura: shrewd, teasing and effortlessly charming; smooth, playful Kansai/Kyoto-flavored speech with a relaxed, calculating demeanor, rendered as playful English, not a regional dialect.
+- Sumire Okuyama: bright, polite former child actress; cute, bouncy and deferential, balancing seasoned professional manners with earnest youthful innocence.
+- Rio Kanzaki: fierce, uncompromising perfectionist; razor-sharp authority, competitive pride, and aloof tsundere awkwardness when caught caring for others.
+- Aoi Igawa: cool, laconic and deadpan; speaks sparingly with dry, unbothered directness, playfully teasing while keeping an unflappable exterior.
+- Ai Komiyama: earnest, anxious and deeply loyal; self-conscious hesitance and humble politeness, always trying her hardest while fretting over her adequacy.
+- Kokoro Akazaki: mischievous, provocative and media-savvy; bratty, performatively cute, sharp-tongued phrasing, constantly teasing and pushing buttons for a reaction.
+- fran: glamorous, haughty, transaction-minded fashion diva; haughty international confidence, sharp entitlement and dramatic flair, defensive about her mundane background.
+- miho: austere, razor-sharp, uncompromising veteran; clipped, strictly professional, no-nonsense cadence valuing pragmatism over sentimentality.
+- kana: bratty, sharp-tongued and calculating; shifts rapidly between an exaggeratedly sugary public idol persona and cynical, venomous, manipulative private speech (casual register, polite register for sarcasm).
+- Mana Nagase: charismatic, effortless and radiant; breezy, natural confidence and teasing warmth, disarmingly direct, makes anyone smile.
+- Sumire never uses Scots or Scots-like words (ye, ken, birl, braw, chuffed, lass, wee, dinna, aint, laddie, bonnie).
 - Never put the speaker's name in the dialogue line.
 
 [8. Proper nouns]
