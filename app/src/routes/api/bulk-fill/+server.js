@@ -1,4 +1,5 @@
 import { all, get, getDb, json, run } from '$lib/server/db.js';
+import { validateForUnitId, gateMessage } from '$lib/server/gate.js';
 
 function cleanText(value) {
 	return String(value ?? '');
@@ -141,6 +142,10 @@ export async function POST({ request }) {
 			WHERE unit_id = $unitId
 			`
 		);
+		const rejected = targets.map((row) => ({ row, gate: validateForUnitId(row.unit_id, row.proposed_translation) })).filter((x) => x.gate && !x.gate.ok);
+		if (rejected.length) {
+			return json({ error: `${rejected.length} item(s) rejected by the quality gate; nothing was written. ${gateMessage(rejected[0].gate)}`, rejected: rejected.slice(0, 20).map((x) => ({ unit_id: x.row.unit_id, errors: x.gate.errors })) }, { status: 422 });
+		}
 		db.exec('BEGIN');
 		let updated = 0;
 		try {
@@ -198,6 +203,12 @@ export async function POST({ request }) {
 			targets: summary.targets ?? 0,
 			samples
 		});
+	}
+
+	const plainTargets = all(`SELECT unit_id FROM translation_units WHERE ${targetWhere}`, params);
+	const plainRejected = plainTargets.map((t) => ({ id: t.unit_id, gate: validateForUnitId(t.unit_id, translationText) })).filter((x) => x.gate && !x.gate.ok);
+	if (plainRejected.length) {
+		return json({ error: `${plainRejected.length} item(s) rejected by the quality gate; nothing was written. ${gateMessage(plainRejected[0].gate)}`, rejected: plainRejected.slice(0, 20).map((x) => ({ unit_id: x.id, errors: x.gate.errors })) }, { status: 422 });
 	}
 
 	const result = run(

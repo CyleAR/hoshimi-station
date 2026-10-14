@@ -1,5 +1,6 @@
 import { get, getDb } from '$lib/server/db.js';
 import { verifyAdminPin } from '$lib/server/admin.js';
+import { validateForUnitId } from '$lib/server/gate.js';
 
 export function attachSuggestionsForUser(units, request) {
 	const pin = request?.headers.get('x-ai-suggestion-pin') ?? '';
@@ -45,6 +46,8 @@ export function acceptSuggestion(unitId, nickname, expectedCreatedAt) {
 		if (!suggestion || suggestion.accepted_at || suggestion.created_at !== expectedCreatedAt) {
 			throw new Error('The suggestion was changed or already used. Reopen the item.');
 		}
+		const gate = validateForUnitId(unitId, suggestion.translation_text);
+		if (gate && !gate.ok) throw new Error(`The suggestion failed the quality gate: ${gate.errors.join('; ')}`);
 		const result = db.prepare(`UPDATE translation_units
 			SET translation_text = ?, status = 'translated', translator_name = ?, updated_at = datetime('now')
 			WHERE unit_id = ? AND revision = ? AND original_text = ? AND translation_text = ?`)

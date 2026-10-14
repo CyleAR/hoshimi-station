@@ -13,7 +13,8 @@ db.exec("CREATE TABLE entities(entity_type TEXT, entity_id TEXT, label TEXT); IN
 const replaceDb = (source) => source.replace("'$lib/server/db.js'", JSON.stringify(dbUrl));
 const authUrl = dataUrl(replaceDb(read('../src/lib/server/codex-auth.js')));
 const adminUrl = dataUrl(replaceDb(read('../src/lib/server/admin.js')));
-const suggestionsUrl = dataUrl(replaceDb(read('../src/lib/server/ai-suggestions.js')).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)));
+const gateUrl = dataUrl(replaceDb(read('../src/lib/server/gate.js')));
+const suggestionsUrl = dataUrl(replaceDb(read('../src/lib/server/ai-suggestions.js')).replace("'$lib/server/admin.js'", JSON.stringify(adminUrl)).replace("'$lib/server/gate.js'", JSON.stringify(gateUrl)));
 const reviewsUrl = dataUrl(replaceDb(read('../src/lib/server/codex-reviews.js')));
 const unitsUrl = dataUrl(replaceDb(read('../src/lib/server/codex-units.js')).replace("'$lib/server/ai-suggestions.js'", JSON.stringify(suggestionsUrl)).replace("'$lib/server/codex-reviews.js'", JSON.stringify(reviewsUrl)));
 const guidelinesUrl = dataUrl(replaceDb(read('../src/routes/api/guidelines/+server.js')));

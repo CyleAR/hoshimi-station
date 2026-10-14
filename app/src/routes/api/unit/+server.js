@@ -1,4 +1,5 @@
 import { get, json, run } from '$lib/server/db.js';
+import { validateForUnitId, gateMessage } from '$lib/server/gate.js';
 
 export async function POST({ request }) {
 	const body = await request.json();
@@ -15,6 +16,9 @@ export async function POST({ request }) {
 	if (!user) return json({ error: 'Nickname or PIN is incorrect.' }, { status: 401 });
 	const expectedRevision = body.expected_revision;
 	if (expectedRevision !== undefined && !Number.isInteger(expectedRevision)) return json({ error: 'invalid revision' }, { status: 400 });
+
+	const gate = validateForUnitId(unitId, translationText);
+	if (gate && !gate.ok) return json({ error: gateMessage(gate), gate }, { status: 422 });
 
 	const status = translationText.trim() ? 'translated' : 'new';
 	const result = run(

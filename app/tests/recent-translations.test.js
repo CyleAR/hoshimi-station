@@ -34,13 +34,16 @@ assert.ok(db.prepare('PRAGMA table_info(translation_changes)').all()
  .some((column) => column.name === 'previous_translator_name'));
 const recentWorkUrl = dataUrl(readFileSync(new URL('../src/lib/server/recent-work.js', import.meta.url), 'utf8')
  .replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
+const gateUrl = dataUrl(readFileSync(new URL('../src/lib/server/gate.js', import.meta.url), 'utf8')
+ .replace("'$lib/server/db.js'", JSON.stringify(dbUrl)));
 for (const nickname of ['alice', 'bob']) {
  db.prepare("INSERT INTO users VALUES (?, '123456', '', '')").run(nickname);
 }
 async function endpoint(route) {
  const source = readFileSync(new URL(`../src/routes/api/${route}/+server.js`, import.meta.url), 'utf8')
   .replace("'$lib/server/db.js'", JSON.stringify(dbUrl))
-  .replace("'$lib/server/recent-work.js'", JSON.stringify(recentWorkUrl));
+  .replace("'$lib/server/recent-work.js'", JSON.stringify(recentWorkUrl))
+  .replace("'$lib/server/gate.js'", JSON.stringify(gateUrl));
  return await import(dataUrl(source));
 }
 const recent = (await endpoint('admin/recent')).POST;

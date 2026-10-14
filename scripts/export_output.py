@@ -11,6 +11,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import jsonfmt
+
+# Optional directory of previously shipped masterTrans files; each export reuses the byte format
+# (indent/trailing newline) of its shipped counterpart so diffs show only real changes.
+DEFAULT_MASTER_FORMAT = (False, 2, False, True)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
@@ -191,7 +197,17 @@ def duplicate_shelf_adv_map(story_duplicates: dict[str, str]) -> dict[str, list[
     return STORY_REUSE_MODULE.duplicate_shelf_adv_map(stories, story_duplicates, ADV_DIR)
 
 
-def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
+def master_format(reference_dir: Path | None, category: str):
+    if reference_dir is not None:
+        ref = reference_dir / f"{category}.json"
+        if ref.is_file():
+            fp = jsonfmt.fingerprint(ref.read_bytes())
+            if fp is not None:
+                return fp
+    return DEFAULT_MASTER_FORMAT
+
+
+def export_masterdb(conn: sqlite3.Connection, out_dir: Path, reference_dir: Path | None = None) -> int:
     master_dir = out_dir / "local-files" / "masterTrans"
     master_dir.mkdir(parents=True, exist_ok=True)
     total = 0
@@ -227,7 +243,7 @@ def export_masterdb(conn: sqlite3.Connection, out_dir: Path) -> int:
                     duplicate_export_key = key_map.get(duplicate_id, duplicate_id)
                     data[f"{duplicate_export_key}|{duplicate_export_path}"] = translation
         payload = {"rule": output_rule_paths(IPR_RULES[category]), "data": data}
-        (master_dir / f"{category}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        (master_dir / f"{category}.json").write_bytes(jsonfmt.render(payload, master_format(reference_dir, category)))
         total += len(data)
     return total
 
@@ -460,6 +476,7 @@ def main() -> None:
     parser.add_argument("--db", type=Path, default=DB_PATH)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--format-reference", type=Path, default=None, help="Shipped masterTrans dir whose per-file JSON byte format is preserved.")
     args = parser.parse_args()
 
     out_dir = args.out.resolve()
@@ -472,7 +489,7 @@ def main() -> None:
     conn.row_factory = sqlite3.Row
     try:
         write_metadata(out_dir)
-        master_count = export_masterdb(conn, out_dir)
+        master_count = export_masterdb(conn, out_dir, args.format_reference)
         adv_count = export_adv(conn, out_dir)
         localization_total, localization_translated = export_localization(conn, out_dir)
     finally:

@@ -1,4 +1,5 @@
 import { get, getDb, json } from '$lib/server/db.js';
+import { validateForUnitId } from '$lib/server/gate.js';
 
 export async function POST({ request }) {
 	const body = await request.json();
@@ -131,6 +132,11 @@ export async function POST({ request }) {
 	`);
 
 	let updatedCount = 0;
+	const runUpdate = (params) => {
+		const gate = validateForUnitId(params.$unitId, params.$text);
+		if (gate && !gate.ok) throw Object.assign(new Error(`Rejected by the quality gate (${params.$unitId}): ${gate.errors.join('; ')}`), { gateRejected: true });
+		return updateQuery.run(params);
+	};
 
 	db.exec('BEGIN');
 	try {
@@ -145,9 +151,9 @@ export async function POST({ request }) {
 
 		for (const ht of homeTalks) {
 			if (ht.field_path === 'title') {
-				updatedCount += updateQuery.run({ $text: title, $nickname: nickname, $unitId: ht.unit_id }).changes;
+				updatedCount += runUpdate({ $text: title, $nickname: nickname, $unitId: ht.unit_id }).changes;
 			} else if (ht.field_path === 'displayConditionDescription') {
-				updatedCount += updateQuery.run({ $text: homeTalkCondition, $nickname: nickname, $unitId: ht.unit_id }).changes;
+				updatedCount += runUpdate({ $text: homeTalkCondition, $nickname: nickname, $unitId: ht.unit_id }).changes;
 			}
 		}
 
@@ -165,7 +171,7 @@ export async function POST({ request }) {
 		for (const mp of messagesAndPhones) {
 			if (['title', 'name'].includes(mp.field_path)) {
 				// The user requested '{title}' for both message and telephone
-				updatedCount += updateQuery.run({ $text: messageName, $nickname: nickname, $unitId: mp.unit_id }).changes;
+				updatedCount += runUpdate({ $text: messageName, $nickname: nickname, $unitId: mp.unit_id }).changes;
 			}
 		}
 
@@ -181,11 +187,11 @@ export async function POST({ request }) {
 
 		for (const g of goods) {
 			if (g.original_text.includes('缶バッジ')) {
-				updatedCount += updateQuery.run({ $text: goods1, $nickname: nickname, $unitId: g.unit_id }).changes;
+				updatedCount += runUpdate({ $text: goods1, $nickname: nickname, $unitId: g.unit_id }).changes;
 			} else if (g.original_text.includes('カードスタンド')) {
-				updatedCount += updateQuery.run({ $text: goods2, $nickname: nickname, $unitId: g.unit_id }).changes;
+				updatedCount += runUpdate({ $text: goods2, $nickname: nickname, $unitId: g.unit_id }).changes;
 			} else if (g.original_text.includes('ミニキャラスタンド')) {
-				updatedCount += updateQuery.run({ $text: goods3, $nickname: nickname, $unitId: g.unit_id }).changes;
+				updatedCount += runUpdate({ $text: goods3, $nickname: nickname, $unitId: g.unit_id }).changes;
 			}
 		}
 
@@ -193,6 +199,7 @@ export async function POST({ request }) {
 		db.exec('COMMIT');
 	} catch (err) {
 		db.exec('ROLLBACK');
+		if (err.gateRejected) return json({ error: err.message }, { status: 422 });
 		throw err;
 	}
 
