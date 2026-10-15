@@ -1,16 +1,23 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { Agent } from 'undici';
 
 // Shared AI plumbing for the web UI route and scripts/draft_new.mjs.
 // Relative imports only so plain node can load it.
 
-const aiDispatcher = new Agent({
-	headersTimeout: 15 * 60 * 1000,
-	bodyTimeout: 15 * 60 * 1000,
-	connectTimeout: 60 * 1000
-});
+// undici ships with the app image; on a bare host (scripts/draft_new.mjs) it may be absent, so fall back to
+// plain fetch (default ~5 min header timeout).
+let aiDispatcher;
+try {
+	const { Agent } = await import('undici');
+	aiDispatcher = new Agent({
+		headersTimeout: 15 * 60 * 1000,
+		bodyTimeout: 15 * 60 * 1000,
+		connectTimeout: 60 * 1000
+	});
+} catch {
+	aiDispatcher = undefined;
+}
 
 export function projectRoot() {
 	if (process.env.PROJECT_ROOT) return path.resolve(process.env.PROJECT_ROOT);
@@ -210,7 +217,7 @@ async function callJson(url, body) {
 				'content-type': 'application/json'
 			},
 			body: JSON.stringify(body),
-			dispatcher: aiDispatcher
+			...(aiDispatcher ? { dispatcher: aiDispatcher } : {})
 		});
 		const raw = await response.text();
 		let data = {};
