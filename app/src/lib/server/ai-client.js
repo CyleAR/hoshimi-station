@@ -231,7 +231,7 @@ async function callJson(url, body) {
 		const isTimeout = err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.name === 'HeadersTimeoutError';
 		const message = isTimeout
 			? 'The AI response timed out (15 minute timeout).'
-			: `Failed to connect to the AI server: ${err.message || String(err)}`;
+			: `Failed to connect to the AI server: ${err.message || String(err)}${err.cause ? ` (${err.cause.code || err.cause.name}: ${err.cause.message})` : ''}`;
 		return {
 			response: { ok: false, status: isTimeout ? 504 : 502 },
 			raw: message,
