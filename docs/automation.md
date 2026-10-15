@@ -21,7 +21,11 @@ New untranslated rows land in `new_import_units`.
 
 ## 2. Batch first drafts — `scripts/draft_new.mjs`
 
-Needs Node >= 22.5 (`node:sqlite`). If the host's `node` is older, point `NODE_BIN=/path/to/node22` in `sync.env` and run the script with that binary.
+Needs Node >= 22.5 (`node:sqlite`). If the host's `node` is older, point `NODE_BIN=/path/to/node22` in `sync.env` and run the script with that binary. `NODE_BIN` may also be a full command, e.g. in `sync.env`:
+
+    NODE_BIN=sudo docker run --rm -u 1001:1001 -v /path/to/repo:/w -w /w --env-file sync.env node:22-slim node
+
+(`sync.env` is sourced by the shell, so use the absolute repo path, not `$PWD`, and no quotes in the `KEY=value` lines meant for `--env-file`.)
 
     node scripts/draft_new.mjs --dry-run            # list batches, no AI calls
     node scripts/draft_new.mjs --limit 200          # draft up to 200 new units
