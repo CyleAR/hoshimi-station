@@ -22,6 +22,18 @@ ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 MASTERDB_DIR = ROOT / "res" / "masterdb"
 ADV_DIR = ROOT / "res" / "adv" / "resource"
+
+
+def use_upstream_clones(db_path):
+    """Prod keeps no res/ submodules; fall back to the data/upstream clones."""
+    global MASTERDB_DIR, ADV_DIR
+    up = Path(db_path).resolve().parent / "upstream"
+    if not (MASTERDB_DIR / "Story.json").exists() and (up / "masterdb" / "Story.json").exists():
+        MASTERDB_DIR = up / "masterdb"
+    if not ADV_DIR.exists() and (up / "adv" / "resource").exists():
+        ADV_DIR = up / "adv" / "resource"
+
+
 LOCALIZATION_PATH = ROOT / "res" / "localization.json"
 DEFAULT_OUTPUT_DIR = ROOT / "output"
 
@@ -592,6 +604,7 @@ def main() -> None:
     elif out_dir.exists() and any(out_dir.iterdir()):
         raise SystemExit(f"{out_dir} already exists. Pass --overwrite to replace it.")
 
+    use_upstream_clones(args.db)
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
     try:
