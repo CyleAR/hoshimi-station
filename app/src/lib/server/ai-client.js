@@ -8,8 +8,11 @@ import path from 'node:path';
 // undici ships with the app image; on a bare host (scripts/draft_new.mjs) it may be absent, so fall back to
 // plain fetch (default ~5 min header timeout).
 let aiDispatcher;
+let aiFetch = fetch;
 try {
-	const { Agent } = await import('undici');
+	const { Agent, fetch: undiciFetch } = await import('undici');
+	// Node's built-in fetch bundles its own undici; a dispatcher from the npm package only works with the matching fetch.
+	aiFetch = undiciFetch;
 	aiDispatcher = new Agent({
 		headersTimeout: 15 * 60 * 1000,
 		bodyTimeout: 15 * 60 * 1000,
@@ -17,6 +20,7 @@ try {
 	});
 } catch {
 	aiDispatcher = undefined;
+	aiFetch = fetch;
 }
 
 export function projectRoot() {
@@ -209,7 +213,7 @@ function aiExtraHeaders(url) {
 async function callJson(url, body) {
 	const apiKey = aiApiKey();
 	try {
-		const response = await fetch(url, {
+		const response = await aiFetch(url, {
 			method: 'POST',
 			headers: {
 				...aiExtraHeaders(url),
