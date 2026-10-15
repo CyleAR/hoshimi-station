@@ -93,7 +93,10 @@ def main() -> int:
         return 0
     print("\n".join(stat[-1:] or [f"{len(status.splitlines())} files changed"]))
     if not args.push:
-        print("dry run: mirror working tree updated, nothing committed")
+        # the mirror was clean on entry, so restoring it keeps a later --push from tripping the dirty guard
+        run("git", "checkout", ".", cwd=mirror)
+        run("git", "clean", "-fd", cwd=mirror)
+        print("dry run: nothing committed, mirror restored to clean")
         return 0
     ver = datetime.now().strftime("%Y%m%d_%H%M%S")
     (mirror / "version.txt").write_text(ver + "\n")
