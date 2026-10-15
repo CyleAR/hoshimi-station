@@ -16,6 +16,7 @@ import {
 	readTranslationText,
 	requestAi,
 	responseKeys,
+	normalizeLineBreaks,
 	sanitizeEndingPunctuation
 } from '$lib/server/ai-client.js';
 
@@ -118,7 +119,7 @@ async function completeAiJob(jobId, { model, prompt, reasoningEffort, rows, usag
 				warnings.push({ unit_id: unitId, message: `empty translation_text (keys: ${responseKeys(item)})` });
 				continue;
 			}
-			translationText = sanitizeEndingPunctuation(row.original_text, translationText);
+			translationText = sanitizeEndingPunctuation(row.original_text, normalizeLineBreaks(row.original_text, translationText));
 			const missing = missingPlaceholders(row.original_text, translationText);
 			if (missing.length) {
 				warnings.push({ unit_id: unitId, message: `missing placeholder: ${missing.join(', ')}` });

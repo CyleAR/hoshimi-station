@@ -109,7 +109,7 @@ for (let start = 0; start < targets.length; start += batchSize) {
 		const unitId = String(item?.unit_id ?? '');
 		if (!ids.has(unitId)) continue;
 		const unit = batch.find((r) => r.unit_id === unitId);
-		const text = client.sanitizeEndingPunctuation(unit.original_text, client.readTranslationText(item) ?? '').trim();
+		const text = client.sanitizeEndingPunctuation(unit.original_text, client.normalizeLineBreaks(unit.original_text, client.readTranslationText(item) ?? '')).trim();
 		if (!text || client.missingPlaceholders(unit.original_text, text).length) { stats.rejected++; continue; }
 		const gate = validateCandidate(unit, text);
 		if (gate && !gate.ok) { stats.rejected++; console.error(`  ${unitId}: gate: ${gate.errors.join('; ')}`); continue; }

@@ -8,7 +8,7 @@ Source of truth: this guideline, docs/GLOSSARY.md (names, groups, places, fixed 
 - Output only the translation, keeping the input order and format.
 - Preserve `{user}`, `{threshold}` and every other `{...}` placeholder and all control codes exactly as in the source.
 - Every placeholder in the source must appear in the translation the same number of times.
-- Do not output the literal two-character string `\n`; break lines with real line breaks, keeping the source line-break count.
+- Keep the source line-break count and style: if the source contains the literal two-character string `\n`, write it as literal `\n` (never a real line break); if the source uses real line breaks, use real line breaks.
 - Never introduce `[ ]`, `name=`, `clip=`, `hide=` or `thumbnial=` markup that is not in the source.
 - No kana or kanji may remain in the output.
 - No trailing spaces. Use ASCII quotes.

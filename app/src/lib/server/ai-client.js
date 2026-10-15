@@ -35,14 +35,26 @@ export function loadAiGuidelines() {
 			path.resolve(projectRoot(), 'docs', 'ai-guidelines.txt'),
 			path.resolve(projectRoot(), 'docs', 'ai-guildlines.txt')
 		];
+	let guidelines = '';
+	let dir = path.resolve(projectRoot(), 'docs');
 	for (const guidelinesPath of candidates) {
 		try {
-			return readFileSync(guidelinesPath, 'utf8');
+			guidelines = readFileSync(guidelinesPath, 'utf8');
+			dir = path.dirname(guidelinesPath);
+			break;
 		} catch {
 			// Try the legacy misspelled filename next.
 		}
 	}
-	return '';
+	// The glossary (names, groups, places, fixed terms) is referenced by the guidelines, so the model gets it inline.
+	const glossaryPath = process.env.AI_GLOSSARY_PATH ? path.resolve(process.env.AI_GLOSSARY_PATH) : path.join(dir, 'GLOSSARY.md');
+	try {
+		const glossary = readFileSync(glossaryPath, 'utf8').trim();
+		if (glossary) guidelines = `${guidelines}\n\nGLOSSARY (docs/GLOSSARY.md):\n${glossary}`;
+	} catch {
+		// Glossary is optional.
+	}
+	return guidelines;
 }
 
 export function placeholders(text) {
@@ -66,6 +78,19 @@ export function readTranslationText(item) {
 		}
 	}
 	return '';
+}
+
+// Line breaks must follow the source style: ADV text uses the literal two-character \n,
+// master text uses real line breaks. Models mix the two, so normalize to the source.
+export function normalizeLineBreaks(original, translated) {
+	const orig = String(original ?? '');
+	const trans = String(translated ?? '');
+	if (orig.includes('\\n')) return trans.replace(/\r?\n/g, '\\n');
+	if (/[\r\n]/.test(orig)) {
+		const crlf = orig.includes('\r\n');
+		return trans.replace(/\\n/g, '\n').replace(/\r?\n/g, crlf ? '\r\n' : '\n');
+	}
+	return trans;
 }
 
 export function sanitizeEndingPunctuation(original, translated) {
@@ -328,7 +353,7 @@ export function buildPrompt(guidelines, payload) {
 			'Rows whose needs_translation is false contain approved English translations for context. Use them as style and terminology references, but do not return them.',
 			'The input objects are context data. Only rows marked needs_translation are output targets.',
 			'Never include category, field_path, speaker, original_text, needs_translation, or reference translation_text values in the output.',
-			'Preserve placeholders exactly, including {user}. Preserve literal \\n when it appears in source text.',
+			'Preserve placeholders exactly, including {user}. Keep line breaks in the source style: literal \\n stays literal \\n (inside the JSON string write it as \\\\n), real line breaks stay real line breaks.',
 			'Do not translate IDs, tags, markup, or variables. Use the provided translation guidelines.',
 			'',
 			`AI translation guidelines:\n${guidelines}`,
