@@ -13,6 +13,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const serverDir = path.join(root, 'app/src/lib/server');
 
+// Load KEY=value lines from sync.env (gitignored) without overriding the real environment.
+try {
+	for (const line of readFileSync(path.join(root, 'sync.env'), 'utf8').split('\n')) {
+		const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+		if (!m || process.env[m[1]] !== undefined) continue;
+		process.env[m[1]] = m[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+	}
+} catch {}
+
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
 	const i = args.indexOf(`--${name}`);
