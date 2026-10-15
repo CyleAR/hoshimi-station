@@ -17,13 +17,17 @@ STOP_CMD="${STOP_CMD:-docker compose stop}"
 START_CMD="${START_CMD:-docker compose start}"
 
 scripts/upstream_sync.py detect; rc=$?
-if [ "$rc" -eq 0 ]; then log "upstream unchanged"; exit 0; fi
-[ "$rc" -eq 10 ] || { log "detect failed ($rc)"; exit 1; }
+if [ "$rc" -eq 0 ]; then
+	log "upstream unchanged; skipping ingest"
+elif [ "$rc" -eq 10 ]; then
+	log "upstream moved; ingesting"
+	scripts/upstream_sync.py ingest --apply --stop-cmd "$STOP_CMD" --start-cmd "$START_CMD"; rc=$?
+	if [ "$rc" -ne 0 ]; then log "ingest refused/failed ($rc); live DB untouched; drafting skipped"; exit "$rc"; fi
+else
+	log "detect failed ($rc)"; exit 1
+fi
 
-log "upstream moved; ingesting"
-scripts/upstream_sync.py ingest --apply --stop-cmd "$STOP_CMD" --start-cmd "$START_CMD"; rc=$?
-if [ "$rc" -ne 0 ]; then log "ingest refused/failed ($rc); live DB untouched; drafting skipped"; exit "$rc"; fi
-
+# Runs every time (also when upstream is unchanged): already-drafted units are skipped, so it only retries leftovers.
 log "drafting new units"
 node scripts/draft_new.mjs --limit "${DRAFT_LIMIT:-500}" || log "draft step failed ($?)"
 log "done; review drafts in the UI, publish manually"
