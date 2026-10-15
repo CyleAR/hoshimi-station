@@ -34,7 +34,11 @@ PARTS = ["masterTrans", "localization.json", "resource/adv"]
 
 
 def run(*a: str, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(list(a), cwd=cwd, check=check, capture_output=True, text=True)
+    r = subprocess.run(list(a), cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode:
+        sys.stderr.write(f"command failed ({r.returncode}): {' '.join(a)}\n{r.stdout[-2000:]}\n{r.stderr[-4000:]}\n")
+        raise SystemExit(1)
+    return r
 
 
 def main() -> int:
