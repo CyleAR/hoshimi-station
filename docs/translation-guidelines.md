@@ -21,7 +21,7 @@ Breaking these corrupts the game or fails the save.
 
 ## Control codes and line breaks
 
-- `\n` is a control code that becomes a real line break in game. Write real line breaks (Enter) instead of the literal `\n`; the app converts them. Keep the same number of line breaks as the source, placed at a sensible point in the English.
+- `\n` is a control code that becomes a real line break in game. Write real line breaks (Enter) instead of the literal `\n`; the app converts them. Keep the same number of line breaks as the source, placed at a sensible point in the English. (The validator's line-break count check is currently off; set `GATE_LINE_BREAKS=1` to re-enable it.)
 - Never delete or translate placeholders such as `{user}` and `{threshold}`.
 - Every placeholder in the source must appear in the translation the same number of times.
 - English has no particles, so the Korean auto-particle markers do not apply. Leave `{user}` as it stands.

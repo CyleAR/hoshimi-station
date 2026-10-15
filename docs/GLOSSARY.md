@@ -8,7 +8,7 @@ Authoritative for translating ADV dialogue slots. Character voice profiles are i
 - Output values contain NO Japanese kana/kanji.
 - NEVER introduce these sequences into text: `]` `[` ` name=` ` clip=` ` hide=` ` thumbnial=`.
 - Literal two-character `\n` (backslash + n) = in-bubble line break. Preserve each `\n`
-  in English at a sensible break point (losing one = validation error).
+  in English at a sensible break point (losing one = validation error when `GATE_LINE_BREAKS=1`; the check is off by default).
 - `{user}` is the player's name placeholder — keep exactly `{user}`, same count as JP.
 - Full-width parens （ ） are wrappers ONLY when the JP line is entirely wrapped in （…）
   (internal thoughts/asides). Keep them around the English. Never add elsewhere.

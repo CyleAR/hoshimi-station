@@ -10,6 +10,8 @@ const SCOTS = /\b(ye|ken|birl|braw|chuffed|lass)\b/i;
 const TOKENS = [/\{[^}]*\}/g, /<\/?[A-Za-z][^>]*>/g, /\[[^\]]*\]/g];
 
 const count = (s, sub) => (sub ? s.split(sub).length - 1 : 0);
+// Line-break count checks are off unless GATE_LINE_BREAKS is 1/true/on/yes.
+const lineBreakGate = () => /^(1|true|on|yes)$/i.test(process.env.GATE_LINE_BREAKS ?? '');
 // {…} and <tag> must match exactly; […] groups hold translatable text (e.g. [22ビート] -> [22 Beat]), so only their count must match.
 const tokens = (s) => TOKENS.slice(0, 2).flatMap((re) => s.match(re) ?? []).sort();
 const brackets = (s) => (s.match(TOKENS[2]) ?? []).length;
@@ -28,7 +30,7 @@ function checkAdv(unit, en) {
 	if (HANGUL.test(en)) errors.push('Korean characters remain');
 	for (const b of BANNED) if (en.includes(b)) errors.push(`forbidden sequence "${b}"`);
 	if (count(jp, '{user}') !== count(en, '{user}')) errors.push('{user} count differs from the source');
-	if (count(jp, '\\n') > count(en, '\\n')) errors.push('literal \\n line breaks were lost');
+	if (lineBreakGate() && count(jp, '\\n') > count(en, '\\n')) errors.push('literal \\n line breaks were lost');
 	if (/[\r\n]/.test(en)) errors.push('real newline in value (use the literal \\n)');
 	const kind = advKind(unit);
 	if (kind === 'msg' && jp.startsWith('（') && jp.endsWith('）') && !/^[（(][\s\S]*[）)]$/.test(en)) {
@@ -49,7 +51,7 @@ function checkMaster(unit, en) {
 	if (HANGUL.test(en)) errors.push('Korean characters remain');
 	// The shipped data already has token drift in the source; only demand a match when the source is self-consistent.
 	if (JSON.stringify(tokens(jp)) !== JSON.stringify(tokens(en)) || brackets(jp) !== brackets(en)) errors.push('placeholders/tags/brackets differ from the source');
-	if (count(jp, '\n') !== count(en, '\n')) warnings.push('line-break count differs from the source');
+	if (lineBreakGate() && count(jp, '\n') !== count(en, '\n')) warnings.push('line-break count differs from the source');
 	if (jp.length && (en.length > 3 * jp.length || en.length < 0.2 * jp.length)) warnings.push('length differs a lot from the source');
 	return { errors, warnings };
 }

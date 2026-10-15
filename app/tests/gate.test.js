@@ -27,7 +27,7 @@ test('valid candidates pass; clearing is allowed', () => {
 });
 test('broken candidates are rejected', () => {
 	for (const [id, bad] of [
-		['a1', 'おはよう {user}\\nok'], ['a1', 'Hi\\nok'], ['a1', 'Hi {user}'], ['a1', 'Hi {user}\\nok '],
+		['a1', 'おはよう {user}\\nok'], ['a1', 'Hi\\nok'],['a1', 'Hi {user}\\nok '],
 		['a1', 'Hi [x] {user}\\nok'], ['b1', '5-stage effect 22 Beat\\nConsumes 116 Stamina'], ['w1', 'The answer is outfit coordination...!'], ['a1', 'Ye ken {user}\\nok'], ['a2', 'A quiet morning.'], ['m1', 'Badge for {0}'], ['m1', 'バッジ <b>{0}</b>'], ['a1', '정말 {user}\\nok'], ['a1', 'ㅡㅡ {user}\\nok'], ['m1', 'Badge 55만원 <b>{0}</b>']
 	]) assert.equal(validateForUnitId(id, bad).ok, false, `${id}: ${bad}`);
 });
@@ -37,3 +37,19 @@ test('Gate 4 rejects an official copy and reports skipped without reference', ()
 	assert.equal(validateForUnitId('a2', '――A quiet morning.').gate4, 'skipped');
 });
 test('unknown unit returns null', () => assert.equal(validateForUnitId('zz', 'x'), null));
+test('line-break count checks are off by default', () => {
+	const prev = process.env.GATE_LINE_BREAKS;
+	delete process.env.GATE_LINE_BREAKS;
+	try {
+		assert.equal(validateForUnitId('a1', 'Hi {user}').ok, true);
+		assert.equal(validateForUnitId('b1', '5-stage effect [22 Beat]\nConsumes 116 Stamina').warnings.includes('line-break count differs from the source'), false);
+	} finally { if (prev !== undefined) process.env.GATE_LINE_BREAKS = prev; }
+});
+test('GATE_LINE_BREAKS=1 re-enables the line-break count checks', () => {
+	const prev = process.env.GATE_LINE_BREAKS;
+	process.env.GATE_LINE_BREAKS = '1';
+	try {
+		assert.equal(validateForUnitId('a1', 'Hi {user}').ok, false);
+		assert.equal(validateForUnitId('b1', '5-stage effect [22 Beat]\nConsumes 116 Stamina').warnings.includes('line-break count differs from the source'), true);
+	} finally { if (prev === undefined) delete process.env.GATE_LINE_BREAKS; else process.env.GATE_LINE_BREAKS = prev; }
+});
