@@ -9,6 +9,7 @@ CREATE TABLE official_en_hints (unit_id TEXT PRIMARY KEY, hint_text TEXT);
 INSERT INTO translation_units VALUES ('a1','adv/card','text','kana','「{user}、おはよう」\\n行こう','');
 INSERT INTO translation_units VALUES ('a2','adv/card','text','__narration__','――静かな朝。','');
 INSERT INTO translation_units VALUES ('m1','Accessory','name','','<b>{0}</b>のバッジ','');
+INSERT INTO translation_units VALUES ('b1','ConditionDescription','description','','5段階効果[22ビート]\\nスタミナ116消費','');
 INSERT INTO official_en_hints VALUES ('a1','"{user}, good morning"\\nLet''s go');`);
 const dbUrl = 'data:text/javascript;base64,' + Buffer.from(`export const get = (sql, p) => globalThis.__db.prepare(sql).get(p);`).toString('base64');
 globalThis.__db = db;
@@ -19,11 +20,12 @@ test('valid candidates pass; clearing is allowed', () => {
 	assert.equal(validateForUnitId('a1', '"{user}, morning!"\\nLet us go').ok, true);
 	assert.equal(validateForUnitId('a1', '').ok, true);
 	assert.equal(validateForUnitId('m1', 'Badge for <b>{0}</b>').ok, true);
+	assert.equal(validateForUnitId('b1', '5-stage effect [22 Beat]\\nConsumes 116 Stamina').ok, true);
 });
 test('broken candidates are rejected', () => {
 	for (const [id, bad] of [
 		['a1', 'おはよう {user}\\nok'], ['a1', 'Hi\\nok'], ['a1', 'Hi {user}'], ['a1', 'Hi {user}\\nok '],
-		['a1', 'Hi [x] {user}\\nok'], ['a1', 'Ye ken {user}\\nok'], ['a2', 'A quiet morning.'], ['m1', 'Badge for {0}'], ['m1', 'バッジ <b>{0}</b>'], ['a1', '정말 {user}\\nok'], ['a1', 'ㅡㅡ {user}\\nok'], ['m1', 'Badge 55만원 <b>{0}</b>']
+		['a1', 'Hi [x] {user}\\nok'], ['b1', '5-stage effect 22 Beat\\nConsumes 116 Stamina'], ['a1', 'Ye ken {user}\\nok'], ['a2', 'A quiet morning.'], ['m1', 'Badge for {0}'], ['m1', 'バッジ <b>{0}</b>'], ['a1', '정말 {user}\\nok'], ['a1', 'ㅡㅡ {user}\\nok'], ['m1', 'Badge 55만원 <b>{0}</b>']
 	]) assert.equal(validateForUnitId(id, bad).ok, false, `${id}: ${bad}`);
 });
 test('Gate 4 rejects an official copy and reports skipped without reference', () => {

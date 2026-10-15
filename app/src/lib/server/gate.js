@@ -10,7 +10,9 @@ const SCOTS = /\b(ye|ken|birl|braw|chuffed|lass)\b/i;
 const TOKENS = [/\{[^}]*\}/g, /<\/?[A-Za-z][^>]*>/g, /\[[^\]]*\]/g];
 
 const count = (s, sub) => (sub ? s.split(sub).length - 1 : 0);
-const tokens = (s) => TOKENS.flatMap((re) => s.match(re) ?? []).sort();
+// {…} and <tag> must match exactly; […] groups hold translatable text (e.g. [22ビート] -> [22 Beat]), so only their count must match.
+const tokens = (s) => TOKENS.slice(0, 2).flatMap((re) => s.match(re) ?? []).sort();
+const brackets = (s) => (s.match(TOKENS[2]) ?? []).length;
 
 function advKind(unit) {
 	if (unit.speaker === '__narration__') return 'narr';
@@ -46,7 +48,7 @@ function checkMaster(unit, en) {
 	if (CJK.test(en)) errors.push('Japanese characters remain');
 	if (HANGUL.test(en)) errors.push('Korean characters remain');
 	// The shipped data already has token drift in the source; only demand a match when the source is self-consistent.
-	if (JSON.stringify(tokens(jp)) !== JSON.stringify(tokens(en))) errors.push('placeholders/tags/brackets differ from the source');
+	if (JSON.stringify(tokens(jp)) !== JSON.stringify(tokens(en)) || brackets(jp) !== brackets(en)) errors.push('placeholders/tags/brackets differ from the source');
 	if (count(jp, '\n') !== count(en, '\n')) warnings.push('line-break count differs from the source');
 	if (jp.length && (en.length > 3 * jp.length || en.length < 0.2 * jp.length)) warnings.push('length differs a lot from the source');
 	return { errors, warnings };
