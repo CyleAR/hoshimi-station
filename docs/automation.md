@@ -54,8 +54,9 @@ Pushing triggers `release.yml` in the data repo, which builds the GitHub release
 ## Unattended chain — `scripts/auto_sync.sh`
 
 detect -> `ingest --apply` (stops/starts the container around the swap) -> `draft_new.mjs`
-(auto-accept off). Exits quietly when upstream is unchanged; a refused ingest leaves the live DB
-untouched and skips drafting. Uses a lock, so overlapping runs are harmless. Publishing stays manual.
+(auto-accept off by default) -> optional `publish_release.py --push` (off by default). Exits quietly when
+upstream is unchanged; a refused ingest leaves the live DB untouched and skips drafting. Uses a lock, so
+overlapping runs are harmless. By default publishing stays manual; see "Fully automatic" below.
 
     # crontab of the data-owning user (uid 1001); container control goes through uid 1000, see below
     30 4 * * * cd /path/to/hoshimi-station-en && scripts/auto_sync.sh >> backups/sync.log 2>&1
@@ -87,7 +88,22 @@ and export in the job environment:
 (Alternative: run the whole job as uid 1000 and set `HOSHIMI_UID/GID=1000` so the container and
 `data/` share that owner.) Set `GEMINI_API_KEY`/`OPENAI_API_KEY`/`HYPER_API_KEY` in the job's environment (cron: top of crontab),
 otherwise the draft step exits 2. Rotate `backups/sync.log` (logrotate or `tail -n 2000`).
-Leave `--push` publishing to a human.
+By default `--push` publishing is left to a human; set `AUTO_PUBLISH=1` to automate it.
+
+### Fully automatic
+
+Set in `sync.env`:
+
+    DRAFT_AUTO_ACCEPT=1        # accept drafts that pass the quality gate (credited to DRAFT_ACCEPT_AS)
+    DRAFT_ACCEPT_AS=ai-draft
+    AUTO_PUBLISH=1             # run publish_release.py --push after drafting
+    PUBLISH_MIRROR=/path/to/ipr-translation-data-en-public   # clean git checkout with push access
+    PUBLISH_REQUIRE_REVIEW=1   # optional: skip publishing while any draft is unaccepted
+
+Publish exit codes: 0 ok (or nothing changed); 3 skipped because drafts are pending review (logged, not an
+error); anything else (2 dirty/missing mirror, 4 missing export part) fails the run. Drafts rejected by the
+gate never reach the DB, so with auto-accept on only gate-passing text is published. The mirror's git
+credentials must work non-interactively (deploy key or token).
 
 ### `sync.env`
 
