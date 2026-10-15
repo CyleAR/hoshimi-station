@@ -19,7 +19,23 @@ Before the swap it writes `backups/pre-ingest-*.sqlite3.gz` (3 kept), and aborts
 someone edited the live DB during the run. Takes about 4 min and needs ~3x the DB size free.
 New untranslated rows land in `new_import_units`.
 
-## 2. Export and publish — `scripts/publish_release.py`
+## 2. Batch first drafts — `scripts/draft_new.mjs`
+
+    node scripts/draft_new.mjs --dry-run            # list batches, no AI calls
+    node scripts/draft_new.mjs --limit 200          # draft up to 200 new units
+    DRAFT_AUTO_ACCEPT=1 node scripts/draft_new.mjs  # also accept drafts that pass the gate
+
+Takes untranslated rows from `new_import_units` that have no suggestion yet and drafts them with
+the same code as the web UI's AI button (`app/src/lib/server/ai-client.js`): same provider
+selection (HYPER > OPENAI > GEMINI), model, guidelines, prompt, `AI_RPM` limiter and output
+filters. No daily cap applies. Drafts that fail the quality gate, echo the source or drop
+placeholders are discarded. The rest are written to `ai_suggestions` (reason `batch draft`) and
+show up for review in the UI. Auto-accept is off by default; accepted drafts are credited to
+`DRAFT_ACCEPT_AS` (default `ai-draft`). Options: `--batch N` (default 40, max 150), `--refs N`
+(translated neighbours per batch, default 20), `--db PATH`. Re-runs skip units that already have
+a suggestion.
+
+## 3. Export and publish — `scripts/publish_release.py`
 
     scripts/publish_release.py            # export into the mirror working tree, nothing committed (~9 min)
     scripts/publish_release.py --push     # bump version.txt, commit "Release <VER>", push
