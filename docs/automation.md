@@ -51,7 +51,7 @@ detect -> `ingest --apply` (stops/starts the container around the swap) -> `draf
 (auto-accept off). Exits quietly when upstream is unchanged; a refused ingest leaves the live DB
 untouched and skips drafting. Uses a lock, so overlapping runs are harmless. Publishing stays manual.
 
-    # crontab of the data-owning user (uid 1001); needs docker access for stop/start
+    # crontab of the data-owning user (uid 1001); container control goes through uid 1000, see below
     30 4 * * * cd /path/to/hoshimi-station-en && scripts/auto_sync.sh >> backups/sync.log 2>&1
 
 systemd alternative (`~/.config/systemd/user/hoshimi-sync.{service,timer}`):
@@ -66,6 +66,19 @@ systemd alternative (`~/.config/systemd/user/hoshimi-sync.{service,timer}`):
     [Install]
     WantedBy=timers.target
 
-Set `GEMINI_API_KEY`/`OPENAI_API_KEY`/`HYPER_API_KEY` in the job's environment (cron: top of crontab),
+Docker is only usable by uid 1000, while `data/` belongs to uid 1001, so the job runs as 1001 and
+hands container control to 1000 via sudo. In `/etc/sudoers.d/hoshimi` (replace `svc` with the 1001
+account, `dockeruser` with the 1000 account and fix the compose path):
+
+    svc ALL=(dockeruser) NOPASSWD: /usr/bin/docker compose -f /path/to/hoshimi-station-en/compose.yml stop, \
+                                   /usr/bin/docker compose -f /path/to/hoshimi-station-en/compose.yml start
+
+and export in the job environment:
+
+    STOP_CMD='sudo -n -u dockeruser docker compose -f /path/to/hoshimi-station-en/compose.yml stop'
+    START_CMD='sudo -n -u dockeruser docker compose -f /path/to/hoshimi-station-en/compose.yml start'
+
+(Alternative: run the whole job as uid 1000 and set `HOSHIMI_UID/GID=1000` so the container and
+`data/` share that owner.) Set `GEMINI_API_KEY`/`OPENAI_API_KEY`/`HYPER_API_KEY` in the job's environment (cron: top of crontab),
 otherwise the draft step exits 2. Rotate `backups/sync.log` (logrotate or `tail -n 2000`).
 Leave `--push` publishing to a human.

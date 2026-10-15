@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Unattended pipeline: detect upstream change -> verified ingest (swap) -> batch first drafts.
+# Container control (STOP_CMD/START_CMD) runs as the invoking user; docker is 1000-only, so see docs/automation.md (sudo -u).
 # Drafts land as pending ai_suggestions for human review; nothing is published.
 # Run on the host as the user that owns ./data (uid 1001). Needs python3, git, node.
 #   env: STOP_CMD / START_CMD   container control (default: docker compose stop|start)
