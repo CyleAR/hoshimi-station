@@ -99,6 +99,7 @@ Set in `sync.env`:
     AUTO_PUBLISH=1             # run publish_release.py --push after drafting
     PUBLISH_MIRROR=/path/to/ipr-translation-data-en-public   # clean git checkout with push access
     PUBLISH_REQUIRE_REVIEW=1   # optional: skip publishing while any draft is unaccepted
+    PUBLISH_INCLUDE_NEW=1      # also ship masterTrans keys not yet in the shipped files (default drops them)
 
 Publish exit codes: 0 ok (or nothing changed); 3 skipped because drafts are pending review (logged, not an
 error); anything else (2 dirty/missing mirror, 4 missing export part) fails the run. Drafts rejected by the

@@ -46,6 +46,8 @@ def main() -> int:
     ap.add_argument("--db", type=Path, default=DB)
     ap.add_argument("--mirror", type=Path, default=Path(os.environ.get("PUBLISH_MIRROR", "~/ipr-translation-data-en-public")).expanduser())
     ap.add_argument("--push", action="store_true")
+    ap.add_argument("--include-new", action="store_true", default=os.environ.get("PUBLISH_INCLUDE_NEW") == "1",
+                    help="also ship masterTrans keys that are not in the shipped files yet (env PUBLISH_INCLUDE_NEW=1)")
     args = ap.parse_args()
     mirror: Path = args.mirror
     if not (mirror / ".git").exists():
@@ -68,7 +70,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="hoshimi-export-") as tmp:
         out = Path(tmp) / "out"
         r = run(sys.executable, str(ROOT / "scripts" / "export_output.py"), "--db", str(args.db), "--out", str(out),
-                "--overwrite", "--format-reference", str(ref / "masterTrans"), "--shipped-keys-only",
+                "--overwrite", "--format-reference", str(ref / "masterTrans"),
+                *([] if args.include_new else ["--shipped-keys-only"]),
                 "--adv-reference", str(ref / "resource" / "adv"))
         print(r.stdout.strip().splitlines()[-1])
         for part in PARTS:
