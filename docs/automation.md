@@ -21,6 +21,8 @@ New untranslated rows land in `new_import_units`.
 
 ## 2. Batch first drafts — `scripts/draft_new.mjs`
 
+Needs Node >= 22.5 (`node:sqlite`). If the host's `node` is older, point `NODE_BIN=/path/to/node22` in `sync.env` and run the script with that binary.
+
     node scripts/draft_new.mjs --dry-run            # list batches, no AI calls
     node scripts/draft_new.mjs --limit 200          # draft up to 200 new units
     DRAFT_AUTO_ACCEPT=1 node scripts/draft_new.mjs  # also accept drafts that pass the gate

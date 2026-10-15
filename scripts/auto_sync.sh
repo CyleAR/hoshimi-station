@@ -4,6 +4,7 @@
 # Drafts land as pending ai_suggestions for human review; nothing is published.
 # Run on the host as the user that owns ./data (uid 1001). Needs python3, git, node.
 #   env: STOP_CMD / START_CMD   container control (default: docker compose stop|start)
+#        NODE_BIN               node >= 22.5 (node:sqlite) for the draft step (default: node)
 #        DRAFT_LIMIT            max units drafted per run (default 500)
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -29,5 +30,5 @@ fi
 
 # Runs every time (also when upstream is unchanged): already-drafted units are skipped, so it only retries leftovers.
 log "drafting new units"
-node scripts/draft_new.mjs --limit "${DRAFT_LIMIT:-500}" || log "draft step failed ($?)"
+"${NODE_BIN:-node}" scripts/draft_new.mjs --limit "${DRAFT_LIMIT:-500}" || log "draft step failed ($?)"
 log "done; review drafts in the UI, publish manually"
