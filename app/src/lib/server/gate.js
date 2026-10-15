@@ -31,8 +31,8 @@ function checkAdv(unit, en) {
 	if (count(jp, '\\n') > count(en, '\\n')) errors.push('literal \\n line breaks were lost');
 	if (/[\r\n]/.test(en)) errors.push('real newline in value (use the literal \\n)');
 	const kind = advKind(unit);
-	if (kind === 'msg' && jp.startsWith('（') && jp.endsWith('）') && !(en.startsWith('（') && en.endsWith('）'))) {
-		errors.push('the source is wrapped in （…） and the translation must keep the wrapper');
+	if (kind === 'msg' && jp.startsWith('（') && jp.endsWith('）') && !/^[（(][\s\S]*[）)]$/.test(en)) {
+		errors.push('the source is wrapped in （…） and the translation must keep a (…) wrapper');
 	}
 	if (kind === 'narr' && jp.startsWith('――') && !en.startsWith('――')) errors.push('leading ―― lost');
 	if (en !== en.trimEnd()) errors.push('trailing whitespace');
