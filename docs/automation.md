@@ -82,3 +82,14 @@ and export in the job environment:
 `data/` share that owner.) Set `GEMINI_API_KEY`/`OPENAI_API_KEY`/`HYPER_API_KEY` in the job's environment (cron: top of crontab),
 otherwise the draft step exits 2. Rotate `backups/sync.log` (logrotate or `tail -n 2000`).
 Leave `--push` publishing to a human.
+
+### `sync.env`
+
+`scripts/auto_sync.sh` sources an optional `sync.env` in the repo root (gitignored, chmod 600) before running, so
+cron needs no exported variables. Example:
+
+    STOP_CMD='sudo -n -u aspire docker compose -f /path/to/hoshimi-station-en/compose.yml stop'
+    START_CMD='sudo -n -u aspire docker compose -f /path/to/hoshimi-station-en/compose.yml start'
+    GEMINI_API_KEY=...
+    DRAFT_AUTO_ACCEPT=1
+    DRAFT_ACCEPT_AS=ai-draft

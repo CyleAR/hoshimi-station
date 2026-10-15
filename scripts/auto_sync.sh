@@ -7,6 +7,8 @@
 #        DRAFT_LIMIT            max units drafted per run (default 500)
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# Optional settings file (gitignored): STOP_CMD, START_CMD, DRAFT_*, AI keys. Plain KEY=value lines.
+if [ -f sync.env ]; then set -a; . ./sync.env; set +a; fi
 mkdir -p backups
 exec 9>backups/.auto_sync.lock
 flock -n 9 || { echo "$(date -Is) another run in progress"; exit 0; }
