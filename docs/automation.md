@@ -45,8 +45,27 @@ localization.json and resource/adv are replaced; the mirror's own files are the 
 `PUBLISH_REQUIRE_REVIEW=1` refuses to publish while AI suggestions are unaccepted (default off).
 Pushing triggers `release.yml` in the data repo, which builds the GitHub release.
 
-## Cron example
+## Unattended chain — `scripts/auto_sync.sh`
 
-    30 4 * * * cd ~/hoshimi-station-en && scripts/upstream_sync.py detect >/dev/null; [ $? -eq 10 ] && scripts/upstream_sync.py ingest >> backups/sync.log 2>&1
+detect -> `ingest --apply` (stops/starts the container around the swap) -> `draft_new.mjs`
+(auto-accept off). Exits quietly when upstream is unchanged; a refused ingest leaves the live DB
+untouched and skips drafting. Uses a lock, so overlapping runs are harmless. Publishing stays manual.
 
-Leave `--apply` and `--push` to a human until the dry runs look right.
+    # crontab of the data-owning user (uid 1001); needs docker access for stop/start
+    30 4 * * * cd /path/to/hoshimi-station-en && scripts/auto_sync.sh >> backups/sync.log 2>&1
+
+systemd alternative (`~/.config/systemd/user/hoshimi-sync.{service,timer}`):
+
+    [Service]
+    Type=oneshot
+    WorkingDirectory=/path/to/hoshimi-station-en
+    ExecStart=/path/to/hoshimi-station-en/scripts/auto_sync.sh
+    [Timer]
+    OnCalendar=*-*-* 04:30
+    Persistent=true
+    [Install]
+    WantedBy=timers.target
+
+Set `GEMINI_API_KEY`/`OPENAI_API_KEY`/`HYPER_API_KEY` in the job's environment (cron: top of crontab),
+otherwise the draft step exits 2. Rotate `backups/sync.log` (logrotate or `tail -n 2000`).
+Leave `--push` publishing to a human.
