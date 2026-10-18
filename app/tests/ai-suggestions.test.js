@@ -21,6 +21,7 @@ async function endpoint(name) {
 }
 const submit = (await endpoint('ai-suggestions')).POST;
 const accept = (await endpoint('ai-suggestions/accept')).POST;
+const clear = (await endpoint('ai-suggestions/clear')).POST;
 const save = (await endpoint('unit')).POST;
 const priorToken = process.env.CODEX_API_TOKEN;
 process.env.CODEX_API_TOKEN = 'test-token';
@@ -34,6 +35,9 @@ async function propose(id, extra = {}) {
 	return post(submit, { unit_id: id, translation_text: '제안문', reason: '다른 스토리의 말투와 통일', base_revision: current.revision, base_original_text: current.original_text, base_translation_text: current.translation_text, ...extra }, 'test-token');
 }
 function seed(id) { db.prepare('INSERT INTO translation_units(unit_id) VALUES (?)').run(id); }
+async function empty(id, createdAt, extra = {}) {
+	return post(clear, { unit_id: id, created_at: createdAt, nickname: '사일', pin: '654321', ...extra });
+}
 async function use(id, createdAt, extra = {}) {
 	return post(accept, { unit_id: id, created_at: createdAt, nickname: '사일', pin: '654321', ...extra });
 }
@@ -51,6 +55,32 @@ test('proposal stays separate, resolves references, and is saved once under the 
 	assert.equal(unit('target').translator_name, '사일');
 	assert.equal(unit('target').revision, 1);
 	assert.equal((await use('target', item.ai_suggestion.created_at)).status, 409);
+});
+
+test('clearing persists, preserves current translation and review, and prevents later acceptance', async () => {
+	seed('clear-target');
+	db.prepare("UPDATE translation_units SET translation_text = '기존 번역' WHERE unit_id = 'clear-target'").run();
+	await propose('clear-target');
+	const before = unit('clear-target');
+	const suggestion = attachSuggestions([before])[0].ai_suggestion;
+	assert.equal((await empty('clear-target', suggestion.created_at)).status, 200);
+	assert.deepEqual(unit('clear-target'), before);
+	assert.equal(attachSuggestions([unit('clear-target')])[0].ai_suggestion, null);
+	assert.equal(db.prepare("SELECT verdict FROM ai_reviews WHERE unit_id = 'clear-target'").get().verdict, 'suggested');
+	assert.equal((await use('clear-target', suggestion.created_at)).status, 409);
+});
+
+test('clearing requires the owner and cannot remove a replacement or accepted proposal', async () => {
+	seed('clear-conflict'); await propose('clear-conflict');
+	const old = attachSuggestions([unit('clear-conflict')])[0].ai_suggestion;
+	assert.equal((await empty('clear-conflict', old.created_at, { pin: '000000' })).status, 401);
+	assert.equal((await empty('clear-conflict', old.created_at, { nickname: 'human', pin: '123456' })).status, 403);
+	await propose('clear-conflict', { translation_text: '새 제안' });
+	assert.equal((await empty('clear-conflict', old.created_at)).status, 409);
+	const latest = attachSuggestions([unit('clear-conflict')])[0].ai_suggestion;
+	assert.equal(latest.translation_text, '새 제안');
+	assert.equal((await use('clear-conflict', latest.created_at)).status, 200);
+	assert.equal((await empty('clear-conflict', latest.created_at)).status, 409);
 });
 test('human edits and replacements reject stale acceptance, including change-and-revert', async () => {
 	seed('conflict'); await propose('conflict');

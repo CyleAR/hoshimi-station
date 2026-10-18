@@ -821,6 +821,26 @@
 		}
 	}
 
+	async function clearAiSuggestion(unit) {
+		if (!canUseCodexSuggestions() || !unit.ai_suggestion || unit.ai_suggestion.accepted_at || unit.saving || acceptingSuggestions) return;
+		unit.saving = true;
+		unit.error = "";
+		try {
+			await fetchJson("/api/ai-suggestions/clear", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ unit_id: unit.unit_id, created_at: unit.ai_suggestion.created_at,
+					nickname: currentUser.nickname, pin: currentUser.pin }),
+			});
+			unit.ai_suggestion = null;
+			notice = "AI 제안을 비웠습니다. 현재 번역은 그대로입니다.";
+		} catch (err) {
+			unit.error = err.message;
+		} finally {
+			unit.saving = false;
+		}
+	}
+
 	async function saveUnit(unit) {
 		if (!currentUser) {
 			loginError = "저장하려면 먼저 닉네임을 입력해 주세요.";
@@ -2529,6 +2549,10 @@
 												{#if unit.ai_suggestion}
 													<div class="suggestion-heading">
 														<strong>{unit.ai_suggestion.accepted_at ? "사용한 제안" : "번역 제안"}</strong>
+														{#if !unit.ai_suggestion.accepted_at}
+															<button class="soft" onclick={() => clearAiSuggestion(unit)} disabled={unit.saving || acceptingSuggestions}
+																title="AI 제안만 삭제합니다. 현재 번역과 작성 중인 내용은 유지됩니다.">제안 비우기</button>
+														{/if}
 														<button class="soft suggestion-save" onclick={() => useAiSuggestion(unit)}
 															disabled={unit.saving || Boolean(unit.ai_suggestion.accepted_at) || unit.ai_suggestion.stale || unit.dirty}>
 															{unit.saving ? "저장 중..." : unit.ai_suggestion.accepted_at ? "사용됨" : "사용"}

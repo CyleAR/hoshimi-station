@@ -1,0 +1,21 @@
+import { get, getDb, json } from '$lib/server/db.js';
+
+export async function POST({ request }) {
+	let body;
+	try { body = await request.json(); } catch { return json({ error: 'JSON 형식이 필요합니다.' }, { status: 400 }); }
+	if (!body || typeof body.unit_id !== 'string' || typeof body.created_at !== 'string') {
+		return json({ error: '제안 항목과 식별자가 필요합니다.' }, { status: 400 });
+	}
+	const nickname = String(body.nickname ?? '').trim().slice(0, 24);
+	const pin = String(body.pin ?? '').trim();
+	if (!nickname || !/^\d{6}$/.test(pin) || !get('SELECT nickname FROM users WHERE nickname = $nickname AND pin = $pin', { $nickname: nickname, $pin: pin })) {
+		return json({ error: '닉네임 또는 비밀번호가 맞지 않습니다.' }, { status: 401 });
+	}
+	if (nickname !== '사일') return json({ error: 'AI 제안은 사일 계정만 비울 수 있습니다.' }, { status: 403 });
+	// Match the displayed proposal so an older tab cannot delete its replacement.
+	// Keep the review record: clearing a proposal must not queue the same review again.
+	const result = getDb().prepare('DELETE FROM ai_suggestions WHERE unit_id = ? AND created_at = ? AND accepted_at IS NULL')
+		.run(body.unit_id, body.created_at);
+	if (!result.changes) return json({ error: '제안이 변경되었거나 이미 사용·삭제되었습니다. 항목을 다시 열어 주세요.' }, { status: 409 });
+	return json({ ok: true });
+}
