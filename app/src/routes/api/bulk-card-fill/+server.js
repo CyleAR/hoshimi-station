@@ -5,7 +5,7 @@ export async function POST({ request }) {
 	const nickname = String(body.nickname ?? '').trim().slice(0, 24);
 	const pin = String(body.pin ?? '').trim();
 	const cardId = String(body.card_id ?? '').trim();
-	const rawTitle = String(body.raw_title ?? '').trim(); // e.g. "빛나는 무대 위에서 나가세 마나"
+	const rawTitle = String(body.raw_title ?? '').trim();
 
 	if (!nickname) return json({ error: 'nickname is required' }, { status: 401 });
 	if (!/^\d{6}$/.test(pin)) return json({ error: 'pin must be 6 digits' }, { status: 401 });
@@ -49,26 +49,8 @@ export async function POST({ request }) {
 		return json({ error: '해당 캐릭터의 이름을 찾을 수 없습니다.' }, { status: 400 });
 	}
 
-	// 2. Extract Title by removing Character Name from the end
-	let title = rawTitle;
-	if (title.endsWith(chr)) {
-		title = title.slice(0, -chr.length).trim();
-	} else {
-		// If character name has spaces, try removing it ignoring spaces, or just ask user to make sure.
-		// For safety, let's just do simple replace from the end
-		const chrNoSpace = chr.replace(/\s+/g, '');
-		const titleNoSpace = title.replace(/\s+/g, '');
-		if (titleNoSpace.endsWith(chrNoSpace)) {
-			// Find the actual split point in the original string
-			let matchLen = 0;
-			let idx = title.length - 1;
-			while (idx >= 0 && matchLen < chrNoSpace.length) {
-				if (title[idx] !== ' ') matchLen++;
-				idx--;
-			}
-			title = title.slice(0, idx + 1).trim();
-		}
-	}
+	// Card.name is already the title; a trailing character name can be part of it.
+	const title = rawTitle;
 
 	if (!title) {
 		return json({ error: '카드 제목을 추출할 수 없습니다.' }, { status: 400 });
