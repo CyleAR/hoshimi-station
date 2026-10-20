@@ -6,6 +6,7 @@
 
 - `app/`: SvelteKit 번역 UI
 - `scripts/`: DB import, 한섭 데이터 prefill, export, 일괄 치환 스크립트
+- `docs/`: 번역 지침, prefill 문장 템플릿과 명칭 사전
 - `data/hoshimi.sqlite3`: 번역 작업용 SQLite DB
 - `res/`: 원본 MasterDB/ADV 리소스 서브모듈
 - `output/`: export 결과 서브모듈
@@ -106,22 +107,50 @@ python scripts/prefill_kor.py --dry-run
 
 ## `prefill_translations.json` 템플릿
 
-`scripts/prefill_translations.json`의 원문 키에는 다음 placeholder를 사용할 수 있습니다.
+`docs/prefill_translations.json`은 문장 템플릿을, `docs/prefill_dictionary.json`은
+그 안에 넣을 단어의 원문과 번역을 관리합니다. 사전과 템플릿 수정은 다음 DB 임포트부터 반영됩니다.
+기본 임포트는 빈 번역만 채우며, 기존 번역 덮어쓰기는 기존처럼 `manage.py`의 6번에서 실행합니다.
 
-- `{0}`, `{1}` ...: 반각·전각 숫자를 캡처해 번역문의 같은 번호에 삽입합니다.
-- `{chr}`: 캐릭터 이름(`firstName`)을 한국어 이름으로 치환합니다.
-- `{chr_full}`: 캐릭터 풀네임(`name`)을 한국어 풀네임으로 치환합니다.
-- `{chr}[와/과]`, `{chr}[은/는]`, `{chr}[을/를]`, `{chr}[이/가]`: 캐릭터 표에 명시된 받침 여부에 따라 조사를 확정합니다.
-- `{threshold}`, `{user}` 등 그 밖의 중괄호 표기는 기존처럼 리터럴로 취급합니다.
+현재 사전 분류는 `chr`(이름), `chr_full`(성명), `group`(그룹 정식명·약칭),
+`costume`(의상명), `hair`(헤어명), `music`(곡명)입니다. 사전의 최상위 분류명을 추가하면 Python 코드를 수정하지 않고
+같은 이름의 placeholder를 사용할 수 있습니다. 예를 들어 사전에 다음 분류를 추가하면:
 
-`{chr}`와 `{chr_full}`은 임의 문자열을 캡처하지 않습니다. `scripts/import_db.py`의
-`PREFILL_CHARACTER_NAMES` 표를 캐릭터 ID 단위로 확장하므로 한 글자 이름의 오탐을 막고,
-한 템플릿에 두 placeholder가 함께 있어도 같은 캐릭터의 이름을 사용합니다.
-조사는 placeholder 바로 뒤에 붙였을 때만 `import_db.py`에서 처리합니다. 이름과 풀네임의 받침 여부는
-`PREFILL_CHARACTER_NAMES` tuple에 각각 하드코딩되어 있습니다. `fran`, `kana`, `miho`는 이름과
-풀네임 모두 같은 로마자 문자열을 사용하며, 조사 기준은 각각 받침 있음·없음·없음입니다.
-`サニーピース`, `月のテンペスト`, `TRINITYAiLE`, `LizNoir`, `ⅢX`도 반복되는 그룹 문구를
-공유하기 위해 같은 표에 이름·풀네임이 동일한 항목으로 등록되어 `{chr}`로 확장됩니다.
+```json
+"weather": {
+    "晴れ": "맑음",
+    "雨": "비"
+}
+```
+
+prefill 템플릿에서 `"天気：{weather}": "날씨: {weather}"`처럼 참조할 수 있습니다.
+사전 단어가 문장 어디에나 치환되는 것은 아니며, 원문 전체가 템플릿과 일치해야 합니다.
+단독 명칭도 정확 일치로 선입력됩니다. 분류명은 영문자로 시작하고 영문·숫자·밑줄만 사용합니다.
+
+- `{chr}`와 `{chr_full}`은 각각 이름과 성명 사전에서 찾습니다. `ココア`는 이름으로는 `코코아`, 성명으로는 `호토 코코아`처럼 결과를 구분할 수 있습니다.
+- `{group}`은 `月のテンペスト`를 `달의 템페스트`, `月スト`를 `달템`으로 옮깁니다. 기존에 문장별로 다른 번역을 지정한 항목은 그 번역을 우선합니다.
+- `{music}`은 곡명 사전에서 찾습니다. 영문처럼 번역이 원문과 같은 곡명도 그대로 유지하며, 사전에 없는 신곡은 자동으로 번역하지 않습니다.
+- `{costume}`, `{hair}`, `{music}`은 각각 DB의 `Costume.name`, `Hair.name`, `Music.name`에 쓰인 명칭을 등록합니다. 같은 이름이 여러 분류에 실제로 쓰이면 각 사전에 등록하며, 한 분류에만 임의로 배정하지 않습니다. DB에서 번역을 가져와 사전을 채운 뒤에도 신규 명칭은 별도로 추가해야 합니다.
+- `{0}`, `{1}` 등은 반각·전각 숫자를 그대로 캡처하며 앞자리 0도 보존합니다. 같은 placeholder가 반복되면 같은 원문 값이어야 합니다.
+- `{threshold}`, `{user}`처럼 등록되지 않은 이름은 리터럴로 유지합니다. `threshold`와 `user`는 사전 분류명으로 사용할 수 없습니다.
+- 서로 다른 분류의 placeholder는 독립적으로 매칭합니다. 이름과 성명을 같은 캐릭터 ID로 묶어서 확장하는 이전 하드코딩 방식은 사용하지 않습니다.
+
+`{chr}[와/과]`, `{group}[은/는]`, `{costume}[을/를]`, `{chr_full}[이/가]`처럼
+사전 placeholder 바로 뒤에 붙인 네 조사 태그를 처리합니다. 한글 말미는 받침을 계산하고,
+사전의 `_batchim`에 같은 번역 문자열이 있으면 해당 값을 우선합니다. 영문 등의 예외는 다음처럼
+`true`(받침 있음), `false`(받침 없음)로 지정합니다. `fran`·`TRINITYAiLE` 등의 기존 판정도 이곳으로 옮겼습니다.
+
+```json
+"_batchim": {
+    "fran": true,
+    "miho": false,
+    "kana": false,
+    "TRINITYAiLE": true
+}
+```
+
+명시적인 prefill 번역은 사전과 일반 템플릿보다 우선합니다. 같은 원문이 여러 사전에서 다른 뜻이면
+단독 선입력만 건너뛰고 `prefill_warning`을 출력하며, 각 placeholder 안에서는 해당 분류의 번역을 사용합니다.
+JSON 형식·중복 키·번역문 placeholder 오류는 DB 재구축 전에 검사합니다.
 
 ## output export
 

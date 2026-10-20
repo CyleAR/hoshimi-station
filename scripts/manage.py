@@ -335,7 +335,7 @@ def cleanup_message_title_quotes() -> None:
 def overwrite_prefill_translations(*, confirm: bool = True) -> None:
     print()
     print("== prefill 전체 번역 덮어쓰기 ==")
-    print("scripts/prefill_translations.json에 매칭되는 기존 번역을 모두 덮어씁니다.")
+    print("docs/prefill_translations.json과 docs/prefill_dictionary.json에 매칭되는 기존 번역을 모두 덮어씁니다.")
     print("사람이 직접 고친 번역도 매칭되면 바뀌므로 먼저 DB 백업을 권장합니다.")
     print()
     if confirm:
@@ -487,7 +487,7 @@ def menu() -> str:
     print("   - 먼저 검색 결과 미리보기를 보여준 뒤 확인하면 실제 변경합니다.")
     print()
     print("6. prefill 전체 번역 덮어쓰기")
-    print("   - scripts/prefill_translations.json 기준으로 기존 번역까지 덮어씁니다.")
+    print("   - docs/prefill_translations.json과 docs/prefill_dictionary.json 기준으로 기존 번역까지 덮어씁니다.")
     print("   - 변경 로그를 tmp/reports/prefill_overwrite_*.tsv에 남깁니다.")
     print()
     print("7. Skill auto translation")

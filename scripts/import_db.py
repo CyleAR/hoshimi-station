@@ -11,6 +11,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, TextIO
 
+if __package__:
+    from .prefill_templates import PrefillRules, load_prefill_rules
+else:
+    from prefill_templates import PrefillRules, load_prefill_rules
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MASTERDB_DIR = ROOT / "res" / "masterdb"
@@ -18,104 +23,9 @@ ADV_DIR = ROOT / "res" / "adv" / "resource"
 LOCALIZATION_PATH = ROOT / "res" / "localization.json"
 LOCALIZATION_TRANSLATION_PATH = ROOT / "output" / "local-files" / "localization.json"
 DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
-PREFILL_TRANSLATIONS_PATH = ROOT / "scripts" / "prefill_translations.json"
+PREFILL_TRANSLATIONS_PATH = ROOT / "docs" / "prefill_translations.json"
+PREFILL_DICTIONARY_PATH = ROOT / "docs" / "prefill_dictionary.json"
 PREFILL_TRANSLATOR = "[BOT] auto-prefill"
-PREFILL_NUMERIC_PLACEHOLDER_RE = re.compile(r"\{(\d+)\}")
-PREFILL_CHARACTER_PLACEHOLDER_RE = re.compile(r"\{(chr_full|chr)\}")
-PREFILL_FORMAT_PLACEHOLDER_RE = re.compile(r"\{(\d+|chr_full|chr)\}")
-PREFILL_CHARACTER_PARTICLES: dict[str, tuple[str, str]] = {
-    "[와/과]": ("와", "과"),
-    "[은/는]": ("는", "은"),
-    "[을/를]": ("를", "을"),
-    "[이/가]": ("가", "이"),
-}
-
-# (character/group id, Japanese first name, Korean first name, Japanese full name, Korean full name,
-#  Korean first name has final consonant, Korean full name has final consonant)
-# Character placeholders are expanded through this explicit table instead of matching
-# arbitrary text. This prevents one-character names such as 愛, 優, 雫, and 怜
-# from consuming unrelated text. Group names intentionally share the same placeholder.
-PREFILL_CHARACTER_NAMES: tuple[tuple[str, str, str, str, str, bool, bool], ...] = (
-    ("char-ai", "愛", "아이", "小美山愛", "코미야마 아이", False, False),
-    ("char-aoi", "葵", "아오이", "井川葵", "이가와 아오이", False, False),
-    ("char-cca", "ココア", "코코아", "ココア", "호토 코코아", False, False),
-    ("char-chk", "千歌", "치카", "高海千歌", "타카미 치카", False, False),
-    ("char-chn", "チノ", "치노", "チノ", "카후우 치노", False, False),
-    ("char-chs", "千紗", "치사", "白石千紗", "시라이시 치사", False, False),
-    ("char-cinnamo", "シナモン", "시나몬", "シナモロール", "시나모롤", True, True),
-    ("char-gyo", "さくら", "사쿠라", "魚魚っとさん", "울먹이", False, False),
-    ("char-haruhi", "ハルヒ", "하루히", "涼宮ハルヒ", "스즈미야 하루히", False, False),
-    ("char-hrk", "遙子", "하루코", "佐伯遙子", "사에키 하루코", False, False),
-    ("char-itsuki", "一樹", "이츠키", "古泉一樹", "코이즈미 이츠키", False, False),
-    ("char-kan", "kana", "kana", "kana", "kana", False, False),
-    ("char-kitty", "キティ", "키티", "ハローキティ", "헬로키티", False, False),
-    ("char-kkr", "こころ", "코코로", "赤崎こころ", "아카자키 코코로", False, False),
-    ("char-koh", "牧野", "마키노", "牧野航平", "마키노 코헤이", False, False),
-    ("char-konazusa", "梓", "아즈사", "中野梓", "나카노 아즈사", False, False),
-    ("char-konmio", "澪", "미오", "秋山澪", "아키야마 미오", False, False),
-    ("char-konmugi", "紬", "츠무기", "琴吹紬", "코토부키 츠무기", False, False),
-    ("char-konritsu", "律", "리츠", "田井中律", "타이나카 리츠", False, False),
-    ("char-konyui", "唯", "유이", "平沢唯", "히라사와 유이", False, False),
-    ("char-kor", "fran", "fran", "fran", "fran", True, True),
-    ("char-ktn", "琴乃", "코토노", "長瀬琴乃", "나가세 코토노", False, False),
-    ("char-kuromi", "クロミ", "쿠로미", "クロミ", "쿠로미", False, False),
-    ("char-kyon", "キョン", "쿈", "キョン", "쿈", True, True),
-    ("char-kyui", "唯", "유이", "古手川唯", "코테가와 유이", False, False),
-    ("char-lala", "ララ", "라라", "ララ", "라라 사타린 데빌룩", False, True),
-    ("char-mei", "芽衣", "메이", "早坂芽衣", "하야사카 메이", False, False),
-    ("char-melody", "メロディ", "멜로디", "マイメロディ", "마이멜로디", False, False),
-    ("char-mhk", "miho", "miho", "miho", "miho", False, False),
-    ("char-mikuru", "みくる", "미쿠루", "朝比奈みくる", "아사히나 미쿠루", False, False),
-    ("char-mku", "ミク", "미쿠", "初音ミク", "하츠네 미쿠", False, False),
-    ("char-mna", "麻奈", "마나", "長瀬麻奈", "나가세 마나", False, False),
-    ("char-mng", "麻奈", "마나", "長瀬麻奈", "나가세 마나", False, False),
-    ("char-momo", "モモ", "모모", "モモ", "모모 베리아 데빌룩", False, True),
-    ("char-ngs", "渚", "나기사", "伊吹渚", "이부키 나기사", False, False),
-    ("char-rei", "怜", "레이", "一ノ瀬怜", "이치노세 레이", False, False),
-    ("char-rik", "梨子", "리코", "桜内梨子", "사쿠라우치 리코", False, False),
-    ("char-rio", "莉央", "리오", "神崎莉央", "칸자키 리오", False, False),
-    ("char-rui", "瑠依", "루이", "天動瑠依", "텐도 루이", False, False),
-    ("char-ski", "沙季", "사키", "白石沙季", "시라이시 사키", False, False),
-    ("char-skr", "さくら", "사쿠라", "川咲さくら", "카와사키 사쿠라", False, False),
-    ("char-smr", "すみれ", "스미레", "奥山すみれ", "오쿠야마 스미레", False, False),
-    ("char-stm", "橋本", "하시모토", "橋本さとみ", "하시모토 사토미", False, False),
-    ("char-suz", "すず", "스즈", "成宮すず", "나루미야 스즈", False, False),
-    ("char-szk", "雫", "시즈쿠", "兵藤雫", "효도 시즈쿠", False, False),
-    ("char-yami", "闇", "어둠", "金色の闇", "금빛 어둠", True, True),
-    ("char-ymk", "ミク", "미쿠", "雪ミク", "스노우 미쿠", False, False),
-    ("char-yo", "曜", "요우", "渡辺曜", "와타나베 요우", False, False),
-    ("char-yu", "優", "유우", "鈴村優", "스즈무라 유우", False, False),
-    ("char-yuki", "有希", "유키", "長門有希", "나가토 유키", False, False),
-    (
-        "group-sunny-peace",
-        "サニーピース",
-        "서니 피스",
-        "サニーピース",
-        "서니 피스",
-        False,
-        False,
-    ),
-    (
-        "group-moon-tempest",
-        "月のテンペスト",
-        "달의 템페스트",
-        "月のテンペスト",
-        "달의 템페스트",
-        False,
-        False,
-    ),
-    (
-        "group-trinityaile",
-        "TRINITYAiLE",
-        "TRINITYAiLE",
-        "TRINITYAiLE",
-        "TRINITYAiLE",
-        True,
-        True,
-    ),
-    ("group-liznoir", "LizNoir", "LizNoir", "LizNoir", "LizNoir", False, False),
-    ("group-three-x", "ⅢX", "ⅢX", "ⅢX", "ⅢX", False, False),
-)
 
 
 def load_ipr_rules() -> tuple[dict[str, Any], list[re.Pattern[str]]]:
@@ -172,169 +82,6 @@ def read_json(path: Path) -> list[dict[str, Any]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     rows = data.get("data", data) if isinstance(data, dict) else data
     return rows if isinstance(rows, list) else []
-
-
-def normalize_prefill_text(value: Any) -> str:
-    return (
-        str(value)
-        .replace("\\r\\n", "\n")
-        .replace("\\n", "\n")
-        .replace("\\r", "\r")
-        .replace("\\t", "\t")
-    )
-
-
-def has_prefill_placeholder(value: str) -> bool:
-    return bool(PREFILL_FORMAT_PLACEHOLDER_RE.search(value))
-
-
-def compile_prefill_pattern(format_text: str) -> tuple[re.Pattern[str], list[str]]:
-    if PREFILL_CHARACTER_PLACEHOLDER_RE.search(format_text):
-        raise ValueError(f"Character placeholders must be expanded before compilation: {format_text!r}")
-    placeholders: list[str] = []
-    pattern = "^"
-    offset = 0
-    for match in PREFILL_NUMERIC_PLACEHOLDER_RE.finditer(format_text):
-        pattern += re.escape(format_text[offset : match.start()])
-        pattern += r"([0-9０-９]+)"
-        placeholders.append(match.group(1))
-        offset = match.end()
-    pattern += re.escape(format_text[offset:])
-    pattern += "$"
-    return re.compile(pattern), placeholders
-
-
-def apply_prefill_format(template: str, placeholders: list[str], match: re.Match[str]) -> str | None:
-    captures: dict[str, str] = {}
-    for index, key in enumerate(placeholders, start=1):
-        value = match.group(index)
-        existing = captures.get(key)
-        if existing is not None and existing != value:
-            return None
-        captures[key] = value
-
-    unknown = [key for key in PREFILL_NUMERIC_PLACEHOLDER_RE.findall(template) if key not in captures]
-    if unknown:
-        return None
-    return PREFILL_NUMERIC_PLACEHOLDER_RE.sub(lambda item: captures[item.group(1)], template)
-
-
-def prefill_literal_weight(format_text: str) -> tuple[int, int]:
-    literals = PREFILL_FORMAT_PLACEHOLDER_RE.split(format_text)[::2]
-    return sum(len(part) for part in literals), len(format_text)
-
-
-def expand_character_translation(
-    template: str,
-    ko_first: str,
-    ko_full: str,
-    first_has_final: bool,
-    full_has_final: bool,
-) -> str:
-    """Replace character placeholders and their immediately following particle marker."""
-    result = template
-    for token, name, has_final in (
-        ("{chr_full}", ko_full, full_has_final),
-        ("{chr}", ko_first, first_has_final),
-    ):
-        for marker, (without_final, with_final) in PREFILL_CHARACTER_PARTICLES.items():
-            particle = with_final if has_final else without_final
-            result = result.replace(token + marker, name + particle)
-        result = result.replace(token, name)
-    return result
-
-
-def expand_prefill_character_formats(
-    formats: list[tuple[str, str]],
-) -> tuple[list[tuple[str, str]], int, int, int]:
-    """Expand {chr}/{chr_full} using the explicit character table.
-
-    Duplicate source spellings that produce the same translation are collapsed.
-    If one expanded source would produce different translations, that source is
-    skipped and included in the returned conflict count.
-    """
-    expanded: dict[str, str] = {}
-    conflicts: set[str] = set()
-    character_templates = 0
-    generated = 0
-
-    for original, translation in formats:
-        source_tokens = set(PREFILL_CHARACTER_PLACEHOLDER_RE.findall(original))
-        target_tokens = set(PREFILL_CHARACTER_PLACEHOLDER_RE.findall(translation))
-        if not source_tokens and not target_tokens:
-            existing = expanded.get(original)
-            if existing is not None and existing != translation:
-                conflicts.add(original)
-            else:
-                expanded[original] = translation
-            continue
-        if not source_tokens:
-            conflicts.add(original)
-            continue
-
-        character_templates += 1
-        for (
-            _,
-            jp_first,
-            ko_first,
-            jp_full,
-            ko_full,
-            first_has_final,
-            full_has_final,
-        ) in PREFILL_CHARACTER_NAMES:
-            expanded_original = original.replace("{chr_full}", jp_full).replace("{chr}", jp_first)
-            expanded_translation = expand_character_translation(
-                translation,
-                ko_first,
-                ko_full,
-                first_has_final,
-                full_has_final,
-            )
-            if PREFILL_CHARACTER_PLACEHOLDER_RE.search(expanded_original + expanded_translation):
-                conflicts.add(expanded_original)
-                continue
-            existing = expanded.get(expanded_original)
-            if existing is not None and existing != expanded_translation:
-                conflicts.add(expanded_original)
-                continue
-            if existing is None:
-                generated += 1
-            expanded[expanded_original] = expanded_translation
-
-    for original in conflicts:
-        expanded.pop(original, None)
-    result = sorted(expanded.items(), key=lambda item: prefill_literal_weight(item[0]), reverse=True)
-    return result, character_templates, generated, len(conflicts)
-
-
-def load_prefill_translations(path: Path = PREFILL_TRANSLATIONS_PATH) -> tuple[dict[str, str], list[tuple[str, str]], int]:
-    if not path.exists():
-        return {}, [], 0
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        return {}, [], 0
-
-    translations: dict[str, str] = {}
-    formats: list[tuple[str, str]] = []
-    conflicts = 0
-    for items in data.values():
-        if not isinstance(items, dict):
-            continue
-        for original, translation in items.items():
-            original_text = normalize_prefill_text(original)
-            translation_text = normalize_prefill_text(translation)
-            if not original_text or not translation_text:
-                continue
-            if has_prefill_placeholder(original_text) or has_prefill_placeholder(translation_text):
-                formats.append((original_text, translation_text))
-                continue
-            existing = translations.get(original_text)
-            if existing is not None and existing != translation_text:
-                conflicts += 1
-                continue
-            translations[original_text] = translation_text
-    formats.sort(key=lambda item: prefill_literal_weight(item[0]), reverse=True)
-    return translations, formats, conflicts
 
 
 def message_thread_id(message_id: str) -> str:
@@ -784,27 +531,11 @@ def prefill_translations(
     overwrite: bool = False,
     log_limit: int = 50,
     log_path: Path | None = None,
+    rules: PrefillRules | None = None,
 ) -> dict[str, Any]:
-    translations, formats, conflicts = load_prefill_translations()
-    expanded_formats, character_formats, character_expansions, character_conflicts = expand_prefill_character_formats(formats)
-    numeric_formats: list[tuple[str, str]] = []
-    character_exact_entries = 0
-    for original, translation in expanded_formats:
-        source_numeric_tokens = set(PREFILL_NUMERIC_PLACEHOLDER_RE.findall(original))
-        target_numeric_tokens = set(PREFILL_NUMERIC_PLACEHOLDER_RE.findall(translation))
-        if target_numeric_tokens - source_numeric_tokens:
-            conflicts += 1
-            continue
-        if PREFILL_NUMERIC_PLACEHOLDER_RE.search(original):
-            numeric_formats.append((original, translation))
-            continue
-        existing = translations.get(original)
-        if existing is not None and existing != translation:
-            character_conflicts += 1
-            continue
-        if existing is None:
-            translations[original] = translation
-            character_exact_entries += 1
+    if rules is None:
+        rules = load_prefill_rules(PREFILL_TRANSLATIONS_PATH, PREFILL_DICTIONARY_PATH)
+    translations = rules.exact
     log_rows: list[dict[str, str]] = []
     log_count = 0
     log_handle: TextIO | None = None
@@ -836,27 +567,6 @@ def prefill_translations(
                     "new_translation": str(new_text),
                 }
             )
-
-    if not translations and not formats:
-        if log_handle is not None:
-            log_handle.close()
-        return {
-            "entries": 0,
-            "formats": 0,
-            "expanded_formats": 0,
-            "character_formats": 0,
-            "character_expansions": 0,
-            "character_exact_entries": 0,
-            "character_conflicts": 0,
-            "updated": 0,
-            "exact_updated": 0,
-            "format_updated": 0,
-            "conflicts": conflicts,
-            "overwrite": int(overwrite),
-            "log_count": 0,
-            "log_rows": [],
-            "log_path": str(log_path) if log_path is not None else "",
-        }
 
     try:
         exact_updated = 0
@@ -912,11 +622,7 @@ def prefill_translations(
             exact_updated = len(exact_rows)
 
         format_updated = 0
-        compiled_formats = [
-            (compile_prefill_pattern(original), translation)
-            for original, translation in numeric_formats
-        ]
-        if compiled_formats:
+        if rules.templates:
             format_where = "1 = 1" if overwrite else "translation_text = ''"
             rows = conn.execute(
                 """
@@ -930,17 +636,11 @@ def prefill_translations(
             for row in rows:
                 original_text = row[6]
                 old_translation = row[7]
-                for (regex, placeholders), template in compiled_formats:
-                    match = regex.match(original_text)
-                    if not match:
-                        continue
-                    translation = apply_prefill_format(template, placeholders, match)
-                    if not translation or translation == original_text:
-                        continue
-                    if overwrite or old_translation == "":
-                        if old_translation != translation:
-                            updates.append((translation, row[0], row))
-                    break
+                if original_text in translations:
+                    continue
+                translation = rules.format_translation(original_text)
+                if translation is not None and translation != old_translation:
+                    updates.append((translation, row[0], row))
             for translation, _, row in updates:
                 remember_log("format", row, translation)
             if updates:
@@ -959,16 +659,16 @@ def prefill_translations(
 
         return {
             "entries": len(translations),
-            "formats": len(formats),
-            "expanded_formats": len(expanded_formats),
-            "character_formats": character_formats,
-            "character_expansions": character_expansions,
-            "character_exact_entries": character_exact_entries,
-            "character_conflicts": character_conflicts,
+            "formats": len(rules.templates),
+            "dictionary_groups": len(rules.dictionaries),
+            "dictionary_entries": sum(len(items) for items in rules.dictionaries.values()),
+            "dictionary_formats": sum(any(key in rules.dictionaries for key in template.captures) for template in rules.templates),
+            "dictionary_standalone_conflicts": rules.standalone_conflicts,
             "updated": exact_updated + format_updated,
             "exact_updated": exact_updated,
             "format_updated": format_updated,
-            "conflicts": conflicts,
+            "conflicts": len(rules.warnings),
+            "warnings": sorted(rules.warnings),
             "overwrite": int(overwrite),
             "log_count": log_count,
             "log_rows": log_rows,
@@ -1832,10 +1532,13 @@ def prefill_import_translations(
     overwrite: bool = False,
     log_limit: int = 50,
     log_path: Path | None = None,
+    rules: PrefillRules | None = None,
 ) -> dict[str, Any]:
+    if rules is None:
+        rules = load_prefill_rules(PREFILL_TRANSLATIONS_PATH, PREFILL_DICTIONARY_PATH)
     # Use the same skill wording on a fresh import and a later missing-only fill.
     auto_skill_stats = AUTO_SKILL_MODULE.prefill_missing_skills(conn)
-    stats = prefill_translations(conn, overwrite=overwrite, log_limit=log_limit, log_path=log_path)
+    stats = prefill_translations(conn, overwrite=overwrite, log_limit=log_limit, log_path=log_path, rules=rules)
     stats["auto_skill"] = auto_skill_stats
     return stats
 
@@ -1847,6 +1550,7 @@ def rebuild(
     prefill_log_limit: int = 50,
     prefill_log_path: Path | None = None,
 ) -> dict[str, Any]:
+    rules = load_prefill_rules(PREFILL_TRANSLATIONS_PATH, PREFILL_DICTIONARY_PATH)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
@@ -1875,6 +1579,7 @@ def rebuild(
             overwrite=overwrite_prefill,
             log_limit=prefill_log_limit,
             log_path=prefill_log_path,
+            rules=rules,
         )
         prefill_stats["new_untranslated"] = track_new_untranslated_units(conn, had_existing_units)
         prefill_stats["localization_imported"] = localization_imported
@@ -1892,7 +1597,7 @@ def main() -> None:
     parser.add_argument(
         "--overwrite-prefill",
         action="store_true",
-        help="Overwrite existing translations when they match scripts/prefill_translations.json.",
+        help="Overwrite existing translations when they match docs/prefill_translations.json and docs/prefill_dictionary.json.",
     )
     parser.add_argument(
         "--prefill-log-limit",
@@ -1923,12 +1628,14 @@ def main() -> None:
         print(
             "prefill_translations="
             f"{prefill_stats['updated']} entries={prefill_stats['entries']} formats={prefill_stats['formats']} "
-            f"expanded_formats={prefill_stats['expanded_formats']} character_formats={prefill_stats['character_formats']} "
-            f"character_expansions={prefill_stats['character_expansions']} character_exact={prefill_stats['character_exact_entries']} "
-            f"character_conflicts={prefill_stats['character_conflicts']} "
+            f"dictionary_groups={prefill_stats['dictionary_groups']} dictionary_entries={prefill_stats['dictionary_entries']} "
+            f"dictionary_formats={prefill_stats['dictionary_formats']} "
+            f"dictionary_standalone_conflicts={prefill_stats['dictionary_standalone_conflicts']} "
             f"exact={prefill_stats['exact_updated']} format={prefill_stats['format_updated']} "
             f"conflicts={prefill_stats['conflicts']} overwrite={prefill_stats['overwrite']}"
         )
+        for warning in prefill_stats["warnings"]:
+            print(f"prefill_warning {warning}")
         print(
             f"localization_units={prefill_stats['localization_imported']} "
             f"seeded={prefill_stats['localization_seeded']}"
