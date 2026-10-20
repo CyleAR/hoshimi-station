@@ -17,6 +17,7 @@ DB_PATH = ROOT / "data" / "hoshimi.sqlite3"
 MASTERDB_DIR = ROOT / "res" / "masterdb"
 ADV_DIR = ROOT / "res" / "adv" / "resource"
 LOCALIZATION_PATH = ROOT / "res" / "localization.json"
+PREFILL_DICTIONARY_PATH = ROOT / "docs" / "prefill_dictionary.json"
 DEFAULT_OUTPUT_DIR = ROOT / "output"
 
 ATTR_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|\]?$)")
@@ -434,6 +435,13 @@ def export_localization(conn: sqlite3.Connection, out_dir: Path) -> tuple[int, i
     return len(payload), translated
 
 
+def export_dictionary(out_dir: Path, data: bytes) -> Path:
+    path = out_dir / "local-files" / "prefill_dictionary.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
 def write_metadata(out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "version.txt").write_text(datetime.now().strftime("%Y%m%d_%H%M%S"), encoding="utf-8")
@@ -463,10 +471,12 @@ def main() -> None:
     args = parser.parse_args()
 
     out_dir = args.out.resolve()
+    if out_dir.exists() and not args.overwrite and any(out_dir.iterdir()):
+        raise SystemExit(f"{out_dir} already exists. Pass --overwrite to replace it.")
+
+    dictionary_data = PREFILL_DICTIONARY_PATH.read_bytes()
     if out_dir.exists() and args.overwrite:
         clear_output_dir(out_dir)
-    elif out_dir.exists() and any(out_dir.iterdir()):
-        raise SystemExit(f"{out_dir} already exists. Pass --overwrite to replace it.")
 
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
@@ -475,12 +485,14 @@ def main() -> None:
         master_count = export_masterdb(conn, out_dir)
         adv_count = export_adv(conn, out_dir)
         localization_total, localization_translated = export_localization(conn, out_dir)
+        dictionary_path = export_dictionary(out_dir, dictionary_data)
     finally:
         conn.close()
     print(
         f"Exported {master_count} masterdb units, {adv_count} adv units, and "
         f"{localization_translated}/{localization_total} localization units to {out_dir}"
     )
+    print(f"Exported prefill dictionary to {dictionary_path}")
 
 
 if __name__ == "__main__":

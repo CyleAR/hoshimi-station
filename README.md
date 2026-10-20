@@ -162,6 +162,12 @@ npm run export-output
 
 현재 npm 스크립트는 `--overwrite`가 포함되어 있어 기존 `output` 내용을 덮어씁니다. `version.txt`도 export 시점의 timestamp로 새로 생성됩니다.
 
+`docs/prefill_dictionary.json`도 `output/local-files/prefill_dictionary.json`으로 원본 그대로
+복사합니다. 모든 분류와 `_batchim` 설정을 유지하며, 번역을 제외하거나 다른 값으로 바꾸지 않습니다.
+앱이 자동으로 읽는 `genericTrans` 폴더 밖에 별도 파일로 두며, 기존 generic 파일은 읽거나
+수정하지 않습니다. 이 사전은 별도 소비 코드에서 사용하기 위한 데이터이고, 파일을 내보내는 것만으로
+앱 번역에 자동 적용되지는 않습니다. DB 재임포트나 웹 빌드는 필요하지 않습니다.
+
 다른 폴더로 테스트 export 하려면:
 
 ```powershell
