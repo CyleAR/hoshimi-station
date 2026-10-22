@@ -34,7 +34,7 @@ def find_gacha_reuse(titles: list[str], item_rows: list[tuple[str, str, str]]) -
         if is_generic_gacha(title):
             continue
         escaped = re.escape(compact(title))
-        suffix = r"(?:ピックアップガチャPt|ガチャPt|Pt|専用ガチャチケット|ガチャチケット|(?:[0-9０-９]+人)?★[0-9０-９]+確定(?:無料|[0-9０-９]+連)?ガチャチケ(?:ット)?)"
+        suffix = r"(?:ピックアップガチャPt|スタンプガチャPt|ガチャ[Pp]t|Pt|専用ガチャチケ(?:ット)?|ガチャチケ(?:ット)?|チケ(?:ット)?|(?:[0-9０-９]+人)?★[0-9０-９]+確定(?:無料|[0-9０-９]+連)?ガチャチケ(?:ット)?)"
         name_pattern = re.compile(r"(?:【復刻】)?(?:「" + escaped + r"」|" + escaped + r")" + suffix)
         quoted_pattern = re.compile(r"[「『]" + escaped + r"(?:ピックアップガチャ|ガチャ)?[」』]")
         matches = []
