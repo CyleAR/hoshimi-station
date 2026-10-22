@@ -166,6 +166,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             speaker TEXT NOT NULL DEFAULT '',
             original_text TEXT NOT NULL,
             translation_text TEXT NOT NULL DEFAULT '',
+            revision INTEGER NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'new',
             translator_name TEXT NOT NULL DEFAULT '',
             scope_type TEXT NOT NULL DEFAULT 'category',
@@ -214,11 +215,24 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_type, to_id);
         """
     )
+    if not column_exists(conn, "translation_units", "revision"):
+        conn.execute("ALTER TABLE translation_units ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
     if not column_exists(conn, "translation_changes", "previous_translator_name"):
         conn.execute("ALTER TABLE translation_changes ADD COLUMN previous_translator_name TEXT NOT NULL DEFAULT ''")
 
 
 def install_change_tracking(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP TRIGGER IF EXISTS track_unit_revision")
+    conn.execute(
+        """
+        CREATE TRIGGER track_unit_revision
+        AFTER UPDATE OF original_text, translation_text ON translation_units
+        WHEN NEW.original_text IS NOT OLD.original_text OR NEW.translation_text IS NOT OLD.translation_text
+        BEGIN
+            UPDATE translation_units SET revision = OLD.revision + 1 WHERE unit_id = NEW.unit_id;
+        END
+        """
+    )
     conn.execute("DROP TRIGGER IF EXISTS track_translation_changes")
     conn.execute(
         """
@@ -281,10 +295,11 @@ def preserve_existing_unit_inventory(conn: sqlite3.Connection) -> bool:
     conn.execute("DROP TABLE IF EXISTS temp.existing_unit_inventory")
     if not table_exists(conn, "translation_units"):
         return False
+    revision_expr = "revision" if column_exists(conn, "translation_units", "revision") else "0 AS revision"
     conn.execute(
-        """
+        f"""
         CREATE TEMP TABLE existing_unit_inventory AS
-        SELECT unit_id, original_text
+        SELECT unit_id, original_text, translation_text, {revision_expr}
         FROM translation_units
         """
     )
@@ -295,6 +310,30 @@ def preserve_existing_unit_inventory(conn: sqlite3.Connection) -> bool:
         """
     )
     return conn.execute("SELECT 1 FROM existing_unit_inventory LIMIT 1").fetchone() is not None
+
+
+def restore_existing_unit_revisions(conn: sqlite3.Connection) -> None:
+    if conn.execute("SELECT 1 FROM sqlite_temp_master WHERE type='table' AND name='existing_unit_inventory'").fetchone() is None:
+        return
+    # Include cleared units and compare final prefill results so stale edits cannot become current again.
+    conn.execute(
+        """
+        UPDATE translation_units
+        SET revision = (
+            SELECT old.revision + CASE
+                WHEN old.original_text IS NOT translation_units.original_text
+                  OR old.translation_text IS NOT translation_units.translation_text THEN 1
+                ELSE 0
+            END
+            FROM existing_unit_inventory old
+            WHERE old.unit_id = translation_units.unit_id
+        )
+        WHERE EXISTS (
+            SELECT 1 FROM existing_unit_inventory old
+            WHERE old.unit_id = translation_units.unit_id
+        )
+        """
+    )
 
 
 def track_new_untranslated_units(conn: sqlite3.Connection, had_existing_units: bool) -> dict[str, int]:
@@ -1581,6 +1620,7 @@ def rebuild(
             log_path=prefill_log_path,
             rules=rules,
         )
+        restore_existing_unit_revisions(conn)
         prefill_stats["new_untranslated"] = track_new_untranslated_units(conn, had_existing_units)
         prefill_stats["localization_imported"] = localization_imported
         prefill_stats["localization_seeded"] = localization_seeded
