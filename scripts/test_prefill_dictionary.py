@@ -100,6 +100,12 @@ class DictionaryManagerTests(unittest.TestCase):
         ])
         self.assertEqual(set(found), set(titles) - {"SUN"})
 
+    def test_revival_gacha_titles_are_excluded_but_base_titles_remain(self):
+        titles = ["The SUN", "【復刻】The SUN", "【復刻】\nThe SUN", "復刻The SUN"]
+        rows = [(str(index), "name", title + "ガチャPt") for index, title in enumerate(titles)]
+        self.assertEqual(set(find_gacha_reuse(titles, rows)), {"The SUN"})
+        self.assertEqual(set(find_gacha_reuse(["The SUN"], [("rev", "name", "【復刻】The SUNガチャPt")])), {"The SUN"})
+
     def test_whitespace_only_gacha_reuse_is_review_not_auto_addition(self):
         self.insert("新しい\n題名", "새로운\n제목", category="Gacha")
         self.insert("新しい題名ガチャPt", "", category="Item")

@@ -9,7 +9,7 @@ def compact(text: str) -> str:
 
 def is_generic_gacha(title: str) -> bool:
     text = compact(title)
-    if any(word in text for word in ("誕生日", "確定", "無料", "引き放題", "ロックオン", "ドリームギフト", "セレクション")):
+    if any(word in text for word in ("復刻", "誕生日", "確定", "無料", "引き放題", "ロックオン", "ドリームギフト", "セレクション")):
         return True
     if re.fullmatch(r"(?:選べる|初心者|カムバック)?アイプラフェス(?:ガチャ|絆|ピックアップ[0-9０-９]+|[ⅠⅡ])?", text):
         return True
