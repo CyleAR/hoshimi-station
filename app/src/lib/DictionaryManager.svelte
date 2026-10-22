@@ -38,8 +38,9 @@
 		[item.original, item.existing ?? '', ...item.variants.map((variant) => variant.text)].join('\n').toLowerCase().includes(search.toLowerCase()))));
 	const pages = $derived(Math.max(1, Math.ceil(visible.length / pageSize)));
 	const pageItems = $derived(visible.slice(page * pageSize, (page + 1) * pageSize));
-	const eligible = $derived(inGroups.filter((item) => item.state === 'new' && selectedIds.has(item.id)));
-	const allVisibleSelected = $derived(visible.length > 0 && visible.every((item) => selectedIds.has(item.id)));
+	const canApply = (item) => item.state === 'new' || (item.state === 'changed' && !item.has_japanese && (!item.gacha_reuse || item.gacha_reuse.exact));
+	const eligible = $derived(inGroups.filter((item) => canApply(item) && selectedIds.has(item.id)));
+	const allVisibleSelected = $derived(visible.some(canApply) && visible.filter(canApply).every((item) => selectedIds.has(item.id)));
 
 	async function request(action, extra = {}) {
 		const response = await fetch('/api/admin/prefill-dictionary', {
@@ -114,16 +115,18 @@
 
 	function selectVisible(checked) {
 		const next = new Set(selectedIds);
-		for (const item of visible) { if (checked) next.add(item.id); else next.delete(item.id); }
+		for (const item of visible.filter(canApply)) { if (checked) next.add(item.id); else next.delete(item.id); }
 		selectedIds = next;
 	}
 
 	async function save() {
 		if (working || needsRefresh || !eligible.length) return;
+		const updates = eligible.filter(item => item.state === 'changed').length;
+		if (updates && !confirm(`선택한 기존 사전 ${updates}건을 DB 번역으로 갱신할까요? 저장 전 백업을 남깁니다.`)) return;
 		working = 'saving';
 		error = '';
 		try {
-			result = await (await request('apply', { groups: selectedGroups, ids: eligible.map((item) => item.id), dictionary_hash: dictionaryHash })).json();
+			result = await (await request('apply', { groups: selectedGroups, ids: eligible.map((item) => item.id), dictionary_hash: dictionaryHash, allow_updates: updates > 0 })).json();
 			await loadPreview();
 		} catch (failure) {
 			if (failure.name !== 'AbortError') error = failure.message;
@@ -198,7 +201,7 @@
 			</div>
 			<div class="dictionary-search">
 				<input type="search" aria-label="사전 항목 검색" placeholder="원문 · 번역 검색" bind:value={search} oninput={() => page = 0} />
-				{#if state === 'new'}
+				{#if state === 'new' || state === 'changed'}
 					<label><input type="checkbox" checked={allVisibleSelected} disabled={Boolean(working) || needsRefresh || !visible.length}
 						onchange={(event) => selectVisible(event.currentTarget.checked)} />검색 결과 전체 선택</label>
 				{/if}
@@ -209,7 +212,7 @@
 		{#if savedNotice}<div class="dictionary-result" role="status">{savedNotice}</div>{/if}
 		{#if result}
 			<div class="dictionary-result" role="status">
-				<strong>사전에 {result.added}개 추가됨</strong>
+				<strong>사전 {result.added}개 추가 · {result.updated ?? 0}개 갱신됨</strong>
 				{#if result.skipped}<span>DB 변경 등으로 {result.skipped}개 제외됨</span>{/if}
 				<small>백업: {result.backup}</small>
 				<details><summary>추가 내역</summary>
@@ -224,10 +227,10 @@
 			{:else}
 				<div class="dictionary-columns" aria-hidden="true"><span>원문</span><span>현재 사전</span><span>DB 번역</span></div>
 				{#each pageItems as item (item.id)}
-					<article class="dictionary-entry" class:entry-selected={selectedIds.has(item.id) && state === 'new'}>
+					<article class="dictionary-entry" class:entry-selected={selectedIds.has(item.id) && canApply(item)}>
 						<div class="dictionary-original">
 							<div class="dictionary-source">
-								{#if item.state === 'new'}<input type="checkbox" aria-label={`${item.original} 추가 선택`} checked={selectedIds.has(item.id)}
+								{#if canApply(item)}<input type="checkbox" aria-label={`${item.original} 사전 반영 선택`} checked={selectedIds.has(item.id)}
 									disabled={Boolean(working) || needsRefresh} onchange={(event) => select(item.id, event.currentTarget.checked)} />{/if}
 								<code>{item.group}</code><small title={item.records.join(', ')}>DB {item.source_count}건</small>
 							</div>
@@ -290,10 +293,10 @@
 				<button class="soft" aria-label="다음 페이지" disabled={page + 1 >= pages || Boolean(working)} onclick={() => page++}>다음</button>
 			</div>
 			<div class="dictionary-save">
-				<small>선택 추가: 사전 파일만 변경 · 다음 임포트부터 반영</small>
+				<small>사전 반영: 사전 파일만 변경 · 다음 임포트부터 반영</small>
 				<button class="soft" disabled={!selectedIds.size || Boolean(working)} onclick={() => selectedIds = new Set()}>선택 해제</button>
 				<button class="save-all" disabled={!eligible.length || needsRefresh || Boolean(working)} onclick={save}>
-					{working === 'saving' ? '저장 중...' : `선택 ${eligible.length}개 추가`}
+					{working === 'saving' ? '저장 중...' : `선택 ${eligible.length}개 사전 반영`}
 				</button>
 			</div>
 		</footer>

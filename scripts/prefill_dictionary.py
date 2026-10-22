@@ -195,7 +195,10 @@ def apply(db_path: Path, dictionary_path: Path, backup_dir: Path, request: dict[
         if hashlib.sha256(raw).hexdigest() != version:
             raise DictionaryError("미리보기 이후 사전이 변경됐습니다. 다시 조회해 주세요.", 409)
         latest = preview(db_path, dictionary_path, groups)
-        candidates = {item["id"]: item for item in latest["items"] if item["state"] == "new"}
+        allow_updates = request.get("allow_updates") is True
+        candidates = {item["id"]: item for item in latest["items"] if item["state"] == "new" or (
+            allow_updates and item["state"] == "changed" and not item["has_japanese"]
+            and (not item["gacha_reuse"] or item["gacha_reuse"]["exact"]))}
         chosen = list(dict.fromkeys(ids))
         additions = [candidates[value] for value in chosen if value in candidates]
         if not additions:
@@ -224,7 +227,9 @@ def apply(db_path: Path, dictionary_path: Path, backup_dir: Path, request: dict[
         finally:
             if temp_path is not None and temp_path.exists():
                 temp_path.unlink()
-    return {"ok": True, "added": len(additions), "skipped": len(chosen) - len(additions), "backup": backup.name,
+    return {"ok": True, "added": sum(item["state"] == "new" for item in additions),
+            "updated": sum(item["state"] == "changed" for item in additions),
+            "skipped": len(chosen) - len(additions), "backup": backup.name,
             "added_items": [{"group": item["group"], "original": item["original"], "translation": item["translation"]} for item in additions],
             "dictionary_hash": hashlib.sha256(output).hexdigest()}
 

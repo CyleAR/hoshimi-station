@@ -27,7 +27,7 @@ export async function POST({ request }) {
 	})) return json({ error: '로그인 정보를 확인해 주세요.' }, { status: 401 });
 	if (!['preview', 'apply', 'download'].includes(body.action)) return json({ error: '지원하지 않는 사전 작업입니다.' }, { status: 400 });
 	try {
-		const result = await runDictionaryCommand({ action: body.action, groups: body.groups, ids: body.ids, dictionary_hash: body.dictionary_hash }, getDatabasePath());
+		const result = await runDictionaryCommand({ action: body.action, groups: body.groups, ids: body.ids, dictionary_hash: body.dictionary_hash, allow_updates: body.allow_updates === true }, getDatabasePath());
 		if (!result.ok) return json({ error: result.error }, { status: [400, 409, 422].includes(result.status) ? result.status : 500 });
 		if (body.action === 'download') return new Response(result.content, { headers: {
 			'content-type': 'application/json; charset=utf-8', 'content-disposition': 'attachment; filename="prefill_dictionary.json"', 'cache-control': 'no-store'

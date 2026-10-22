@@ -61,8 +61,15 @@ test('credentials and browser-supplied file paths are not forwarded to the helpe
 	const result = await post({ ...auth, db: 'wrong', dictionary: '/other/file', backups: '/other/path' });
 	assert.equal(result.status, 200);
 	assert.equal(result.headers.get('cache-control'), 'no-store');
-	assert.deepEqual(calls.at(-1)[0], { action: 'preview', groups: ['item'], ids: undefined, dictionary_hash: undefined });
+	assert.deepEqual(calls.at(-1)[0], { action: 'preview', groups: ['item'], ids: undefined, dictionary_hash: undefined, allow_updates: false });
 	assert.ok(!JSON.stringify(calls.at(-1)).includes('123456'));
+});
+
+test('dictionary replacement is forwarded only with explicit boolean opt-in', async () => {
+	for (const flag of [true, false, 'true']) {
+		await post({ ...auth, action: 'apply', allow_updates: flag });
+		assert.equal(calls.at(-1)[0].allow_updates, flag === true);
+	}
 });
 
 test('HTTPS terminated at a same-host reverse proxy is allowed, but opaque origins are denied', async () => {

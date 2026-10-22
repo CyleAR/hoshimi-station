@@ -106,6 +106,16 @@ class DictionaryManagerTests(unittest.TestCase):
         self.assertEqual(set(find_gacha_reuse(titles, rows)), {"The SUN"})
         self.assertEqual(set(find_gacha_reuse(["The SUN"], [("rev", "name", "【復刻】The SUNガチャPt")])), {"The SUN"})
 
+    def test_guaranteed_pull_tickets_detect_full_roman_numeral_title(self):
+        titles = ["月明かりの\nweekendⅠ", "月明かりの\nweekendⅡ", "月明かりの\nweekendⅢ"]
+        found = find_gacha_reuse(titles, [
+            ("ticket1", "name", "月明かりのweekendⅠ1人★5確定10連ガチャチケ"),
+            ("ticket2", "name", "月明かりのweekendⅡ1人★5確定10連ガチャチケ"),
+        ])
+        self.assertEqual(set(found), set(titles[:2]))
+        self.assertFalse(found[titles[1]]["exact"])
+        self.assertEqual(found[titles[1]]["examples"][0]["record_id"], "ticket2")
+
     def test_whitespace_only_gacha_reuse_is_review_not_auto_addition(self):
         self.insert("新しい\n題名", "새로운\n제목", category="Gacha")
         self.insert("新しい題名ガチャPt", "", category="Item")
@@ -206,6 +216,39 @@ class DictionaryManagerTests(unittest.TestCase):
         result = self.preview()
         request = self.request(result)
         request["groups"] = ["music"]
+        with self.assertRaises(manager.DictionaryError):
+            self.apply(request)
+        self.assertEqual(self.dictionary.read_bytes(), before)
+
+    def test_existing_dictionary_updates_require_explicit_opt_in_and_preserve_others(self):
+        self.insert("制服", "새 교복", "Costume")
+        preview = self.preview()
+        item = next(item for item in preview["items"] if item["state"] == "changed")
+        request = self.request(preview, [item["id"]])
+        with self.assertRaises(manager.DictionaryError):
+            self.apply(request)
+        before = self.dictionary.read_bytes()
+        request["allow_updates"] = True
+        result = self.apply(request)
+        self.assertEqual((result["added"], result["updated"]), (0, 1))
+        data = json.loads(self.dictionary.read_bytes())
+        self.assertEqual(data["costume"]["制服"], "새 교복")
+        self.assertEqual(data["chr"], self.original["chr"])
+        self.assertEqual(next(self.backups.glob("*.json")).read_bytes(), before)
+
+    def test_stale_update_and_japanese_translation_cannot_replace_dictionary(self):
+        self.insert("制服", "새 교복", "Costume")
+        preview = self.preview()
+        request = self.request(preview, [preview["items"][0]["id"]])
+        request["allow_updates"] = True
+        before = self.dictionary.read_bytes()
+        with sqlite3.connect(self.db) as c:
+            c.execute("UPDATE translation_units SET translation_text='日本語'")
+        with self.assertRaises(manager.DictionaryError):
+            self.apply(request)
+        preview = self.preview()
+        request = self.request(preview, [preview["items"][0]["id"]])
+        request["allow_updates"] = True
         with self.assertRaises(manager.DictionaryError):
             self.apply(request)
         self.assertEqual(self.dictionary.read_bytes(), before)

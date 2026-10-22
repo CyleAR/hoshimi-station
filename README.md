@@ -165,7 +165,8 @@ JSON 형식·중복 키·번역문 placeholder 오류는 DB 재구축 전에 검
 검토 대상으로 분리하며 사전 키나 번역을 자동으로 합치지 않습니다. 새로운 상품명 구조는
 `scripts/gacha_dictionary.py`의 판별 규칙을 확장해야 합니다.
 
-선택한 신규 항목만 `docs/prefill_dictionary.json`에 추가합니다. 기존 값·약칭·직접 추가한 분류·`_batchim`은
+선택한 신규 항목을 `docs/prefill_dictionary.json`에 추가합니다. **기존 값과 다름**에서도 선택 후
+덮어쓰기 확인을 거쳐 DB 번역으로 갱신할 수 있습니다. 선택하지 않은 기존 값·약칭·직접 추가한 분류·`_batchim`은
 덮어쓰거나 삭제하지 않습니다. 저장 직전에 DB와 사전을 다시 확인하며, 변경된 DB 후보는 제외하고
 사전이 변경됐으면 재조회를 요청합니다. 저장 전 원본 백업은 `backups/prefill-dictionary/`에 남깁니다.
 JSON 다운로드와 저장 직후 추가 내역 확인도 가능합니다.
