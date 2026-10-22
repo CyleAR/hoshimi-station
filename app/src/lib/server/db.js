@@ -14,6 +14,10 @@ const dbPath = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.re
 
 let db;
 
+export function getDatabasePath() {
+	return dbPath;
+}
+
 function hasColumn(database, table, column) {
 	return database.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
 }

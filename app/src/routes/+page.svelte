@@ -2,6 +2,7 @@
 	import { onMount, tick } from "svelte";
 	import SearchText from "$lib/SearchText.svelte";
 	import ViewportBlock from "$lib/ViewportBlock.svelte";
+	import DictionaryManager from "$lib/DictionaryManager.svelte";
 	import { unitBatches, UNIT_BATCH_SIZE } from "$lib/viewport-blocks.js";
 	import { translationDiff } from "$lib/translation-diff.js";
 	import "./page.css";
@@ -279,6 +280,7 @@
 	let newDataError = $state("");
 	let newDataLoading = $state(false);
 	let recentOpen = $state(false);
+	let dictionaryOpen = $state(false);
 	let recentItems = $state([]);
 	let recentTranslators = $state([]);
 	let recentTranslator = $state("");
@@ -1105,6 +1107,20 @@
 		}
 	}
 
+	function dictionaryUnitHref(unit) {
+		const url = new URL(navigationUrl(recentItemTarget(unit), "direct", { includeQuery: false }));
+		url.hash = `unit-${encodeURIComponent(unit.unit_id)}`;
+		return url.toString();
+	}
+
+	async function openDictionaryUnit(event, unit) {
+		if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+		event.preventDefault();
+		dictionaryOpen = false;
+		await navigateToItem(recentItemTarget(unit), "direct", { clearQuery: true });
+		await scrollToUnit(unit.unit_id);
+	}
+
 	function recentItemTarget(item) {
 		if (!item?.scope_type || !item?.scope_id) return null;
 		return {
@@ -1162,6 +1178,7 @@
 
 	function logout() {
 		currentUser = null;
+		dictionaryOpen = false;
 		for (const unit of units) unit.ai_suggestion = null;
 		newDataOpen = false;
 		newDataItems = [];
@@ -1520,6 +1537,7 @@
 	}
 
 	function handleKeydown(event) {
+		if (dictionaryOpen) return;
 		if (event.isComposing || document.querySelector('.modal-backdrop, .login-backdrop')) return;
 		const inEditor = editorPane?.contains(event.target);
 		if (inEditor && (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "f") {
@@ -2098,6 +2116,7 @@
 				<button class="soft compact-button" onclick={openRecent}
 					>최근 작업</button
 				>
+				<button class="soft compact-button" onclick={() => dictionaryOpen = true}>사전 관리</button>
 				<button class="soft compact-button" onclick={logout}
 					>나가기</button
 				>
@@ -2902,6 +2921,11 @@
 			{/if}
 		</section>
 	</div>
+{/if}
+
+{#if dictionaryOpen && currentUser}
+	<DictionaryManager user={currentUser} onclose={() => dictionaryOpen = false}
+		unitHref={dictionaryUnitHref} onopenunit={openDictionaryUnit} />
 {/if}
 
 {#if !currentUser}

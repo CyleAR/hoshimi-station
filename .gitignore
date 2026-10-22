@@ -47,6 +47,7 @@ next-env.d.ts
 /tmp/
 /api.json
 /docs/codex-worklog.md
+/docs/prefill_dictionary.json.lock
 # Python / SQLite runtime files
 /scripts/__pycache__
 *.sqlite3-shm
