@@ -951,6 +951,8 @@
         "{costume}交換所で衣装などと交換できる\n使用期限終了後は消失します": "{costume} 교환소에서 의상 등으로 교환할 수 있습니다\n사용 기한 종료 후 사라집니다"
     },
     "카드 사전 재사용 (card)": {
+        "{card}_所持": "{card}_보유",
+        "{card}_未所持": "{card}_미보유",
         "{card} {chr_full}_所持": "{card} {chr_full}_보유",
         "{card} {chr_full}_未所持": "{card} {chr_full}_미보유"
     },
