@@ -31,6 +31,7 @@ GROUPS = {
     "hair": {"label": "헤어", "category": "Hair"},
     "item": {"label": "아이템", "category": "Item"},
     "accessory": {"label": "액세서리", "category": "Accessory"},
+    "pose": {"label": "포즈", "category": "PhotoPose"},
 }
 STATES = ("new", "changed", "conflict", "review", "unchanged", "missing")
 # Kana and Han, excluding shared punctuation such as the middle dot and long dash.

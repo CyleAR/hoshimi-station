@@ -6,7 +6,8 @@
 	const groups = [
 		{ key: 'card', label: '카드명' }, { key: 'gacha', label: '가차명' },
 		{ key: 'music', label: '노래' }, { key: 'costume', label: '의상' },
-		{ key: 'hair', label: '헤어' }, { key: 'item', label: '아이템' }, { key: 'accessory', label: '액세서리' }
+		{ key: 'hair', label: '헤어' }, { key: 'item', label: '아이템' },
+		{ key: 'accessory', label: '액세서리' }, { key: 'pose', label: '포즈' }
 	];
 	const states = [
 		{ key: 'new', label: '추가 가능' }, { key: 'changed', label: '기존 값과 다름' },

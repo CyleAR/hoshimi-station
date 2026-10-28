@@ -81,6 +81,44 @@ class DictionaryManagerTests(unittest.TestCase):
         rules = load_prefill_rules(templates, self.dictionary)
         self.assertEqual(rules.translate("【君と過ごす日】ピース"), "[너와 보내는 날] 피스")
 
+    def test_pose_names_can_be_saved_without_descriptions_or_motion_names(self):
+        self.insert("狐っぽく", "여우처럼", category="PhotoPose")
+        self.insert("狐っぽく", "여우처럼", category="PhotoPose")
+        self.insert("未翻訳ポーズ", "", category="PhotoPose")
+        self.insert("長瀬麻奈", "나가세 마나", category="PhotoPose", field="description")
+        self.insert("モーション名", "모션 이름", category="PhotoPoseMotion")
+        self.insert("ADVポーズ", "대사 포즈", category="PhotoPose", source="adv")
+        before_db, before_dictionary = self.db.read_bytes(), self.dictionary.read_bytes()
+        preview = self.preview(["pose"])
+        self.assertEqual(preview["groups"], [{"key": "pose", "label": "포즈", "category": "PhotoPose"}])
+        self.assertEqual({item["original"] for item in preview["items"]}, {"狐っぽく", "未翻訳ポーズ"})
+        self.assertEqual((preview["counts"]["new"], preview["counts"]["missing"]), (1, 1))
+        candidate = next(item for item in preview["items"] if item["state"] == "new")
+        self.assertEqual((candidate["source_count"], len(candidate["units"])), (2, 2))
+        self.apply(self.request(preview))
+        data = json.loads(self.dictionary.read_bytes())
+        self.assertEqual(data["pose"], {"狐っぽく": "여우처럼"})
+        for group, values in self.original.items():
+            self.assertEqual(data[group], values)
+        self.assertEqual(self.db.read_bytes(), before_db)
+        self.assertEqual(next(self.backups.glob("*.json")).read_bytes(), before_dictionary)
+        templates = self.root / "templates.json"
+        templates.write_text(json.dumps({"test": {"「{pose}」で撮影": "'{pose}' 포즈로 촬영"}}, ensure_ascii=False), encoding="utf-8")
+        rules = load_prefill_rules(templates, self.dictionary)
+        self.assertEqual(rules.translate("狐っぽく"), "여우처럼")
+        self.assertEqual(rules.translate("「狐っぽく」で撮影"), "'여우처럼' 포즈로 촬영")
+
+    def test_conflicting_pose_translations_cannot_be_forced_into_the_dictionary(self):
+        self.insert("同じポーズ", "첫 번역", category="PhotoPose")
+        self.insert("同じポーズ", "다른 번역", category="PhotoPose")
+        preview = self.preview(["pose"])
+        self.assertEqual(preview["counts"]["conflict"], 1)
+        before = self.dictionary.read_bytes()
+        with self.assertRaises(manager.DictionaryError) as error:
+            self.apply(self.request(preview, ids=[preview["items"][0]["id"]]))
+        self.assertEqual(error.exception.status, 409)
+        self.assertEqual(self.dictionary.read_bytes(), before)
+
     def test_future_gacha_titles_are_detected_without_known_ids(self):
         self.insert("未来の新タイトル", "미래의 새 제목", category="Gacha")
         self.insert("未来の新タイトルガチャPt", "", category="Item")

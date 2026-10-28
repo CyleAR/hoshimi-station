@@ -65,6 +65,15 @@ test('credentials and browser-supplied file paths are not forwarded to the helpe
 	assert.ok(!JSON.stringify(calls.at(-1)).includes('123456'));
 });
 
+test('pose dictionary requests preserve the selected group and item IDs', async () => {
+	response = { ok: true, items: [] };
+	assert.equal((await post({ ...auth, groups: ['pose'] })).status, 200);
+	assert.deepEqual(calls.at(-1)[0].groups, ['pose']);
+	const ids = ['a'.repeat(64)];
+	assert.equal((await post({ ...auth, action: 'apply', groups: ['pose'], ids, dictionary_hash: 'current' })).status, 200);
+	assert.deepEqual(calls.at(-1)[0], { action: 'apply', groups: ['pose'], ids, dictionary_hash: 'current', allow_updates: false });
+});
+
 test('dictionary replacement is forwarded only with explicit boolean opt-in', async () => {
 	for (const flag of [true, false, 'true']) {
 		await post({ ...auth, action: 'apply', allow_updates: flag });
