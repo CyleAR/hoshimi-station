@@ -272,6 +272,31 @@ class ProjectDictionaryTests(unittest.TestCase):
             with self.subTest(unit=unit):
                 self.assertEqual((translated, status, author), (expected[unit], "prefilled", "[BOT] auto-prefill"))
 
+    def test_date_dictionary_matches_units_and_seasons_without_substring_replacement(self):
+        units = compile_template("{0}{date}限定", "{0}{date} 한정", self.rules.dictionaries)
+        for original, expected in {
+            "31日限定": "31일 한정",
+            "10月限定": "10월 한정",
+            "2時間限定": "2시간 한정",
+            "3週間限定": "3주일 한정",
+            "6ヶ月限定": "6개월 한정",
+            "4周年限定": "4주년 한정",
+        }.items():
+            with self.subTest(original=original):
+                self.assertEqual(units.render(original, self.rules.dictionaries, self.rules.batchim), expected)
+        missions = compile_template("{date}ミッション", "{date} 미션", self.rules.dictionaries)
+        for original, expected in {
+            "スプリングミッション": "스프링 미션",
+            "サマーミッション": "서머 미션",
+            "オータムミッション": "어텀 미션",
+            "ウィンターミッション": "윈터 미션",
+            "クリスマスミッション": "크리스마스 미션",
+        }.items():
+            with self.subTest(original=original):
+                self.assertEqual(missions.render(original, self.rules.dictionaries, self.rules.batchim), expected)
+        self.assertIsNone(units.render("15分割限定", self.rules.dictionaries, self.rules.batchim))
+        self.assertIsNone(missions.render("春祭りミッション", self.rules.dictionaries, self.rules.batchim))
+
     def test_project_names_group_compatibility_and_runtime_placeholders(self):
         samples = {
             "郁乃誕生日ショップ": "이쿠노 생일 상점",
