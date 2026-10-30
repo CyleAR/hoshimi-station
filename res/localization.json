@@ -4183,5 +4183,19 @@
     "illimitable.setting.remove.diff.error": "難易度は最低1つ必要です",
     "illimitable.setting.add.diff": "新しい難易度を追加しました",
     "illimitable.setting.diff.execute": "難易度を更新しました",
-    "illimitable.setting.diff.sort": "スコアでソートしました"
+    "illimitable.setting.diff.sort": "スコアでソートしました",
+    "refund.button.label": "返金申請はこちら",
+    "refund.button.limit": "{0}まで",
+    "refund.dialog.title": "返金申請について",
+    "refund.dialog.stone.amount": "所持ブルーダイヤ",
+    "refund.dialog.guidance": "▼返金申請はこちらから",
+    "refund.dialog.execute": "返金申請",
+    "refund.dialog.id": "返金ID：",
+    "refund.dialog.copy": "タップでコピー",
+    "refund.dialog.toast.copy": "IDをコピーしました",
+    "refund.dialog.Attention": "※ボタンを押すと外部サイトにアクセスします。",
+    "refund.dialog.stone.empty.toast": "所持ブルーダイヤがありません",
+    "refund.dialog.not.created.account.toast": "返金可能なアカウントが存在しません",
+    "purchase.stop.title": "購入停止について",
+    "purchase.stop.description": "サービス終了のため、\\nブルーダイヤの購入を停止いたしました。"
 }
