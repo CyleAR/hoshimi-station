@@ -14,6 +14,7 @@
 	let message = $state('');
 	let error = $state('');
 	let lastEditor = $state('');
+	let draft = $state(null);
 	let disposed = false;
 	let nextId = 0;
 	const dirty = $derived(clipName !== originalName || (snapshot !== null && serialize() !== snapshot));
@@ -41,7 +42,7 @@
 	async function load(url, name = '') {
 		const currentTelephone = !name;
 		busy = true;
-		error = ''; message = ''; loadedName = ''; snapshot = null; lines = []; lastEditor = '';
+		error = ''; message = ''; loadedName = ''; snapshot = null; lines = []; lastEditor = ''; draft = null;
 		try {
 			const data = await request(url);
 			if (disposed) return;
@@ -51,6 +52,7 @@
 			}
 			loadedName = name; revision = data.revision; exists = data.exists;
 			lastEditor = data.updated_by;
+			draft = data.draft ?? null;
 			lines = data.lines.map((line) => makeLine(line.time, line.text.replace(/\\n/g, '\n')));
 			if (!lines.length) lines = [makeLine()];
 			snapshot = serialize();
@@ -86,8 +88,22 @@
 			if (disposed) return;
 			revision = data.revision; exists = true; expectedLink = loadedName; originalName = loadedName;
 			snapshot = serialize(); lastEditor = currentUser.nickname;
+			if (draft && !draft.accepted_at) draft = { ...draft, stale: true };
 			message = '저장했습니다.';
 			onprogress?.({ total: Math.max(1, lines.length), done: lines.filter((line) => line.text.trim()).length });
+		} catch (err) { if (!disposed) error = err.message; }
+		finally { if (!disposed) busy = false; }
+	}
+	async function applyDraft() {
+		if (!canSave || !draft || draft.stale || draft.accepted_at || !canDiscard()) return;
+		busy = true; error = ''; message = '';
+		try {
+			await request('/api/phone-subtitles', { method: 'POST', headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ action: 'apply_draft', telephone_id: telephoneId, draft_id: draft.draft_id,
+					nickname: currentUser.nickname, pin: currentUser.pin }) });
+			if (disposed) return;
+			await load(`/api/phone-subtitles?telephone=${encodeURIComponent(telephoneId)}`);
+			if (!disposed && !error) message = '초안을 적용했습니다. 검토 대상 줄은 빈칸으로 남겼습니다.';
 		} catch (err) { if (!disposed) error = err.message; }
 		finally { if (!disposed) busy = false; }
 	}
@@ -115,6 +131,27 @@
 		</div>
 		{#if loadedName && clipName !== loadedName}<p class="phone-pending">클립 이름 변경 · 불러오기 필요</p>{/if}
 	</details>
+	{#if draft}
+		<details class="phone-draft">
+			<summary>AI 자막 초안 <span>{draft.accepted_at ? '적용됨' : draft.stale ? '재검토 필요' : `${draft.lines.filter((line) => !line.needs_review).length}개`} · 검토 {draft.lines.filter((line) => line.needs_review).length}개</span></summary>
+			<div class="phone-draft-actions">
+				{#if draft.accepted_at}<span>적용: {draft.accepted_by}</span>
+				{:else if draft.stale}<span>자막 또는 연결이 변경되었습니다. 새 초안이 필요합니다.</span>
+				{:else}<button class="soft" onclick={applyDraft} disabled={!canSave || !draft.lines.some((line) => !line.needs_review)}>초안 적용</button>{/if}
+			</div>
+			{#if draft.notes}<p class="phone-draft-notes">{draft.notes}</p>{/if}
+			<div class="unit-stack phone-draft-lines">
+				{#each draft.lines as proposal}
+					<article class="unit-card" class:untranslated={proposal.needs_review}>
+						<header><strong>자막 {proposal.line}</strong><span>{proposal.time}초{proposal.needs_review ? ' · 검토 필요' : ''}</span></header>
+						<p class="phone-draft-source" lang="ja">{proposal.source_segments.map((index) => draft.transcript.segments[index - 1].text).join(' ')}</p>
+						{#if proposal.text}<p class="phone-draft-text">{proposal.text}</p>{/if}
+						{#if proposal.note}<p class="phone-draft-notes">{proposal.note}</p>{/if}
+					</article>
+				{/each}
+			</div>
+		</details>
+	{/if}
 	{#if busy && !loadedName}<div class="state-card large" role="status">자막 불러오는 중…</div>{/if}
 	<div class="unit-stack phone-units">
 		{#each lines as line, i (line.id)}
@@ -158,6 +195,13 @@
 	.phone-settings { background: var(--panel); border-bottom: 1px solid var(--border); }
 	.phone-settings summary { padding: 9px 16px; color: var(--muted); font-size: 12px; cursor: pointer; }
 	.phone-settings summary span { margin-left: 8px; color: var(--warning); }
+	.phone-draft { margin-top: 14px; border-bottom: 1px solid var(--border); }
+	.phone-draft summary { display: list-item; padding: 10px 0; cursor: pointer; font-size: 13px; }
+	.phone-draft summary span { margin-left: 8px; color: var(--muted); }
+	.phone-draft-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 0; font-size: 12px; color: var(--warning); }
+	.phone-draft-lines { padding: 8px 0 14px; }
+	.phone-draft-source, .phone-draft-text, .phone-draft-notes { padding: 10px 14px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+	.phone-draft-source, .phone-draft-notes { color: var(--muted); }
 	.phone-clip-controls { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 12px; }
 	.phone-clip-controls input { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 	.phone-units { padding: 14px 0; }

@@ -71,6 +71,15 @@ class PhoneSubtitleTests(unittest.TestCase):
                 );
                 CREATE TABLE phone_subtitle_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE phone_subtitle_links (telephone_id TEXT PRIMARY KEY, clip_name TEXT NOT NULL);
+                CREATE TABLE phone_subtitle_drafts (
+                    telephone_id TEXT PRIMARY KEY,
+                    draft_id TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    payload_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    accepted_at TEXT,
+                    accepted_by TEXT
+                );
             """)
             if initialized:
                 conn.execute("INSERT INTO phone_subtitle_settings VALUES ('imported', ?)", (str(self.phone_file),))
@@ -80,6 +89,11 @@ class PhoneSubtitleTests(unittest.TestCase):
                     (name, json.dumps(lines, ensure_ascii=False)),
                 )
             conn.execute("INSERT INTO phone_subtitle_links VALUES ('tel-test', 'sud_vo_phone_a_custom')")
+            conn.execute(
+                "INSERT INTO phone_subtitle_drafts VALUES ('tel-test', 'draft-id', ?, 'hash', '2026-11-02', NULL, NULL)",
+                (json.dumps({"transcript": {"model": "large-v3", "segments": [{"start": 0, "end": 1, "text": "\u3082\u3057\u3082\u3057"}]},
+                             "lines": [{"line": 1, "time": 0, "text": "unapplied draft"}]}),),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -108,7 +122,7 @@ class PhoneSubtitleTests(unittest.TestCase):
         try:
             return {
                 table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
-                for table in ("phone_subtitle_clips", "phone_subtitle_settings", "phone_subtitle_links")
+                for table in ("phone_subtitle_clips", "phone_subtitle_settings", "phone_subtitle_links", "phone_subtitle_drafts")
             }
         finally:
             conn.close()
@@ -166,6 +180,12 @@ class PhoneSubtitleTests(unittest.TestCase):
                 self.existing_file(data)
                 self.run_export()
                 self.assertEqual(json.loads(self.phone_file.read_bytes()), self.clips)
+
+    def test_unapplied_drafts_never_appear_in_export(self):
+        self.subtitle_schema()
+        self.run_export()
+        self.assertNotIn(b"unapplied draft", self.phone_file.read_bytes())
+        self.assertEqual(json.loads(self.phone_file.read_bytes()), self.clips)
 
     def test_initialized_empty_database_is_authoritative(self):
         self.subtitle_schema(clips={})

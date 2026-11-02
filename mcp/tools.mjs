@@ -79,5 +79,38 @@ export function createServer({ baseUrl, token, fetchImpl = fetch }) {
       reference_unit_ids: z.array(z.string().min(1).max(2000)).max(20).optional()
     }, annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
   }, (args) => api('api/ai-suggestions', { body: args }));
+  server.registerTool('list_phone_subtitles', {
+    description: 'List current MasterDB telephones, expected audio clip names, subtitle counts, draft state and site paths. Use draft_status=missing from the FIRST page repeatedly to resume draft creation. Pending drafts are not exported or applied. Keep filters unchanged when following next_cursor for browsing.',
+    inputSchema: {
+      draft_status: z.enum(['all', 'missing', 'pending', 'stale', 'applied']).optional(),
+      translation_status: z.enum(['all', 'empty', 'partial', 'complete']).optional(),
+      character_id: z.string().min(1).max(200).optional(),
+      limit: z.number().int().min(1).max(200).optional(), cursor: z.string().max(200).optional()
+    }, annotations: readAnnotations
+  }, (args) => api('api/codex/phone-subtitles', { query: args }));
+  server.registerTool('get_phone_subtitle', {
+    description: 'Read a telephone, speaker metadata, current subtitle snapshot and saved draft including Japanese transcript and Korean proposals. Forward snapshot unchanged as base for submit_phone_subtitle_draft. Match the WAV to phone.audio_clip_name (from assetId), not the title. Read translation_guidelines before translating. Existing Korean lines must remain unchanged.',
+    inputSchema: { telephone_id: z.string().min(1).max(200) }, annotations: readAnnotations
+  }, (args) => api('api/codex/phone-subtitles', { query: args }));
+  server.registerTool('submit_phone_subtitle_draft', {
+    description: 'Save a separate phone subtitle draft, NEVER current subtitles. Supply the exact latest snapshot as base, expected_draft_id=null for the first draft or the ID you read to replace it. Identical retries return the same draft ID. Submit Japanese ASR segments and Korean lines with 1-based source_segments. If ANY Korean subtitle exists, propose ONLY blank existing line numbers at their exact existing times; otherwise create consecutive timed lines starting at 1. Uncertain alignment must use needs_review=true, empty text and a note. On 409 reread and reconsider. Only a logged-in human can apply the draft in the site.',
+    inputSchema: {
+      telephone_id: z.string().min(1).max(200),
+      audio_clip_name: z.string().regex(/^sud_vo_phone_[a-z0-9_-]{1,180}$/),
+      audio_sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+      expected_draft_id: z.string().min(1).max(100).nullable(),
+      base: z.object({
+        clip_name: z.string().regex(/^sud_vo_phone_[a-z0-9_-]{1,180}$/), revision: z.number().int().nonnegative(),
+        exists: z.boolean(), saved_link: z.string().max(192),
+        lines: z.array(z.object({ time: z.number().finite().nonnegative(), text: z.string().max(10000) })).max(1000)
+      }),
+      transcript: z.object({ model: z.string().min(1).max(200),
+        segments: z.array(z.object({ start: z.number().finite().nonnegative(), end: z.number().finite().nonnegative(), text: z.string().min(1).max(10000) })).min(1).max(2000)
+      }),
+      lines: z.array(z.object({ line: z.number().int().min(1).max(1000), time: z.number().finite().nonnegative(), text: z.string().max(10000),
+        source_segments: z.array(z.number().int().min(1)).max(2000), needs_review: z.boolean(), note: z.string().max(2000).optional()
+      })).min(1).max(1000), notes: z.string().max(20000).optional()
+    }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, (args) => api('api/codex/phone-subtitles', { body: args }));
   return server;
 }

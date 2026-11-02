@@ -17,11 +17,16 @@ const source = readFileSync(new URL('../src/lib/server/phone-subtitles.js', impo
 	.replace("import { getDb } from './db.js';", 'const getDb = () => globalThis.__phoneTestDb;');
 const serviceUrl = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 const service = await import(serviceUrl);
+const draftSource = readFileSync(new URL('../src/lib/server/phone-subtitle-drafts.js', import.meta.url), 'utf8')
+	.replace("import { getDb } from './db.js';", 'const getDb = () => globalThis.__phoneTestDb;')
+	.replace("'./phone-subtitles.js'", JSON.stringify(serviceUrl));
+const draftsUrl = 'data:text/javascript;base64,' + Buffer.from(draftSource).toString('base64');
 const db = new DatabaseSync(':memory:');
 globalThis.__phoneTestDb = db;
 const schema = `CREATE TABLE phone_subtitle_clips (clip_name TEXT PRIMARY KEY, lines_json TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0, updated_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '');
 CREATE TABLE phone_subtitle_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE phone_subtitle_links (telephone_id TEXT PRIMARY KEY, clip_name TEXT NOT NULL);
+CREATE TABLE phone_subtitle_drafts (telephone_id TEXT PRIMARY KEY, draft_id TEXT NOT NULL, payload_json TEXT NOT NULL, payload_hash TEXT NOT NULL, created_at TEXT NOT NULL, accepted_at TEXT, accepted_by TEXT);
 CREATE TABLE users (nickname TEXT, pin TEXT);
 CREATE TABLE entities (entity_type TEXT, entity_id TEXT, label TEXT, meta_json TEXT);
 CREATE TABLE translation_units (unit_id TEXT PRIMARY KEY, translation_text TEXT);
@@ -73,7 +78,8 @@ test('endpoint serves lists, downloads and validation errors', async () => {
 	const jsonUrl = 'data:text/javascript;base64,' + Buffer.from("export function json(data, init = {}) { return new Response(JSON.stringify(data), { ...init, headers: { 'content-type': 'application/json', ...init.headers } }); }").toString('base64');
 	const endpointSource = readFileSync(new URL('../src/routes/api/phone-subtitles/+server.js', import.meta.url), 'utf8')
 		.replace("'$lib/server/db.js'", JSON.stringify(jsonUrl))
-		.replace("'$lib/server/phone-subtitles.js'", JSON.stringify(serviceUrl));
+		.replace("'$lib/server/phone-subtitles.js'", JSON.stringify(serviceUrl))
+		.replace("'$lib/server/phone-subtitle-drafts.js'", JSON.stringify(draftsUrl));
 	const api = await import('data:text/javascript;base64,' + Buffer.from(endpointSource).toString('base64'));
 	const list = api.GET({ url: new URL('http://localhost/api/phone-subtitles') });
 	assert.equal((await list.json()).phones.length, 2);

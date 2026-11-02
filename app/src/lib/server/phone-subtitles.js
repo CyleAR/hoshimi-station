@@ -12,6 +12,10 @@ function validLines(lines) {
 		(index === 0 || line.time >= lines[index - 1].time));
 }
 
+export function normalizeSubtitleLines(lines) {
+	return lines.map((line, index) => ({ line: index + 1, time: line.time, text: line.text.replace(/\r\n?/g, '\n').replace(/\n/g, '\\n') }));
+}
+
 function sourcePath() {
 	if (process.env.PHONE_SUBTITLES_PATH) return path.resolve(process.env.PHONE_SUBTITLES_PATH);
 	const cwd = process.cwd();
@@ -64,7 +68,10 @@ export function listPhoneSubtitles(db = getDb()) {
 		const clipName = links.get(row.entity_id) || (byName.has(idName) ? idName : assetName);
 		if (byName.has(clipName)) used.add(clipName);
 		const clip = byName.get(clipName);
-		return { id: row.entity_id, label: row.label, translation_label: row.translation_label, clip_name: clipName, saved_link: links.get(row.entity_id) || '', matched: !!clip, translated: !!clip && JSON.parse(clip.lines_json).some((line) => line.text.trim()) };
+		const lines = clip ? JSON.parse(clip.lines_json) : [];
+		const done = lines.filter((line) => line.text.trim()).length;
+		return { id: row.entity_id, label: row.label, translation_label: row.translation_label, character_id: meta.characterId || '',
+			audio_clip_name: assetName, clip_name: clipName, saved_link: links.get(row.entity_id) || '', matched: !!clip, translated: done > 0, total: lines.length, done };
 	});
 	const unlinked = clips.filter((clip) => !used.has(clip.clip_name)).map((clip) => ({ id: '', label: clip.clip_name, clip_name: clip.clip_name, matched: true, translated: JSON.parse(clip.lines_json).some((line) => line.text.trim()) }));
 	return { phones, unlinked };
@@ -97,7 +104,7 @@ export function savePhoneSubtitle(body, db = getDb()) {
 	if (!validClipName(name) || !Number.isInteger(body.revision) || body.revision < 0 || typeof body.exists !== 'boolean' || !Array.isArray(body.lines) || body.lines.length > 1000) return { status: 400, error: '입력한 자막 정보가 올바르지 않습니다.' };
 	if (!validLines(body.lines)) return { status: 400, error: '자막과 표시 시각을 확인해 주세요. 시간은 0 이상이며 앞줄보다 빠를 수 없습니다.' };
 	ensurePhoneSubtitles(db);
-	const lines = body.lines.map((line, index) => ({ line: index + 1, time: line.time, text: line.text.replace(/\r\n?/g, '\n').replace(/\n/g, '\\n') }));
+	const lines = normalizeSubtitleLines(body.lines);
 	const serialized = JSON.stringify(lines);
 	const telephoneId = String(body.telephone_id || '');
 	if (telephoneId && !db.prepare("SELECT 1 FROM entities WHERE entity_type = 'telephone' AND entity_id = ?").get(telephoneId)) return { status: 400, error: '전화 항목을 찾을 수 없습니다.' };

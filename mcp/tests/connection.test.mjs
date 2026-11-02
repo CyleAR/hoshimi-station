@@ -27,7 +27,7 @@ test('real stdio MCP handshake, tools, API forwarding, validation and conflict r
   await client.connect(transport);
   t.after(() => client.close());
   const tools = (await client.listTools()).tools;
-  assert.equal(tools.length, 8);
+  assert.equal(tools.length, 11);
   assert.ok(!tools.some((tool) => /accept|sql|delete/.test(tool.name)));
   assert.ok(client.getInstructions().includes('Never auto-accept'));
   await client.callTool({ name: 'get_review_progress', arguments: { source_file: 'story.txt' } });
@@ -49,4 +49,23 @@ test('real stdio MCP handshake, tools, API forwarding, validation and conflict r
   assert.equal(conflict.structuredContent.status, 409);
   assert.deepEqual(requests.at(-1).body, body);
   assert.ok(!JSON.stringify(conflict).includes('test-secret'));
+  await client.callTool({ name: 'list_phone_subtitles', arguments: { draft_status: 'missing', translation_status: 'empty', limit: 10 } });
+  assert.equal(requests.at(-1).path, '/api/codex/phone-subtitles');
+  assert.deepEqual(requests.at(-1).query, { draft_status: 'missing', translation_status: 'empty', limit: '10' });
+  await client.callTool({ name: 'get_phone_subtitle', arguments: { telephone_id: 'tel-ai' } });
+  assert.deepEqual(requests.at(-1).query, { telephone_id: 'tel-ai' });
+  const phoneBody = { telephone_id: 'tel-ai', audio_clip_name: 'sud_vo_phone_tel-ai', audio_sha256: 'a'.repeat(64), expected_draft_id: null,
+    base: { clip_name: 'sud_vo_phone_tel-ai', revision: 0, exists: false, saved_link: '', lines: [] },
+    transcript: { model: 'large-v3', segments: [{ start: 0, end: 1, text: 'もしもし' }] },
+    lines: [{ line: 1, time: 0, text: '여보세요', source_segments: [1], needs_review: false }] };
+  await client.callTool({ name: 'submit_phone_subtitle_draft', arguments: phoneBody });
+  assert.equal(requests.at(-1).path, '/api/codex/phone-subtitles');
+  assert.equal(requests.at(-1).auth, 'Bearer test-secret');
+  assert.deepEqual(requests.at(-1).body, phoneBody);
+  const beforeInvalidPhone = requests.length;
+  assert.equal((await client.callTool({ name: 'submit_phone_subtitle_draft', arguments: { ...phoneBody, audio_sha256: 'bad' } })).isError, true);
+  assert.equal(requests.length, beforeInvalidPhone);
+  const phoneTool = tools.find((tool) => tool.name === 'submit_phone_subtitle_draft');
+  assert.equal(phoneTool.annotations.idempotentHint, true);
+  assert.ok(!tools.some((tool) => /apply_phone|accept_phone/.test(tool.name)));
 });

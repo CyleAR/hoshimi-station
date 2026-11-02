@@ -37,8 +37,47 @@ Codex 설정은 공식 문서의 STDIO 설정 형식을 따릅니다: [Model Con
 | `submit_ai_suggestion` | 제안문·이유·참고 항목 ID 제출 |
 | `mark_translation_reviewed` | 수정이 필요 없는 번역의 검토 완료와 이유 기록 |
 | `get_review_progress` | 전체 또는 지정 범위의 완료·미완료·변경·제안 건수와 완료율 조회 |
+| `list_phone_subtitles` | 현재 전화 목록, 음성 클립 이름, 자막 수와 초안 상태 조회 |
+| `get_phone_subtitle` | 전화별 현재 자막 스냅샷, 캐릭터 정보와 일본어 인식 결과·한국어 초안 조회 |
+| `submit_phone_subtitle_draft` | 실제 자막을 변경하지 않고 전화별 초안 저장 |
 
 제안은 사이트의 ‘AI의 제안’에 표시됩니다. 사람이 ‘사용’을 눌러 현재 번역에 반영합니다. 제출은 해당 항목의 이전 제안을 교체합니다. 최신 제안이 있는 항목은 특별한 이유가 없으면 다시 제출하지 않습니다. MCP에는 현재 번역을 직접 저장하거나 제안을 자동 채택하는 도구가 없습니다.
+
+## 전화 자막 초안
+
+기존 `CODEX_API_TOKEN`과 MCP 연결을 그대로 사용합니다. 서버에 최신 코드를 반영해
+`npm run build` 후 PM2를 재시작하고, PC에서도 최신 `mcp/tools.mjs`를 받은 뒤 MCP 연결을
+재시작하세요. 새 환경변수나 DB 재임포트는 필요 없고 초안 테이블은 자동 생성됩니다.
+
+1. `translation_guidelines`를 읽고 `list_phone_subtitles`로 전화 목록을 조회합니다.
+   WAV 파일명은 `audio_clip_name + '.wav'`와 대조합니다. 제목만으로 연결하지 않습니다.
+2. `get_phone_subtitle`의 `snapshot` 전체를 제출의 `base`로 전달합니다.
+   `expected_draft_id`는 첫 제출 시 `null`, 교체 시 읽은 초안의 `draft_id`입니다.
+3. `audio_clip_name`, WAV의 `audio_sha256`, `transcript`, 한국어 `lines`를 제출합니다.
+   `transcript`는 `{model, segments: [{start, end, text}]}`이며 시각은 초 단위입니다.
+   일본어 인식 결과는 한국어 자막과 별도 보관하고 export하지 않습니다.
+4. 사이트의 전화 자막 창에서 **AI 자막 초안**을 펼쳐 검토하고 **초안 적용**을 누릅니다.
+   적용은 로그인한 작업자만 가능하며 MCP에는 적용 도구가 없습니다.
+   적용된 자막만 기존 `phoneSubtitles.json`으로 출력합니다.
+
+`lines`는 `{line, time, text, source_segments, needs_review, note?}` 배열입니다.
+`line`과 `source_segments`는 **1부터 시작하는 번호**이며, 후자는 일본어 인식 구간 번호입니다.
+한국어가 한 줄이라도 있으면 **기존 빈 줄 번호와 기존 시각만** 제안할 수 있습니다.
+한국어가 전혀 없으면 새 시각으로 1번부터 연속된 줄을 만듭니다.
+연결이 불확실한 줄은 `needs_review: true`, `text: ''`, `note: '검토 사유'`로 남깁니다.
+적용 시에도 검토 대상 줄은 비워 두며, 모든 줄이 검토 대상이면 적용하지 못합니다.
+
+목록 필터: `character_id`, `translation_status=all|empty|partial|complete`,
+`draft_status=all|missing|pending|stale|applied`, `limit`(1~200, 기본 50), `cursor`.
+`empty`에는 자막이 없거나 전부 빈 전화도 포함됩니다. 목록은 전화 ID순이며 `next_cursor`를 그대로 넘깁니다.
+`counts`는 캐릭터·번역 상태 필터 범위에서 초안 상태 필터와 커서 적용 전 집계입니다.
+새 초안 제작을 재개할 때는 `draft_status=missing`의 첫 페이지를 반복해 이미 저장한 전화를 건너뜁니다.
+`stale`은 자막·시각·버전·연결 또는 음성 assetId가 달라진 미적용 초안으로 다시 검토해야 합니다.
+
+동일 내용의 재전송은 같은 초안 ID를 반환합니다. 다른 초안으로 교체하려면 정확한
+`expected_draft_id`가 필요합니다. 중간에 자막이나 연결이 바뀌면 제출·적용 모두 409로 거부합니다.
+네트워크 실패 후에는 재전송 전에 개별 조회로 저장 여부를 확인합니다.
+초안과 적용 기록은 DB 재시작 및 기존 DB 재임포트 후에도 유지됩니다.
 
 ## 전체 검토와 중단 후 재개
 
@@ -73,6 +112,8 @@ Codex 설정은 공식 문서의 STDIO 설정 형식을 따릅니다: [Model Con
 | `POST /api/ai-suggestions` | [제안 제출 형식](ai-suggestions.md) |
 | `POST /api/codex/review` | `unit_id`, `base_revision`, `base_original_text`, `base_translation_text`, `notes` (수정 불필요 판정 이유) |
 | `GET /api/codex/progress` | 목록과 동일한 범위 필터. `review`, `suggestion`, `limit`, `cursor`는 집계에서 제외 |
+| `GET /api/codex/phone-subtitles` | `telephone_id`가 있으면 개별 전화, 없으면 위의 전화 목록 필터 |
+| `POST /api/codex/phone-subtitles` | 전화 초안 제출. 스냅샷·음성 식별·일본어 인식 결과·한국어 제안 |
 
 목록 필터:
 
@@ -94,6 +135,8 @@ Codex 설정은 공식 문서의 STDIO 설정 형식을 따릅니다: [Model Con
 chcp 65001 > $null
 node --test app/tests/codex-api.test.js app/tests/codex-review-persistence.test.js app/tests/ai-suggestions.test.js app/tests/recent-translations.test.js
 npm --prefix mcp test
+node --test app/tests/phone-subtitles.test.js app/tests/phone-subtitle-drafts.test.js
+python -m unittest discover -s scripts -p test_phone_subtitles.py
 npm run build
 ```
 

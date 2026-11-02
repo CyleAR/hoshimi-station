@@ -36,6 +36,15 @@ function migrate(database) {
 		);
 		CREATE TABLE IF NOT EXISTS phone_subtitle_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 		CREATE TABLE IF NOT EXISTS phone_subtitle_links (telephone_id TEXT PRIMARY KEY, clip_name TEXT NOT NULL);
+		CREATE TABLE IF NOT EXISTS phone_subtitle_drafts (
+			telephone_id TEXT PRIMARY KEY,
+			draft_id TEXT NOT NULL,
+			payload_json TEXT NOT NULL,
+			payload_hash TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			accepted_at TEXT,
+			accepted_by TEXT
+		);
 		CREATE TABLE IF NOT EXISTS ai_reviews (
 			unit_id TEXT PRIMARY KEY,
 			base_revision INTEGER NOT NULL,
