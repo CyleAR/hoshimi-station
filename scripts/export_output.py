@@ -442,6 +442,29 @@ def export_dictionary(out_dir: Path, data: bytes) -> Path:
     return path
 
 
+def export_phone_subtitles(conn: sqlite3.Connection, out_dir: Path) -> int | None:
+    tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name IN ('phone_subtitle_clips', 'phone_subtitle_settings')"
+        )
+    }
+    if len(tables) != 2:
+        return None
+    if conn.execute("SELECT 1 FROM phone_subtitle_settings WHERE key = 'imported'").fetchone() is None:
+        return None
+
+    payload = {
+        row[0]: json.loads(row[1])
+        for row in conn.execute("SELECT clip_name, lines_json FROM phone_subtitle_clips ORDER BY clip_name")
+    }
+    path = out_dir / "local-files" / "phoneSubtitles.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return len(payload)
+
+
 def write_metadata(out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "version.txt").write_text(datetime.now().strftime("%Y%m%d_%H%M%S"), encoding="utf-8")
@@ -481,10 +504,13 @@ def main() -> None:
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
     try:
+        # Keep translations, the import sentinel and subtitle rows in one read snapshot.
+        conn.execute("BEGIN")
         write_metadata(out_dir)
         master_count = export_masterdb(conn, out_dir)
         adv_count = export_adv(conn, out_dir)
         localization_total, localization_translated = export_localization(conn, out_dir)
+        phone_count = export_phone_subtitles(conn, out_dir)
         dictionary_path = export_dictionary(out_dir, dictionary_data)
     finally:
         conn.close()
@@ -493,6 +519,8 @@ def main() -> None:
         f"{localization_translated}/{localization_total} localization units to {out_dir}"
     )
     print(f"Exported prefill dictionary to {dictionary_path}")
+    if phone_count is not None:
+        print(f"Exported {phone_count} phone subtitle clips to {out_dir / 'local-files' / 'phoneSubtitles.json'}")
 
 
 if __name__ == "__main__":

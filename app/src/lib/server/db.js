@@ -27,6 +27,15 @@ function migrate(database) {
 		database.exec('ALTER TABLE translation_units ADD COLUMN revision INTEGER NOT NULL DEFAULT 0');
 	}
 	database.exec(`
+		CREATE TABLE IF NOT EXISTS phone_subtitle_clips (
+			clip_name TEXT PRIMARY KEY,
+			lines_json TEXT NOT NULL,
+			revision INTEGER NOT NULL DEFAULT 0,
+			updated_by TEXT NOT NULL DEFAULT '',
+			updated_at TEXT NOT NULL DEFAULT ''
+		);
+		CREATE TABLE IF NOT EXISTS phone_subtitle_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+		CREATE TABLE IF NOT EXISTS phone_subtitle_links (telephone_id TEXT PRIMARY KEY, clip_name TEXT NOT NULL);
 		CREATE TABLE IF NOT EXISTS ai_reviews (
 			unit_id TEXT PRIMARY KEY,
 			base_revision INTEGER NOT NULL,

@@ -1,4 +1,5 @@
 import { all, get, json } from '$lib/server/db.js';
+import { readTelephoneSubtitle } from '$lib/server/phone-subtitles.js';
 
 const sectionMeta = {
 	excursion_places: ['EX', '외출 장소'],
@@ -967,6 +968,14 @@ export function GET({ url }) {
 	}
 
 	if (type === 'telephone') {
+		let subtitle;
+		try { subtitle = readTelephoneSubtitle(id); }
+		catch (error) { console.error('[phone-subtitles]', error); }
+		sections.push({
+			key: 'phone_subtitles', icon: '☎', label: '전화 자막', kind: 'phone_subtitles',
+			total: Math.max(1, subtitle?.lines.length ?? 0),
+			done: subtitle?.lines.filter((line) => line.text.trim()).length ?? 0
+		});
 		sections.push(linkedUnitSection('linked_messages', type, id, ['message']));
 		sections.push(linkedUnitSection('conditions', type, id, ['condition_description']));
 	}

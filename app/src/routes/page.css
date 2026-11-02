@@ -148,6 +148,11 @@
 	.compact-button {
 		padding: 0 9px;
 	}
+	.editor-actions .phone-export {
+		display: inline-flex;
+		align-items: center;
+		text-decoration: none;
+	}
 	.save-all {
 		background: var(--success);
 		border-color: var(--success);

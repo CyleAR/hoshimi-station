@@ -3,6 +3,7 @@
 	import SearchText from "$lib/SearchText.svelte";
 	import ViewportBlock from "$lib/ViewportBlock.svelte";
 	import DictionaryManager from "$lib/DictionaryManager.svelte";
+	import PhoneSubtitleEditor from "$lib/PhoneSubtitleEditor.svelte";
 	import { unitBatches, UNIT_BATCH_SIZE } from "$lib/viewport-blocks.js";
 	import { translationDiff } from "$lib/translation-diff.js";
 	import "./page.css";
@@ -190,6 +191,29 @@
 	let detail = $state(null);
 	let activeSection = $state(null);
 	let units = $state([]);
+	let phoneSubtitleEditor = $state();
+	let phoneSubtitleState = $state({ dirty: false, busy: false });
+	const isPhoneSubtitles = $derived(selected?.type === "telephone" && activeSection?.key === "phone_subtitles");
+
+	function setPhoneSubtitleState(state) {
+		phoneSubtitleState = state;
+	}
+
+	function allowPhoneNavigation() {
+		if (phoneSubtitleState.busy) {
+			notice = "자막 처리 후 이동해 주세요.";
+			return false;
+		}
+		if (phoneSubtitleState.dirty && !confirm("저장하지 않은 전화 자막 변경 사항이 사라집니다. 계속할까요?")) return false;
+		phoneSubtitleState = { dirty: false, busy: false };
+		return true;
+	}
+
+	function updatePhoneSubtitleProgress(stats) {
+		if (!isPhoneSubtitles || !detail) return;
+		activeSection = { ...activeSection, ...stats };
+		detail = { ...detail, sections: detail.sections.map((part) => part.key === "phone_subtitles" ? { ...part, ...stats } : part) };
+	}
 	let bodyFindOpen = $state(false);
 	let bodyFindQuery = $state("");
 	let bodyFindTerm = $state("");
@@ -292,7 +316,7 @@
 	let linksPaneCollapsed = $state(false);
 	let mobilePane = $state("nav");
 	let selectedFieldLabels = $state(null);
-	let fieldFilterElement;
+	let fieldFilterElement = $state();
 	const fieldFilterOptions = $derived.by(() => {
 		const counts = new Map();
 		for (const unit of units) {
@@ -408,7 +432,7 @@
 	}
 
 	function sectionProgress(sections = []) {
-		return sections.reduce(
+		return sections.filter((part) => part.kind !== "phone_subtitles").reduce(
 			(total, part) => ({
 				done: total.done + Number(part.done ?? 0),
 				total: total.total + Number(part.total ?? 0),
@@ -464,6 +488,7 @@
 	}
 
 	async function selectItem(item, preferredKey = "") {
+		if (!allowPhoneNavigation()) return false;
 		selected = item;
 		detail = null;
 		activeSection = null;
@@ -487,6 +512,7 @@
 	}
 
 	async function selectRootItem(item) {
+		if (!allowPhoneNavigation()) return;
 		navStack = [];
 		mobilePane = "work";
 		await selectItem(item);
@@ -570,6 +596,7 @@
 
 	async function restoreHistory(snapshot) {
 		if (!snapshot?.hoshimiStation) return;
+		if (!allowPhoneNavigation()) { writeHistory("push"); return; }
 		restoringHistory = true;
 		try {
 			section = snapshot.section || "groups";
@@ -590,6 +617,7 @@
 	}
 
 	async function navigateToItem(item, preferredKey = "", { clearQuery = false } = {}) {
+		if (!allowPhoneNavigation()) return;
 		const previous = currentNavEntry();
 		if (
 			previous &&
@@ -639,18 +667,23 @@
 		navigateToItem(item, preferredKey, { clearQuery: true });
 	}
 
-	function activateSection(event, part) {
+	async function activateSection(event, part) {
 		if (shouldOpenInNewTab(event) && selected) {
 			event.preventDefault();
 			event.stopPropagation();
 			openItemInNewTab(selected, part.key);
 			return;
 		}
-		loadUnits(part);
+		const phoneNavigation = isPhoneSubtitles || part.key === "phone_subtitles";
+		if (part.key === "phone_subtitles" && units.some((unit) => unit.dirty || unit.saving) &&
+			!confirm("저장하지 않았거나 저장 중인 번역이 있습니다. 전화 자막으로 이동할까요?")) return;
+		if (await loadUnits(part) === false) return;
 		mobilePane = "editor";
+		if (phoneNavigation) writeHistory("push");
 	}
 
 	async function goBack({ syncHistory = true } = {}) {
+		if (!allowPhoneNavigation()) return;
 		const previous = navStack.at(-1);
 		if (!previous) return;
 		navStack = navStack.slice(0, -1);
@@ -706,10 +739,18 @@
 	}
 
 	async function loadUnits(part) {
+		if (!allowPhoneNavigation()) return false;
 		unloadedSectionDone = 0;
 		selectedFieldLabels = null;
 		if (fieldFilterElement) fieldFilterElement.open = false;
 		activeSection = part;
+		if (part.kind === "phone_subtitles") {
+			units = [];
+			loadingUnits = false;
+			error = "";
+			bodyFindOpen = false;
+			return true;
+		}
 		loadingUnits = true;
 		error = "";
 		try {
@@ -743,6 +784,7 @@
 		if (window.location.hash.startsWith("#unit-")) {
 			try { await scrollToUnit(decodeURIComponent(window.location.hash.slice("#unit-".length))); } catch { /* Ignore malformed URL fragments. */ }
 		}
+		return true;
 	}
 
 	function suggestionReferenceUrl(reference) {
@@ -962,6 +1004,7 @@
 	}
 
 	function changeSection(next) {
+		if (!allowPhoneNavigation()) return;
 		section = next;
 		navStack = [];
 		mobilePane = "nav";
@@ -971,15 +1014,17 @@
 	function queueSearch() {
 		mobilePane = "nav";
 		clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => loadItems(), 250);
+		searchTimer = setTimeout(() => loadItems({ preserveSelection: isPhoneSubtitles }), 250);
 	}
 
 	function retry() {
+		if (isPhoneSubtitles) { phoneSubtitleEditor?.reload(); return; }
 		if (selected) selectItem(selected);
 		else loadItems();
 	}
 
 	function goHome() {
+		if (!allowPhoneNavigation()) return;
 		section = "groups";
 		query = "";
 		navStack = [];
@@ -1540,7 +1585,7 @@
 		if (dictionaryOpen) return;
 		if (event.isComposing || document.querySelector('.modal-backdrop, .login-backdrop')) return;
 		const inEditor = editorPane?.contains(event.target);
-		if (inEditor && (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "f") {
+		if (inEditor && !isPhoneSubtitles && (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "f") {
 			event.preventDefault();
 			void openBodyFind();
 			return;
@@ -2001,7 +2046,14 @@
 			goBack({ syncHistory: false });
 		};
 		window.addEventListener("popstate", handlePopState);
-		return () => window.removeEventListener("popstate", handlePopState);
+		const handleBeforeUnload = (event) => {
+			if (phoneSubtitleState.dirty || phoneSubtitleState.busy) { event.preventDefault(); event.returnValue = ""; }
+		};
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		return () => {
+			window.removeEventListener("popstate", handlePopState);
+			window.removeEventListener("beforeunload", handleBeforeUnload);
+		};
 	});
 </script>
 
@@ -2339,6 +2391,11 @@
 						<button class="soft" onclick={goBack}>이전 항목</button>
 					{/if}
 					<button class="soft" onclick={retry}>새로고침</button>
+					{#if isPhoneSubtitles}
+						{#if phoneSubtitleState.dirty}<span class="notice">저장 필요</span>{/if}
+						<a class="soft phone-export" href="/api/phone-subtitles?export=1" download>JSON 내보내기</a>
+						<button class="save-all" onclick={() => phoneSubtitleEditor?.save()} disabled={!phoneSubtitleState.canSave}>일괄 저장</button>
+					{:else}
 					{#if untranslatedCount()}
 						<button
 							class="soft jump"
@@ -2402,7 +2459,9 @@
 									.map(saveUnit),
 							)}>일괄 저장</button
 					>
+					{/if}
 				</div>
+				{#if !isPhoneSubtitles}
 				<div class="editor-search-row">
 					{#if bodyFindOpen}
 						<div class="body-finder" role="search" aria-label="본문 검색">
@@ -2424,9 +2483,10 @@
 						<button class="soft body-find-trigger" onclick={openBodyFind} title="현재 필터의 원문·번역·작성 중인 번역 검색"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>본문 검색 <kbd>Ctrl F</kbd></button>
 					{/if}
 				</div>
+				{/if}
 			</div>
 
-			{#if !loadingUnits && !error && activeSection && activeSection.total > units.length}
+			{#if !isPhoneSubtitles && !loadingUnits && !error && activeSection && activeSection.total > units.length}
 				<section class="warning-box">
 					전체 {activeSection.total.toLocaleString()}개 중 {units.length.toLocaleString()}개를 불러왔습니다.
 					조회 한도로 나머지 항목은 아직 표시되지 않습니다.
@@ -2451,6 +2511,10 @@
 				<section class="state-card large">
 					번역 단위를 불러오는 중...
 				</section>
+			{:else if isPhoneSubtitles}
+				{#key selected.id}
+					<PhoneSubtitleEditor bind:this={phoneSubtitleEditor} telephoneId={selected.id} {currentUser} onstatechange={setPhoneSubtitleState} onprogress={updatePhoneSubtitleProgress} />
+				{/key}
 			{:else if !units.length}
 				<section class="state-card large">
 					이 묶음에는 번역 단위가 없습니다.
