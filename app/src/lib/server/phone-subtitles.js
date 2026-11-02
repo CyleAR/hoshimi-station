@@ -110,6 +110,12 @@ export function savePhoneSubtitle(body, db = getDb()) {
 	if (telephoneId && !db.prepare("SELECT 1 FROM entities WHERE entity_type = 'telephone' AND entity_id = ?").get(telephoneId)) return { status: 400, error: '전화 항목을 찾을 수 없습니다.' };
 	db.exec('BEGIN IMMEDIATE');
 	try {
+		if (body.draft_id !== undefined) {
+			if (!telephoneId || typeof body.draft_id !== 'string' || !db.prepare('SELECT 1 FROM phone_subtitle_drafts WHERE telephone_id = ? AND draft_id = ? AND accepted_at IS NULL').get(telephoneId, body.draft_id)) {
+				db.exec('ROLLBACK');
+				return { status: 409, error: '초안이 변경되었습니다. 다시 불러와 확인해 주세요.' };
+			}
+		}
 		if (telephoneId) {
 			const currentLink = db.prepare('SELECT clip_name FROM phone_subtitle_links WHERE telephone_id = ?').get(telephoneId)?.clip_name || '';
 			if (typeof body.expected_link !== 'string' || currentLink !== body.expected_link) {
@@ -128,6 +134,7 @@ export function savePhoneSubtitle(body, db = getDb()) {
 			return { status: 409, error: '다른 작업자가 변경했습니다. 다시 불러와 확인해 주세요.' };
 		}
 		if (telephoneId) db.prepare('INSERT INTO phone_subtitle_links (telephone_id, clip_name) VALUES (?, ?) ON CONFLICT(telephone_id) DO UPDATE SET clip_name = excluded.clip_name').run(telephoneId, name);
+		if (body.draft_id !== undefined) db.prepare("UPDATE phone_subtitle_drafts SET accepted_at = datetime('now'), accepted_by = ? WHERE telephone_id = ? AND draft_id = ?").run(nickname, telephoneId, body.draft_id);
 		db.prepare("INSERT OR IGNORE INTO phone_subtitle_settings (key, value) VALUES ('imported', 'created in editor')").run();
 		db.exec('COMMIT');
 	} catch (error) { db.exec('ROLLBACK'); throw error; }

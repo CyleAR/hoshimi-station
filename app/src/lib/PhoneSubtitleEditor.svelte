@@ -15,6 +15,7 @@
 	let error = $state('');
 	let lastEditor = $state('');
 	let draft = $state(null);
+	let draftInfo = $state({});
 	let disposed = false;
 	let nextId = 0;
 	const dirty = $derived(clipName !== originalName || (snapshot !== null && serialize() !== snapshot));
@@ -42,7 +43,7 @@
 	async function load(url, name = '') {
 		const currentTelephone = !name;
 		busy = true;
-		error = ''; message = ''; loadedName = ''; snapshot = null; lines = []; lastEditor = ''; draft = null;
+		error = ''; message = ''; loadedName = ''; snapshot = null; lines = []; lastEditor = ''; draft = null; draftInfo = {};
 		try {
 			const data = await request(url);
 			if (disposed) return;
@@ -56,7 +57,26 @@
 			lines = data.lines.map((line) => makeLine(line.time, line.text.replace(/\\n/g, '\n')));
 			if (!lines.length) lines = [makeLine()];
 			snapshot = serialize();
-			if (currentTelephone) onprogress?.({ total: Math.max(1, lines.length), done: lines.filter((line) => line.text.trim()).length });
+			if (currentTelephone && draft && !draft.stale && !draft.accepted_at) {
+				const hasTranslation = data.lines.some((line) => line.text.trim());
+				if (!hasTranslation) lines = draft.lines.map((line) => makeLine(line.time));
+				for (const proposal of draft.lines) {
+					const line = lines[proposal.line - 1];
+					if (!line || (hasTranslation && line.text.trim())) continue;
+					if (!proposal.needs_review) line.text = proposal.text.replace(/\\n/g, '\n');
+					draftInfo[line.id] = { source: proposal.source_segments.map((index) => draft.transcript.segments[index - 1].text).join(' '),
+						needsReview: proposal.needs_review, note: proposal.note };
+				}
+			}
+			if (currentTelephone && draft?.accepted_at) {
+				for (const proposal of draft.lines) {
+					const line = lines[proposal.line - 1];
+					if (!line || line.time !== proposal.time) continue;
+					draftInfo[line.id] = { source: proposal.source_segments.map((index) => draft.transcript.segments[index - 1].text).join(' '),
+						needsReview: proposal.needs_review && !line.text.trim(), note: proposal.note };
+				}
+			}
+			if (currentTelephone) onprogress?.({ total: Math.max(1, data.lines.length), done: data.lines.filter((line) => line.text.trim()).length });
 		} catch (err) { if (!disposed) error = err.message; }
 		finally { if (!disposed) busy = false; }
 	}
@@ -78,6 +98,7 @@
 		const payload = {
 			telephone_id: telephoneId, expected_link: expectedLink, clip_name: loadedName,
 			revision, exists, nickname: currentUser.nickname, pin: currentUser.pin,
+			...(!draft?.stale && draft && !draft.accepted_at ? { draft_id: draft.draft_id } : {}),
 			lines: lines.map(({ time, text }) => ({ time: Number(time), text }))
 		};
 		busy = true; error = ''; message = '';
@@ -88,22 +109,9 @@
 			if (disposed) return;
 			revision = data.revision; exists = true; expectedLink = loadedName; originalName = loadedName;
 			snapshot = serialize(); lastEditor = currentUser.nickname;
-			if (draft && !draft.accepted_at) draft = { ...draft, stale: true };
+			if (payload.draft_id) draft = { ...draft, accepted_at: new Date().toISOString(), accepted_by: currentUser.nickname };
 			message = '저장했습니다.';
 			onprogress?.({ total: Math.max(1, lines.length), done: lines.filter((line) => line.text.trim()).length });
-		} catch (err) { if (!disposed) error = err.message; }
-		finally { if (!disposed) busy = false; }
-	}
-	async function applyDraft() {
-		if (!canSave || !draft || draft.stale || draft.accepted_at || !canDiscard()) return;
-		busy = true; error = ''; message = '';
-		try {
-			await request('/api/phone-subtitles', { method: 'POST', headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ action: 'apply_draft', telephone_id: telephoneId, draft_id: draft.draft_id,
-					nickname: currentUser.nickname, pin: currentUser.pin }) });
-			if (disposed) return;
-			await load(`/api/phone-subtitles?telephone=${encodeURIComponent(telephoneId)}`);
-			if (!disposed && !error) message = '초안을 적용했습니다. 검토 대상 줄은 빈칸으로 남겼습니다.';
 		} catch (err) { if (!disposed) error = err.message; }
 		finally { if (!disposed) busy = false; }
 	}
@@ -131,27 +139,7 @@
 		</div>
 		{#if loadedName && clipName !== loadedName}<p class="phone-pending">클립 이름 변경 · 불러오기 필요</p>{/if}
 	</details>
-	{#if draft}
-		<details class="phone-draft">
-			<summary>AI 자막 초안 <span>{draft.accepted_at ? '적용됨' : draft.stale ? '재검토 필요' : `${draft.lines.filter((line) => !line.needs_review).length}개`} · 검토 {draft.lines.filter((line) => line.needs_review).length}개</span></summary>
-			<div class="phone-draft-actions">
-				{#if draft.accepted_at}<span>적용: {draft.accepted_by}</span>
-				{:else if draft.stale}<span>자막 또는 연결이 변경되었습니다. 새 초안이 필요합니다.</span>
-				{:else}<button class="soft" onclick={applyDraft} disabled={!canSave || !draft.lines.some((line) => !line.needs_review)}>초안 적용</button>{/if}
-			</div>
-			{#if draft.notes}<p class="phone-draft-notes">{draft.notes}</p>{/if}
-			<div class="unit-stack phone-draft-lines">
-				{#each draft.lines as proposal}
-					<article class="unit-card" class:untranslated={proposal.needs_review}>
-						<header><strong>자막 {proposal.line}</strong><span>{proposal.time}초{proposal.needs_review ? ' · 검토 필요' : ''}</span></header>
-						<p class="phone-draft-source" lang="ja">{proposal.source_segments.map((index) => draft.transcript.segments[index - 1].text).join(' ')}</p>
-						{#if proposal.text}<p class="phone-draft-text">{proposal.text}</p>{/if}
-						{#if proposal.note}<p class="phone-draft-notes">{proposal.note}</p>{/if}
-					</article>
-				{/each}
-			</div>
-		</details>
-	{/if}
+	{#if draft && !draft.accepted_at && draft.stale}<p class="phone-pending">자막 또는 연결이 변경되어 초안을 불러오지 않았습니다.</p>{/if}
 	{#if busy && !loadedName}<div class="state-card large" role="status">자막 불러오는 중…</div>{/if}
 	<div class="unit-stack phone-units">
 		{#each lines as line, i (line.id)}
@@ -164,6 +152,10 @@
 						<button class="soft phone-icon" title={`${i + 1}번 줄 삭제`} aria-label={`${i + 1}번 줄 삭제`} onclick={() => { if (canEdit) lines = lines.filter((item) => item.id !== line.id); }} disabled={!canEdit}>×</button>
 					</div>
 				</header>
+				{#if draftInfo[line.id]}
+					<p class="phone-draft-source" lang="ja">{draftInfo[line.id].source}</p>
+					{#if draftInfo[line.id].needsReview}<p class="phone-pending">검토 필요: {draftInfo[line.id].note}</p>{/if}
+				{/if}
 				<div class="row">
 					<label class="row-label" for={`phone-time-${line.id}`}>시각</label>
 					<div class="phone-time-field"><input id={`phone-time-${line.id}`} type="number" min="0" step="0.01" bind:value={line.time} disabled={!canEdit} /><span>초</span></div>
@@ -195,13 +187,7 @@
 	.phone-settings { background: var(--panel); border-bottom: 1px solid var(--border); }
 	.phone-settings summary { padding: 9px 16px; color: var(--muted); font-size: 12px; cursor: pointer; }
 	.phone-settings summary span { margin-left: 8px; color: var(--warning); }
-	.phone-draft { margin-top: 14px; border-bottom: 1px solid var(--border); }
-	.phone-draft summary { display: list-item; padding: 10px 0; cursor: pointer; font-size: 13px; }
-	.phone-draft summary span { margin-left: 8px; color: var(--muted); }
-	.phone-draft-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 0; font-size: 12px; color: var(--warning); }
-	.phone-draft-lines { padding: 8px 0 14px; }
-	.phone-draft-source, .phone-draft-text, .phone-draft-notes { padding: 10px 14px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
-	.phone-draft-source, .phone-draft-notes { color: var(--muted); }
+	.phone-draft-source { padding: 10px 14px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: var(--muted); }
 	.phone-clip-controls { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 12px; }
 	.phone-clip-controls input { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 	.phone-units { padding: 14px 0; }

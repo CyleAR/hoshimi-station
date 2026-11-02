@@ -56,8 +56,8 @@ Codex 설정은 공식 문서의 STDIO 설정 형식을 따릅니다: [Model Con
 3. `audio_clip_name`, WAV의 `audio_sha256`, `transcript`, 한국어 `lines`를 제출합니다.
    `transcript`는 `{model, segments: [{start, end, text}]}`이며 시각은 초 단위입니다.
    일본어 인식 결과는 한국어 자막과 별도 보관하고 export하지 않습니다.
-4. 사이트의 전화 자막 창에서 **AI 자막 초안**을 펼쳐 검토하고 **초안 적용**을 누릅니다.
-   적용은 로그인한 작업자만 가능하며 MCP에는 적용 도구가 없습니다.
+4. 사이트의 전화 자막 창에 입력된 초안을 검토·수정하고 **일괄 저장**을 누릅니다.
+   저장은 로그인한 작업자만 가능하며 MCP에는 적용 도구가 없습니다.
    적용된 자막만 기존 `phoneSubtitles.json`으로 출력합니다.
 
 `lines`는 `{line, time, text, source_segments, needs_review, note?}` 배열입니다.

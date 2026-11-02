@@ -109,7 +109,7 @@ function validatedPayload(body) {
 	const fillExisting = base.lines.some((line) => line.text.trim());
 	if (!Array.isArray(body.lines) || !body.lines.length || body.lines.length > 1000 || body.lines.some((line, i) =>
 		!object(line) || !Number.isInteger(line.line) || line.line < 1 || line.line > 1000 || !time(line.time) || !text(line.text) ||
-		typeof line.needs_review !== 'boolean' || !text(line.note ?? '', 2000) ||
+		typeof line.needs_review !== 'boolean' || !text(line.note ?? '', 2000) || (typeof line.text === 'string' && line.text.replace(/\\n/g, '\n').split(/\r\n|\r|\n/).length > 2) ||
 		(line.needs_review ? (line.text !== '' || !line.note?.trim()) : !line.text.trim()) ||
 		!Array.isArray(line.source_segments) || line.source_segments.length > 2000 || (!line.needs_review && !line.source_segments.length) ||
 		line.source_segments.some((index) => !Number.isInteger(index) || index < 1 || index > transcript.segments.length) ||

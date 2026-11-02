@@ -90,6 +90,18 @@ test('partial subtitles retain every existing translation and time, including un
 	assert.deepEqual(phoneService.exportPhoneSubtitles(db)[clip], [existing[0], { line: 2, time: 3.25, text: '잘 들려요?\\n여보세요?' }, existing[2]]);
 });
 
+test('ordinary edited save records draft use atomically and rejects replaced drafts', (t) => {
+	const db = database(t);
+	const saved = drafts.submitPhoneSubtitleDraft(proposal(db), db);
+	const body = { telephone_id: id, expected_link: '', clip_name: clip, revision: 0, exists: false,
+		...user, draft_id: saved.draft_id, lines: [{ time: 0.5, text: '검토 후 수정\n두 번째 줄' }] };
+	assert.equal(phoneService.savePhoneSubtitle({ ...body, draft_id: 'old' }, db).status, 409);
+	assert.deepEqual(phoneService.exportPhoneSubtitles(db), {});
+	assert.equal(phoneService.savePhoneSubtitle(body, db).status, 200);
+	assert.equal(drafts.getPhoneSubtitleWork(id, db).draft.accepted_by, 'tester');
+	assert.equal(phoneService.exportPhoneSubtitles(db)[clip][0].text, '검토 후 수정\\n두 번째 줄');
+});
+
 test('identical retries are idempotent and replacing another draft requires its exact ID', (t) => {
 	const db = database(t), body = proposal(db);
 	const first = drafts.submitPhoneSubtitleDraft(body, db);
@@ -140,6 +152,7 @@ test('rejects invalid recognition data, wrong audio mapping, filled-line overwri
 		{ lines: [{ ...body.lines[0], line: 1, time: 0 }] }, { lines: [{ ...body.lines[0], time: 3.5 }] },
 		{ lines: [{ ...body.lines[0], source_segments: [99] }] }, { lines: [{ ...body.lines[0], needs_review: true, note: '불확실' }] },
 		{ lines: [{ ...body.lines[0], needs_review: true, text: '', note: '' }] }, { base: { ...body.base, lines: [null] } },
+		{ lines: [{ ...body.lines[0], text: '첫째\n둘째\n셋째' }] },
 		{ transcript: { model: 'large-v3', segments: [{ start: 2, end: 1, text: '逆' }] } }
 	]) rejects(() => drafts.submitPhoneSubtitleDraft({ ...body, ...patch }, db), 400);
 	rejects(() => drafts.submitPhoneSubtitleDraft({ ...body, audio_clip_name: 'sud_vo_phone_wrong' }, db), 409);
