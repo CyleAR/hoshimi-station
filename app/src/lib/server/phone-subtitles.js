@@ -77,6 +77,22 @@ export function listPhoneSubtitles(db = getDb()) {
 	return { phones, unlinked };
 }
 
+export function searchPhoneSubtitles(query, db = getDb()) {
+	const normalize = (value) => String(value ?? '').replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t');
+	const needle = normalize(query).trim().toLowerCase();
+	if (!needle) return [];
+	const { phones } = listPhoneSubtitles(db);
+	const clips = new Map(db.prepare('SELECT clip_name, lines_json FROM phone_subtitle_clips').all().map((row) => [row.clip_name, JSON.parse(row.lines_json)]));
+	return phones.flatMap((phone) => {
+		const lines = clips.get(phone.clip_name) ?? [];
+		const match = lines.find((line) => normalize(line.text).toLowerCase().includes(needle));
+		if (!match) return [];
+		return [{ type: 'telephone', id: phone.id, label: phone.label, translated_label: phone.translation_label,
+			subtitle: `전화 자막: ${normalize(match.text).replace(/\s+/g, ' ').slice(0, 70)}`,
+			done: phone.done, total: phone.total, preferred_key: 'phone_subtitles' }];
+	});
+}
+
 export function readPhoneSubtitle(name, db = getDb()) {
 	if (!validClipName(name)) throw new Error('클립 이름이 올바르지 않습니다.');
 	ensurePhoneSubtitles(db);

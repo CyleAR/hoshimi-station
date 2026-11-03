@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -15,7 +17,7 @@ def preview_rows(conn: sqlite3.Connection, old: str, limit: int) -> list[sqlite3
         """
         SELECT unit_id, source_type, category, source_file, record_id, field_path, translation_text
         FROM translation_units
-        WHERE translation_text LIKE '%' || $old || '%'
+        WHERE instr(translation_text, $old) > 0
         ORDER BY source_type, category, source_file, record_id, field_path
         LIMIT $limit
         """,
@@ -28,7 +30,7 @@ def count_rows(conn: sqlite3.Connection, old: str) -> tuple[int, list[sqlite3.Ro
         """
         SELECT COUNT(*)
         FROM translation_units
-        WHERE translation_text LIKE '%' || $old || '%'
+        WHERE instr(translation_text, $old) > 0
         """,
         {"old": old},
     ).fetchone()[0]
@@ -36,7 +38,7 @@ def count_rows(conn: sqlite3.Connection, old: str) -> tuple[int, list[sqlite3.Ro
         """
         SELECT source_type, category, COUNT(*) AS count
         FROM translation_units
-        WHERE translation_text LIKE '%' || $old || '%'
+        WHERE instr(translation_text, $old) > 0
         GROUP BY source_type, category
         ORDER BY count DESC, source_type, category
         """,
@@ -52,11 +54,44 @@ def replace_rows(conn: sqlite3.Connection, old: str, new: str) -> int:
         SET translation_text = replace(translation_text, $old, $new),
             status = CASE WHEN status = 'new' THEN 'edited' ELSE status END,
             updated_at = datetime('now')
-        WHERE translation_text LIKE '%' || $old || '%'
+        WHERE instr(translation_text, $old) > 0
         """,
         {"old": old, "new": new},
     )
     return cursor.rowcount
+
+
+def replace_phone_text(text: str, old: str, new: str) -> str:
+    if any(char in old for char in "\\\r\n"):
+        return text.replace(old, new)
+    parts = re.split(r"(\\r\\n|\\n|\\r|\r\n|\r|\n)", text)
+    return "".join(part if index % 2 else part.replace(old, new) for index, part in enumerate(parts))
+
+
+def phone_matches(conn: sqlite3.Connection, old: str, new: str) -> list[tuple[str, list[dict], list[int]]]:
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'phone_subtitle_clips'").fetchone():
+        return []
+    matches = []
+    for clip_name, lines_json in conn.execute("SELECT clip_name, lines_json FROM phone_subtitle_clips ORDER BY clip_name"):
+        lines = json.loads(lines_json)
+        indices = [index for index, line in enumerate(lines) if replace_phone_text(line.get("text", ""), old, new) != line.get("text", "")]
+        if indices:
+            matches.append((clip_name, lines, indices))
+    return matches
+
+
+def replace_phone_rows(conn: sqlite3.Connection, matches: list[tuple[str, list[dict], list[int]]], old: str, new: str) -> tuple[int, int]:
+    line_count = 0
+    for clip_name, lines, indices in matches:
+        for index in indices:
+            lines[index]["text"] = replace_phone_text(lines[index]["text"], old, new)
+        conn.execute(
+            "UPDATE phone_subtitle_clips SET lines_json = ?, revision = revision + 1, "
+            "updated_by = ?, updated_at = datetime('now') WHERE clip_name = ?",
+            (json.dumps(lines, ensure_ascii=False), "[bot] bulk-replace", clip_name),
+        )
+        line_count += len(indices)
+    return len(matches), line_count
 
 
 def main() -> None:
@@ -79,8 +114,12 @@ def main() -> None:
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
     try:
+        if args.apply:
+            conn.execute("BEGIN IMMEDIATE")
         total, by_category = count_rows(conn, args.old)
+        phones = phone_matches(conn, args.old, args.new)
         print(f"matches={total}")
+        print(f"phone_matches={sum(len(indices) for _, _, indices in phones)} phone_clips={len(phones)}")
         if by_category:
             print("by_category=" + ", ".join(f"{row['source_type']}:{row['category']}:{row['count']}" for row in by_category))
 
@@ -91,13 +130,28 @@ def main() -> None:
             print(f"  before: {before}")
             print(f"  after:  {after}")
 
+        shown = 0
+        for clip_name, lines, indices in phones:
+            for index in indices:
+                if shown >= args.limit:
+                    break
+                before = lines[index]["text"]
+                print(f"- {clip_name} line={index + 1} [phone_subtitle]")
+                print(f"  before: {before}")
+                print(f"  after:  {replace_phone_text(before, args.old, args.new)}")
+                shown += 1
+            if shown >= args.limit:
+                break
+
         if not args.apply:
             print("dry_run=true")
             return
 
         changed = replace_rows(conn, args.old, args.new)
+        phone_clips, phone_lines = replace_phone_rows(conn, phones, args.old, args.new)
         conn.commit()
         print(f"updated={changed}")
+        print(f"phone_updated={phone_lines} phone_clips_updated={phone_clips}")
     finally:
         conn.close()
 

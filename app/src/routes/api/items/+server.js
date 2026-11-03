@@ -1,4 +1,5 @@
 import { all, json } from '$lib/server/db.js';
+import { searchPhoneSubtitles } from '$lib/server/phone-subtitles.js';
 
 const entitySections = {
 	characters: ['character'],
@@ -221,7 +222,7 @@ export function GET({ url }) {
 	const q = normalizeSearch(url.searchParams.get('q') || '');
 	if (q.trim()) {
 		const groups = entityItems(['group'], '', 50);
-		return json({ items: [searchItem(q)], groups });
+		return json({ items: [searchItem(q), ...searchPhoneSubtitles(q)], groups });
 	}
 	if (section === 'stories') {
 		const storyEntities = entityItems(entitySections.stories, q);

@@ -443,7 +443,14 @@
 
 	function applyDetailProgress(item, nextDetail = detail) {
 		if (!item || !nextDetail?.sections?.length) return;
-		const totals = sectionProgress(nextDetail.sections);
+		const isPhoneSearchResult = item.preferred_key === "phone_subtitles" || items.some((entry) =>
+			entry.type === item.type && entry.id === item.id && entry.preferred_key === "phone_subtitles");
+		const phoneSection = isPhoneSearchResult
+			? nextDetail.sections.find((part) => part.kind === "phone_subtitles")
+			: null;
+		const totals = phoneSection
+			? { done: Number(phoneSection.done ?? 0), total: Number(phoneSection.total ?? 0) }
+			: sectionProgress(nextDetail.sections);
 		const patch = { done: totals.done, total: totals.total };
 		selected =
 			selected?.type === item.type && selected?.id === item.id
@@ -515,7 +522,7 @@
 		if (!allowPhoneNavigation()) return;
 		navStack = [];
 		mobilePane = "work";
-		await selectItem(item);
+		await selectItem(item, item?.preferred_key || "");
 		writeHistory("push");
 	}
 
@@ -651,7 +658,7 @@
 		if (shouldOpenInNewTab(event)) {
 			event.preventDefault();
 			event.stopPropagation();
-			openItemInNewTab(item);
+			openItemInNewTab(item, item?.preferred_key || "");
 			return;
 		}
 		selectRootItem(item);

@@ -286,7 +286,7 @@ def checkpoint_db() -> None:
 
 def bulk_replace_translation() -> None:
     print()
-    print("== translation_text 일괄 변경 ==")
+    print("== 번역문 및 전화 자막 일괄 변경 ==")
     old = input("검색할 문자열 > ")
     if not old:
         print("검색 문자열이 비어 있어 취소합니다.")
@@ -483,7 +483,7 @@ def menu() -> str:
     print("   - data/hoshimi.sqlite3-wal 내용을 DB 본체에 반영하고 WAL 크기를 줄입니다.")
     print()
     print("5. 번역문 일괄 변경")
-    print("   - 검색할 문자열과 바꿀 문자열을 입력받아 translation_text에서 일괄 치환합니다.")
+    print("   - 저장된 번역문과 전화 자막에서 문자열을 일괄 치환합니다. AI 초안은 제외합니다.")
     print("   - 먼저 검색 결과 미리보기를 보여준 뒤 확인하면 실제 변경합니다.")
     print()
     print("6. prefill 전체 번역 덮어쓰기")

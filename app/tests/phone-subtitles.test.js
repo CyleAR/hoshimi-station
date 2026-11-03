@@ -171,6 +171,40 @@ test('phone list includes title translations and falls back to asset IDs', (t) =
 	assert.equal(service.readTelephoneSubtitle('missing', database), null);
 });
 
+test('search finds saved phone text including escaped newlines but excludes drafts and unlinked clips', (t) => {
+	const database = freshDb(t);
+	service.ensurePhoneSubtitles(database);
+	const existing = 'sud_vo_phone_tel-card-ai-05-idol-00';
+	assert.equal(service.searchPhoneSubtitles('기존\n자막', database)[0].id, 'tel-card-ai-05-idol-00');
+	assert.equal(service.searchPhoneSubtitles('기존\\n자막', database)[0].preferred_key, 'phone_subtitles');
+	database.prepare('INSERT INTO phone_subtitle_drafts VALUES (?, ?, ?, ?, ?, NULL, NULL)').run('tel-card-ai-05-new-00', 'draft', JSON.stringify({ text: '초안 전용 단어' }), 'hash', 'now');
+	database.prepare('INSERT INTO phone_subtitle_clips (clip_name, lines_json) VALUES (?, ?)').run('sud_vo_phone_unlinked', JSON.stringify([{ time: 0, text: '연결 없는 단어' }]));
+	assert.deepEqual(service.searchPhoneSubtitles('초안 전용 단어', database), []);
+	assert.deepEqual(service.searchPhoneSubtitles('연결 없는 단어', database), []);
+	assert.equal(JSON.parse(database.prepare('SELECT lines_json FROM phone_subtitle_clips WHERE clip_name = ?').get(existing).lines_json)[0].text, '기존\\n자막');
+});
+
+test('global search returns matching phones with their subtitle editor section', async (t) => {
+	const database = freshDb(t);
+	service.ensurePhoneSubtitles(database);
+	globalThis.__phoneTestDb = database;
+	t.after(() => { globalThis.__phoneTestDb = db; });
+	const stub = 'data:text/javascript;base64,' + Buffer.from(`
+		export const all = (sql) => sql.includes('SELECT COUNT(*) total') ? [{ total: 0, done: 0 }] : [];
+		export const json = (data) => new Response(JSON.stringify(data));
+	`).toString('base64');
+	const endpoint = readFileSync(new URL('../src/routes/api/items/+server.js', import.meta.url), 'utf8')
+		.replace("'$lib/server/db.js'", JSON.stringify(stub))
+		.replace("'$lib/server/phone-subtitles.js'", JSON.stringify(serviceUrl));
+	const api = await import('data:text/javascript;base64,' + Buffer.from(endpoint).toString('base64'));
+	const url = new URL('http://localhost/api/items?section=groups');
+	url.searchParams.set('q', '기존\\n자막');
+	const result = await api.GET({ url }).json();
+	assert.equal(result.items[0].type, 'search');
+	assert.deepEqual(result.items.slice(1).map((item) => [item.type, item.id, item.preferred_key]),
+		[['telephone', 'tel-card-ai-05-idol-00', 'phone_subtitles']]);
+});
+
 test('export aliases saved legacy subtitle keys to audio assets without exporting drafts', (t) => {
 	const database = freshDb(t);
 	service.ensurePhoneSubtitles(database);
