@@ -459,6 +459,24 @@ def export_phone_subtitles(conn: sqlite3.Connection, out_dir: Path) -> int | Non
         row[0]: json.loads(row[1])
         for row in conn.execute("SELECT clip_name, lines_json FROM phone_subtitle_clips ORDER BY clip_name")
     }
+    available_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "entities" in available_tables:
+        links = dict(conn.execute("SELECT telephone_id, clip_name FROM phone_subtitle_links")) if "phone_subtitle_links" in available_tables else {}
+        for phone_id, meta_json in conn.execute("SELECT entity_id, meta_json FROM entities WHERE entity_type = 'telephone'"):
+            try:
+                meta = json.loads(meta_json or "{}")
+            except (TypeError, json.JSONDecodeError):
+                meta = {}
+            id_name = "sud_vo_phone_" + phone_id
+            asset_name = "sud_vo_phone_" + (meta.get("assetId") or phone_id)
+            source_name = links.get(phone_id) or (id_name if id_name in payload else asset_name)
+            source = payload.get(source_name)
+            if source_name == asset_name or not source or not any(line.get("text", "").strip() for line in source):
+                continue
+            target = payload.get(asset_name)
+            if target and any(line.get("text", "").strip() for line in target) and target != source:
+                raise ValueError(f"전화 자막 충돌: {source_name}, {asset_name}")
+            payload[asset_name] = source
     path = out_dir / "local-files" / "phoneSubtitles.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

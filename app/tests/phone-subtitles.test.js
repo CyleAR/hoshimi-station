@@ -171,6 +171,25 @@ test('phone list includes title translations and falls back to asset IDs', (t) =
 	assert.equal(service.readTelephoneSubtitle('missing', database), null);
 });
 
+test('export aliases saved legacy subtitle keys to audio assets without exporting drafts', (t) => {
+	const database = freshDb(t);
+	service.ensurePhoneSubtitles(database);
+	const legacy = 'sud_vo_phone_tel-suntory-ai-22-0801';
+	const asset = 'sud_vo_phone_tel-suntory-ai-001';
+	database.prepare('INSERT INTO entities VALUES (?, ?, ?, ?)').run('telephone', 'tel-suntory-ai-22-0801', '전화', JSON.stringify({ assetId: 'tel-suntory-ai-001' }));
+	database.prepare('INSERT INTO phone_subtitle_clips (clip_name, lines_json) VALUES (?, ?)').run(legacy, JSON.stringify([{ line: 1, time: 0, text: '' }]));
+	database.prepare('INSERT INTO phone_subtitle_drafts VALUES (?, ?, ?, ?, ?, NULL, NULL)').run('tel-suntory-ai-22-0801', 'draft', JSON.stringify({ text: '초안' }), 'hash', 'now');
+	assert.equal(service.exportPhoneSubtitles(database)[asset], undefined);
+	const saved = [{ line: 1, time: 1, text: '저장된 자막' }];
+	database.prepare('UPDATE phone_subtitle_clips SET lines_json = ? WHERE clip_name = ?').run(JSON.stringify(saved), legacy);
+	assert.deepEqual(service.exportPhoneSubtitles(database)[asset], saved);
+	assert.deepEqual(service.exportPhoneSubtitles(database)[legacy], saved);
+	assert.equal(database.prepare('SELECT COUNT(*) AS n FROM phone_subtitle_clips WHERE clip_name = ?').get(asset).n, 0);
+	database.prepare('INSERT INTO phone_subtitle_clips (clip_name, lines_json) VALUES (?, ?)').run(asset, JSON.stringify([{ line: 1, time: 0, text: '기존 번역' }]));
+	assert.throws(() => service.exportPhoneSubtitles(database), /전화 자막 충돌/);
+	assert.equal(JSON.parse(database.prepare('SELECT lines_json FROM phone_subtitle_clips WHERE clip_name = ?').get(asset).lines_json)[0].text, '기존 번역');
+});
+
 test('telephone lookup follows saved links and the detail API exposes the embedded editor section', async () => {
 	const phone = service.readTelephoneSubtitle('tel-card-ai-05-new-00', db);
 	assert.equal(phone.saved_link, 'sud_vo_phone_tel-card-ai-05-new-00');

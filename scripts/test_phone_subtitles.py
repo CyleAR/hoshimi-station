@@ -187,6 +187,32 @@ class PhoneSubtitleTests(unittest.TestCase):
         self.assertNotIn(b"unapplied draft", self.phone_file.read_bytes())
         self.assertEqual(json.loads(self.phone_file.read_bytes()), self.clips)
 
+    def test_export_aliases_saved_legacy_keys_to_audio_assets_and_detects_conflicts(self):
+        legacy = "sud_vo_phone_tel-suntory-ai-22-0801"
+        asset = "sud_vo_phone_tel-suntory-ai-001"
+        saved = [{"line": 1, "time": 1, "text": "saved subtitle"}]
+        self.subtitle_schema(clips={legacy: [{"line": 1, "time": 0, "text": ""}]})
+        with sqlite3.connect(self.db) as conn:
+            conn.execute("INSERT INTO entities (entity_type, entity_id, label, meta_json) VALUES (?, ?, ?, ?)",
+                         ("telephone", "tel-suntory-ai-22-0801", "phone", json.dumps({"assetId": "tel-suntory-ai-001"})))
+        self.run_export()
+        self.assertNotIn(asset, json.loads(self.phone_file.read_bytes()))
+        with sqlite3.connect(self.db) as conn:
+            conn.execute("UPDATE phone_subtitle_clips SET lines_json = ? WHERE clip_name = ?", (json.dumps(saved), legacy))
+        self.run_export()
+        result = json.loads(self.phone_file.read_bytes())
+        self.assertEqual(result[legacy], saved)
+        self.assertEqual(result[asset], saved)
+        self.assertNotIn(b"unapplied draft", self.phone_file.read_bytes())
+        with sqlite3.connect(self.db) as conn:
+            self.assertIsNone(conn.execute("SELECT 1 FROM phone_subtitle_clips WHERE clip_name = ?", (asset,)).fetchone())
+            conn.execute("INSERT INTO phone_subtitle_clips (clip_name, lines_json) VALUES (?, ?)",
+                         (asset, json.dumps([{"line": 1, "time": 0, "text": "existing"}])))
+        self.existing_file(b"preserve on conflict")
+        with self.assertRaisesRegex(ValueError, "전화 자막 충돌"):
+            self.run_export()
+        self.assertEqual(self.phone_file.read_bytes(), b"preserve on conflict")
+
     def test_initialized_empty_database_is_authoritative(self):
         self.subtitle_schema(clips={})
         self.existing_file(b'{"old":[]}')
@@ -266,7 +292,9 @@ class PhoneSubtitleTests(unittest.TestCase):
         finally:
             conn.close()
         self.run_export()
-        self.assertEqual(json.loads(self.phone_file.read_bytes()), self.clips)
+        self.assertEqual(json.loads(self.phone_file.read_bytes()), {
+            **self.clips, "sud_vo_phone_tel-test": self.clips["sud_vo_phone_a_custom"]
+        })
 
 
 if __name__ == "__main__":

@@ -143,5 +143,15 @@ export function savePhoneSubtitle(body, db = getDb()) {
 
 export function exportPhoneSubtitles(db = getDb()) {
 	ensurePhoneSubtitles(db);
-	return Object.fromEntries(db.prepare('SELECT clip_name, lines_json FROM phone_subtitle_clips ORDER BY clip_name').all().map((row) => [row.clip_name, JSON.parse(row.lines_json)]));
+	const result = Object.fromEntries(db.prepare('SELECT clip_name, lines_json FROM phone_subtitle_clips ORDER BY clip_name').all().map((row) => [row.clip_name, JSON.parse(row.lines_json)]));
+	for (const phone of listPhoneSubtitles(db).phones) {
+		const source = result[phone.clip_name];
+		if (phone.clip_name === phone.audio_clip_name || !source?.some((line) => line.text.trim())) continue;
+		const target = result[phone.audio_clip_name];
+		if (target?.some((line) => line.text.trim()) && JSON.stringify(target) !== JSON.stringify(source)) {
+			throw Object.assign(new Error(`전화 자막 충돌: ${phone.clip_name}, ${phone.audio_clip_name}`), { status: 409 });
+		}
+		result[phone.audio_clip_name] = source;
+	}
+	return result;
 }
